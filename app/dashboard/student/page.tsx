@@ -10,7 +10,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="min-h-screen p-6 bg-background text-foreground">
-      <h1 className="text-2xl font-bold mb-2">¡Hola, {student?.username}!</h1>
+      <h1 className="text-2xl font-bold mb-2"> ¡Hola, {student?.username}!</h1>
       <p className="text-muted-foreground mb-6">
         Estás en el nivel <strong>{student?.level}</strong> del grado <strong>{student?.grade}</strong>.
       </p>
