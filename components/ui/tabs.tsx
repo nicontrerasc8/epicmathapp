@@ -1,37 +1,48 @@
 'use client'
 
-import { useState, ReactNode, createContext, useContext, ButtonHTMLAttributes } from 'react'
+import {
+  useState,
+  ReactNode,
+  createContext,
+  useContext,
+  ButtonHTMLAttributes,
+} from 'react'
 
+// Context type definition
 type TabsContextType = {
   value: string
   setValue: (val: string) => void
 }
 
+// Create context
 const TabsContext = createContext<TabsContextType | undefined>(undefined)
 
-export function Tabs({ defaultValue, children }: { defaultValue: string; children: ReactNode }) {
+// Tabs root component
+export function Tabs({ defaultValue, children, className }: { defaultValue: string; children: ReactNode; className?: string }) {
   const [value, setValue] = useState(defaultValue)
 
   return (
     <TabsContext.Provider value={{ value, setValue }}>
-      <div>{children}</div>
+      <div className={className}>{children}</div>
     </TabsContext.Provider>
   )
 }
 
-export function TabsList({ children }: { children: ReactNode }) {
-  return <div className="flex justify-center gap-2 mb-4">{children}</div>
+// Tabs header list
+export function TabsList({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={className}>{children}</div>
 }
 
-
-
+// Tab button
 export function TabsTrigger({
   value,
   children,
+  className,
   ...props
 }: {
   value: string
   children: ReactNode
+  className?: string
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const ctx = useContext(TabsContext)
   if (!ctx) throw new Error('TabsTrigger must be used within Tabs')
@@ -49,10 +60,17 @@ export function TabsTrigger({
         isActive
           ? 'bg-primary text-white border-primary'
           : 'bg-muted text-foreground border-border'
-      }`}
+      } ${className ?? ''}`}
     >
       {children}
     </button>
   )
 }
 
+// Tabs content area
+export function TabsContent({ value, children, className }: { value: string; children: ReactNode; className?: string }) {
+  const ctx = useContext(TabsContext)
+  if (!ctx) throw new Error('TabsContent must be used within Tabs')
+
+  return ctx.value === value ? <div className={className}>{children}</div> : null
+}
