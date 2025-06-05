@@ -3,21 +3,15 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 export default function SignInPage() {
   const router = useRouter()
   const supabase = createClient()
 
   const [tab, setTab] = useState<'student' | 'teacher'>('student')
-
   const [username, setUsername] = useState('')
   const [studentError, setStudentError] = useState('')
   const [studentMessage, setStudentMessage] = useState('')
-
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [teacherError, setTeacherError] = useState('')
@@ -61,68 +55,81 @@ export default function SignInPage() {
 
   return (
     <div className="flex items-center justify-center bg-background text-foreground px-4 min-h-screen">
-      <Tabs value={tab} onValueChange={(v:any) => setTab(v as 'student' | 'teacher')} className="w-full max-w-sm">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
-          <TabsTrigger value="student">Estudiante</TabsTrigger>
-          <TabsTrigger value="teacher">Profesor</TabsTrigger>
-        </TabsList>
+      <div className="w-full max-w-sm">
+        <div className="flex gap-4 mb-6 justify-center">
+          <button
+            onClick={() => setTab('student')}
+            className={`px-4 py-2 rounded-md text-sm font-medium border transition ${
+              tab === 'student'
+                ? 'bg-primary text-white border-primary'
+                : 'bg-muted text-foreground border-border'
+            }`}
+          >
+            Estudiante
+          </button>
+          <button
+            onClick={() => setTab('teacher')}
+            className={`px-4 py-2 rounded-md text-sm font-medium border transition ${
+              tab === 'teacher'
+                ? 'bg-primary text-white border-primary'
+                : 'bg-muted text-foreground border-border'
+            }`}
+          >
+            Profesor
+          </button>
+        </div>
 
-        <TabsContent value="student">
+        {tab === 'student' && (
           <form
             onSubmit={handleStudentLogin}
-            className="bg-muted p-8 rounded-2xl shadow-lg w-full flex flex-col gap-6 border border-border"
+            className="bg-muted p-6 rounded-xl shadow flex flex-col gap-4 border border-border"
           >
-            <h1 className="text-2xl font-bold text-center text-primary">Ingreso de Estudiantes</h1>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="username">Nombre de usuario</Label>
-              <Input
-                id="username"
-                name="username"
-                placeholder="pepe123"
-                autoComplete="off"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            </div>
+            <h1 className="text-xl font-bold text-center">Ingreso Estudiante</h1>
+            <input
+              type="text"
+              placeholder="Nombre de usuario"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="p-2 border rounded bg-white"
+            />
             {studentError && <p className="text-destructive text-sm text-center">{studentError}</p>}
             {studentMessage && <p className="text-green-600 text-sm text-center">{studentMessage}</p>}
-            <Button type="submit" className="w-full">Entrar</Button>
+            <button type="submit" className="bg-primary text-white p-2 rounded">
+              Entrar
+            </button>
           </form>
-        </TabsContent>
+        )}
 
-        <TabsContent value="teacher">
+        {tab === 'teacher' && (
           <form
             onSubmit={handleTeacherLogin}
-            className="bg-muted p-8 rounded-2xl shadow-lg w-full flex flex-col gap-6 border border-border"
+            className="bg-muted p-6 rounded-xl shadow flex flex-col gap-4 border border-border"
           >
-            <h1 className="text-2xl font-bold text-center text-primary">Ingreso de Profesores</h1>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Correo electrónico</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="profe@colegio.edu"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+            <h1 className="text-xl font-bold text-center">Ingreso Profesor</h1>
+            <input
+              type="email"
+              placeholder="Correo electrónico"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="p-2 border rounded bg-white"
+            />
+            <input
+              type="password"
+              placeholder="Contraseña"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="p-2 border rounded bg-white"
+            />
             {teacherError && <p className="text-destructive text-sm text-center">{teacherError}</p>}
-            <Button type="submit" className="w-full">Entrar</Button>
+            <button type="submit" className="bg-primary text-white p-2 rounded">
+              Entrar
+            </button>
           </form>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </div>
   )
 }

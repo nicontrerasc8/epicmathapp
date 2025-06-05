@@ -18,8 +18,23 @@ type TabsContextType = {
 const TabsContext = createContext<TabsContextType | undefined>(undefined)
 
 // Tabs root component
-export function Tabs({ defaultValue, children, className }: { defaultValue: string; children: ReactNode; className?: string }) {
-  const [value, setValue] = useState(defaultValue)
+export function Tabs({
+  defaultValue,
+  children,
+  className,
+  value: controlledValue,
+  onValueChange,
+}: {
+  defaultValue: any
+  children: any
+  className?: any
+  value?: any
+  onValueChange?: (value: any) => void
+}) {
+  const isControlled = controlledValue !== undefined && onValueChange !== undefined
+  const [uncontrolledValue, setUncontrolledValue] = useState(defaultValue)
+  const value = isControlled ? controlledValue : uncontrolledValue
+  const setValue = isControlled ? onValueChange : setUncontrolledValue
 
   return (
     <TabsContext.Provider value={{ value, setValue }}>
