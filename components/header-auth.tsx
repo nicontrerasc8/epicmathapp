@@ -14,56 +14,41 @@ export default async function AuthButton() {
 
   if (!hasEnvVars) {
     return (
-      <>
-        <div className="flex gap-4 items-center">
-          <div>
-            <Badge
-              variant={"default"}
-              className="font-normal pointer-events-none"
-            >
-              Please update .env.local file with anon key and url
-            </Badge>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              asChild
-              size="sm"
-              variant={"outline"}
-              disabled
-              className="opacity-75 cursor-none pointer-events-none"
-            >
-              <Link href="/sign-in">Sign in</Link>
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              variant={"default"}
-              disabled
-              className="opacity-75 cursor-none pointer-events-none"
-            >
-              <Link href="/sign-up">Sign up</Link>
-            </Button>
-          </div>
+      <div className="flex gap-4 items-center">
+        <Badge
+       
+          className="font-normal pointer-events-none"
+        >
+          Por favor actualiza el archivo .env.local
+        </Badge>
+        <div className="flex gap-2">
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            disabled
+            className="opacity-75 cursor-not-allowed"
+          >
+            <Link href="/sign-in">Iniciar sesión</Link>
+          </Button>
         </div>
-      </>
+      </div>
     );
   }
+
   return user ? (
     <div className="flex items-center gap-4">
-      Hey, {user.email}!
+      <span className="text-sm font-semibold">¡Hola, {user.email}!</span>
       <form action={signOutAction}>
-        <Button type="submit" variant={"outline"}>
-          Sign out
+        <Button type="submit" variant="destructive" size="sm">
+          Cerrar sesión
         </Button>
       </form>
     </div>
   ) : (
     <div className="flex gap-2">
-      <Button asChild size="sm" variant={"outline"}>
-        <Link href="/sign-in">Sign in</Link>
-      </Button>
-      <Button asChild size="sm" variant={"default"}>
-        <Link href="/sign-up">Sign up</Link>
+      <Button asChild size="sm" variant="secondary">
+        <Link href="/sign-in">Iniciar sesión</Link>
       </Button>
     </div>
   );
