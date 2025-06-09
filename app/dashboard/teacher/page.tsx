@@ -58,13 +58,12 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     const fetchClassrooms = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      const { data: sessionData } = await supabase.auth.getSession()
+      const user = sessionData.session?.user
 
       if (!user) {
-        window.location.href = '/sign-in'
-        return
+        console.log("no hay usuario")
+        return 
       }
 
       const { data, error } = await supabase
@@ -74,7 +73,6 @@ export default function TeacherDashboard() {
 
       if (!error && data) {
         setClassrooms(data)
-
         const forms: QuizForm = {}
         data.forEach((cls) => {
           forms[cls.id] = { title: '', description: '' }

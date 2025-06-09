@@ -10,7 +10,7 @@ export default async function ProtectedPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return redirect("/sign-in"); // Solo para profesores
+    return redirect("/"); // Solo para profesores
   }
 
   const { data: teacher } = await supabase

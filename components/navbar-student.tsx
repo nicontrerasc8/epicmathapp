@@ -24,7 +24,7 @@ function useStudent(redirectIfNotFound = false) {
         localStorage.removeItem('student')
       }
     } else if (redirectIfNotFound) {
-      router.push('/sign-in')
+    
     }
     setLoading(false)
   }, [redirectIfNotFound, router, pathname])
