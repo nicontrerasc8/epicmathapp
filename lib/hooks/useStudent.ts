@@ -9,7 +9,9 @@ type Student = {
   grade: number
   level: number
   school_id: string | null
+  classroom_id: string
 }
+
 
 export function useStudent(redirectIfNotFound = false) {
   const [student, setStudent] = useState<Student | null>(null)
