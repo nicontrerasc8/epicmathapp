@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { createClient } from '@/utils/supabase/client'
+import { useParams, useRouter } from 'next/navigation'
 
 interface Props {
   params: { id: string }
@@ -14,10 +15,12 @@ interface Classroom {
   grade: number
 }
 
-export default function ClassroomPage({ params }: Props) {
-  const router = useRouter()
+export default function ClassroomPage() {
+const params = useParams()
+const router = useRouter()
+const id = params?.id as string
   const supabase = createClient()
-  const { id } = params
+
 
   const [classroom, setClassroom] = useState<Classroom | null>(null)
   const [loading, setLoading] = useState(true)

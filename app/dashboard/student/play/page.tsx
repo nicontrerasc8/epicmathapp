@@ -4,17 +4,11 @@ import { useEffect, useState } from 'react'
 import { useStudent } from '@/lib/hooks/useStudent'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
+import { motion } from 'framer-motion' // Importamos motion para animaciones
 
 interface Tema {
   id: string
   tema: string
-}
-
-interface GameStats {
-  totalSessions: number
-  totalAnswers: number
-  totalCorrect: number
-  lastLevel: number
 }
 
 export default function PlayPage() {
@@ -23,7 +17,6 @@ export default function PlayPage() {
 
   const [temas, setTemas] = useState<Tema[]>([])
   const [loadingTemas, setLoadingTemas] = useState(true)
-  const [stats, setStats] = useState<GameStats | null>(null)
   const [grado, setGrado] = useState<number | null>(null)
 
   useEffect(() => {
@@ -64,72 +57,77 @@ export default function PlayPage() {
 
       if (!temasError && temasData) setTemas(temasData)
       setLoadingTemas(false)
-
-      // 4. Obtener estadísticas del estudiante
-      const { data: sessions } = await supabase
-        .from('game_sessions')
-        .select('final_level, correct_answers, total_answers')
-        .eq('student_id', student.id)
-
-      if (sessions) {
-        const totalSessions = sessions.length
-        const totalAnswers = sessions.reduce((acc, s) => acc + (s.total_answers || 0), 0)
-        const totalCorrect = sessions.reduce((acc, s) => acc + (s.correct_answers || 0), 0)
-        const lastLevel = sessions[0]?.final_level || student.level
-
-        setStats({
-          totalSessions,
-          totalAnswers,
-          totalCorrect,
-          lastLevel
-        })
-      }
     }
 
     fetchTemasAndStats()
   }, [student])
 
   if (loading || loadingTemas) {
-    return <div className="p-6 text-foreground">Cargando...</div>
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-primary-foreground">
+        <div className="text-2xl font-bold animate-pulse text-primary">Cargando...</div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-6">
-      {/* 🔝 Resumen del estudiante */}
-      <div className="mb-8 text-center">
-        <h1 className="text-2xl font-bold mb-2 text-primary">¡Hola, {student?.username}!</h1>
-        <p className="text-muted-foreground">
-          Nivel actual: <strong>{student?.level}</strong> | Grado: <strong>{grado ?? '-'}</strong>
-        </p>
-        {stats && (
-          <div className="mt-4 text-sm text-muted-foreground space-y-1">
-            <p>📊 Partidas jugadas: <strong>{stats.totalSessions}</strong></p>
-            <p>✅ Respuestas correctas: <strong>{stats.totalCorrect}</strong> de {stats.totalAnswers}</p>
-            <p>🎯 Último nivel alcanzado: <strong>{stats.lastLevel}</strong></p>
-          </div>
-        )}
-      </div>
+    <div className="min-h-screen bg-background text-foreground p-6 flex flex-col items-center">
+      {/* 🎉 Contenedor principal con fondo suave y centrado */}
+      <motion.div
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        className="w-full max-w-4xl bg-card rounded-3xl shadow-xl p-8 md:p-10 lg:p-12 mt-8 mb-12 relative overflow-hidden border border-border"
+      >
+        {/* Elementos decorativos de fondo (usando colores del tema si se definen variantes pastel, o primarios/secundarios difuminados) */}
+        {/* Si quieres colores pastel específicos, puedes agregarlos a tu tailwind.config.js o usar opacidades */}
+        <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/20 rounded-full opacity-60 animate-blob"></div>
+        <div className="absolute -bottom-10 -left-10 w-52 h-52 bg-secondary/20 rounded-full opacity-60 animate-blob animation-delay-2000"></div>
 
-      {/* 🎮 Temas disponibles */}
-      <div className="mb-12">
-        <h2 className="text-xl font-semibold mb-4">Elige un tema para jugar:</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {temas.length > 0 ? (
-            temas.map((tema) => (
-             <Link
-  key={tema.id}
-  href={`/dashboard/student/play/${tema.id}`}
-  className="bg-card border border-border rounded-xl p-4 shadow hover:shadow-lg transition text-left block"
->
-  <h3 className="text-lg font-semibold text-foreground">{tema.tema}</h3>
-  <p className="text-sm text-muted-foreground mt-1">Haz clic para comenzar</p>
-</Link>
-            ))
-          ) : (
-            <p className="text-muted-foreground col-span-full text-center">No hay temas disponibles.</p>
-          )}
+        {/* 🔝 Resumen del estudiante */}
+        <div className="mb-10 text-center relative z-10">
+          <h1 className="text-4xl font-extrabold text-primary mb-3 drop-shadow-md">
+            ¡Hola, <span className="text-secondary">{student?.username}</span>!
+          </h1>
+
         </div>
-      </div>
+
+        {/* 🎮 Temas disponibles */}
+        <div className="relative z-10">
+          <h2 className="text-3xl font-bold text-center text-primary mb-6 flex items-center justify-center gap-3">
+            <span role="img" aria-label="joystick">🎮</span> Elige un tema para jugar <span role="img" aria-label="star">✨</span>
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {temas.length > 0 ? (
+              temas.map((tema) => (
+                <motion.div
+                  key={tema.id}
+                  whileHover={{ scale: 1.05, rotate: 2 }}
+                  whileTap={{ scale: 0.95 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.1 + temas.indexOf(tema) * 0.1 }}
+                >
+                  <Link
+                    href={`/dashboard/student/play/${tema.id}`}
+                    // Usamos tus colores primary y secondary para el degradado de las tarjetas
+                    className="bg-gradient-to-br from-secondary to-primary text-primary-foreground rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform border border-primary/30 flex flex-col items-center justify-center text-center h-full"
+                  >
+                    <h3 className="text-2xl font-bold mb-2 tracking-wide">{tema.tema}</h3>
+                    <p className="text-sm opacity-90 mt-1">¡Haz clic para comenzar esta aventura!</p>
+                    <span className="text-5xl mt-3" role="img" aria-label="rocket">🚀</span>
+                  </Link>
+                </motion.div>
+              ))
+            ) : (
+              <p className="text-muted-foreground col-span-full text-center py-8 text-xl">
+                ¡Oops! Parece que no hay temas disponibles por ahora. Vuelve pronto para nuevas aventuras. 
+                <span role="img" aria-label="sad face" className="ml-2">😢</span>
+              </p>
+            )}
+          </div>
+        </div>
+      </motion.div>
     </div>
   )
 }

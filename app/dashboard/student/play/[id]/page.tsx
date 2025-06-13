@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { useStudent } from '@/lib/hooks/useStudent'
+
 import { SumGame } from '@/components/sum/SumGame'
+import { FraccionesHomogeneasGame } from '@/components/fracciones/Fracciones'
 
 interface Tema {
   id: string
@@ -13,7 +14,6 @@ interface Tema {
 
 export default function TemaPlayPage() {
   const { id } = useParams()
-  const { student, loading: loadingStudent } = useStudent(true)
   const [tema, setTema] = useState<Tema | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -40,7 +40,7 @@ export default function TemaPlayPage() {
     fetchTema()
   }, [id])
 
-  if (loading || loadingStudent) {
+  if (loading) {
     return <div className="p-6 text-foreground">Cargando tema...</div>
   }
 
@@ -51,9 +51,8 @@ export default function TemaPlayPage() {
   return (
     <div className="min-h-screen bg-background text-foreground p-6">
       <h1 className="text-2xl font-bold mb-4 text-center">{tema.tema}</h1>
-
-      {/* Aquí puedes pasar el temaId a SumGame o usar otro componente */}
-      <SumGame   />
+      <FraccionesHomogeneasGame/>
     </div>
   )
 }
+/*  */

@@ -49,6 +49,7 @@ export default function SignInPage() {
 
     if (error) {
       setTeacherError('Credenciales incorrectas')
+      console.log(error)
     } else {
       router.push('/dashboard/teacher')
     }

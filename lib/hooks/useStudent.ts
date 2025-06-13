@@ -14,7 +14,7 @@ type Student = {
 
 
 export function useStudent(redirectIfNotFound = false) {
-  const [student, setStudent] = useState<Student | null>(null)
+  const [student, setStudent] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
