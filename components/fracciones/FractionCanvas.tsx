@@ -4,10 +4,6 @@ import React, { useRef, useEffect } from 'react';
 interface FractionCanvasProps {
   numerador: number;
   denominador: number;
-  // Puedes añadir más props si las necesitas en el futuro, pero para esta lógica no son estrictamente necesarias
-  // operador?: string;
-  // numerador2?: number;
-  // denominador2?: number;
 }
 
 const FractionCanvas: React.FC<FractionCanvasProps> = ({
@@ -26,42 +22,58 @@ const FractionCanvas: React.FC<FractionCanvasProps> = ({
     // Limpiar el canvas antes de dibujar
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // --- Parámetros de dibujo ---
-    const barWidth = canvas.width * 0.8; // Ancho de cada barra
-    const barHeight = 30; // Altura de cada barra
-    const paddingY = 10; // Espacio vertical entre barras
-    const textOffset = 25; // Espacio debajo de la barra para el texto de la fracción
+    // Validación para evitar división por cero o valores inválidos
+    if (denominador <= 0 || numerador < 0) return;
+
+    // --- Parámetros de dibujo optimizados ---
+    const padding = 15;
+    const availableWidth = canvas.width - (padding * 2);
+    const availableHeight = canvas.height - (padding * 2);
 
     // Calcular partes enteras y el resto
     const wholeParts = Math.floor(numerador / denominador);
     const remainder = numerador % denominador;
 
-    // Calcular el número total de barras a dibujar
+    // Determinar el número de barras necesarias
     let numberOfBars = wholeParts;
-    if (remainder > 0) {
-      numberOfBars += 1; // Si hay un resto, se necesita una barra extra para la fracción
-    }
-    // Si el numerador es 0 y el denominador no, dibujar una barra vacía
-    if (numerador === 0 && denominador > 0) {
-        numberOfBars = 1;
-    } else if (numerador === 0 && denominador === 0) { // Evitar división por cero
-        numberOfBars = 0;
+    if (remainder > 0 || (numerador === 0 && denominador > 0)) {
+      numberOfBars += 1;
     }
 
+    // Si no hay barras que dibujar, salir
+    if (numberOfBars === 0) return;
 
-    // Ajustar la altura del canvas si necesitamos más espacio para múltiples barras
-    // Opcional: podrías ajustar la altura del canvas dinámicamente si es necesario,
-    // o asegurarte de que el contenedor del canvas sea lo suficientemente alto.
-    // Por ahora, asumimos que height={150} es suficiente para la mayoría de los casos.
-    const totalContentHeight = (barHeight + paddingY) * numberOfBars + textOffset;
-    let currentY = (canvas.height - totalContentHeight) / 2; // Inicia centrado verticalmente
+    // Calcular layout óptimo según el número de barras
+    let barsPerRow, numberOfRows, barWidth, barHeight;
 
+    if (numberOfBars <= 3) {
+      // Para pocas barras, usar una sola fila
+      barsPerRow = numberOfBars;
+      numberOfRows = 1;
+      barWidth = Math.min(120, (availableWidth - (barsPerRow - 1) * 10) / barsPerRow);
+      barHeight = Math.min(60, availableHeight - 20);
+    } else if (numberOfBars <= 12) {
+      // Para cantidades medianas, usar máximo 4 barras por fila
+      barsPerRow = Math.min(4, Math.ceil(Math.sqrt(numberOfBars)));
+      numberOfRows = Math.ceil(numberOfBars / barsPerRow);
+      barWidth = Math.min(80, (availableWidth - (barsPerRow - 1) * 8) / barsPerRow);
+      barHeight = Math.min(40, (availableHeight - (numberOfRows - 1) * 8) / numberOfRows);
+    } else {
+      // Para muchas barras, optimizar el espacio
+      barsPerRow = Math.min(6, Math.floor(availableWidth / 50));
+      numberOfRows = Math.ceil(numberOfBars / barsPerRow);
+      barWidth = Math.max(40, (availableWidth - (barsPerRow - 1) * 5) / barsPerRow);
+      barHeight = Math.max(20, Math.min(35, (availableHeight - (numberOfRows - 1) * 5) / numberOfRows));
+    }
+
+    const spacingX = barsPerRow > 1 ? (availableWidth - barsPerRow * barWidth) / (barsPerRow - 1) : 0;
+    const spacingY = numberOfRows > 1 ? (availableHeight - numberOfRows * barHeight) / (numberOfRows - 1) : 0;
 
     // --- Función auxiliar para dibujar una barra de fracción ---
     const drawSingleFractionBar = (
       ctx: CanvasRenderingContext2D,
-      n: number, // Numerador para esta barra específica
-      d: number, // Denominador base
+      n: number,
+      d: number,
       x: number,
       y: number,
       width: number,
@@ -69,72 +81,83 @@ const FractionCanvas: React.FC<FractionCanvasProps> = ({
       fillColor: string
     ) => {
       // Dibujar el contorno completo de la barra
-      ctx.strokeStyle = '#333'; // Borde oscuro
+      ctx.strokeStyle = '#374151';
       ctx.lineWidth = 2;
       ctx.strokeRect(x, y, width, height);
 
       // Dibujar las partes llenas
       const filledWidth = (n / d) * width;
-      ctx.fillStyle = fillColor; // Color de relleno
-      ctx.fillRect(x, y, filledWidth, height);
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(x + 1, y + 1, filledWidth - 2, height - 2);
 
-      // Dibujar las divisiones dentro de la barra
-      ctx.fillStyle = '#333'; // Color de las líneas divisorias
-      for (let i = 1; i < d; i++) {
-        const divX = x + (i / d) * width;
-        ctx.fillRect(divX - 1, y, 2, height); // Línea divisoria
+      // Dibujar las divisiones internas (solo si es visualmente útil)
+      if (d <= 10 && width > 60) {
+        ctx.strokeStyle = '#6B7280';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < d; i++) {
+          const divX = x + (i / d) * width;
+          ctx.beginPath();
+          ctx.moveTo(divX, y + 1);
+          ctx.lineTo(divX, y + height - 1);
+          ctx.stroke();
+        }
+      } else if (d > 10 && width > 80) {
+        // Para denominadores grandes, solo marcar algunas divisiones clave
+        const step = Math.ceil(d / 5); // Máximo 5 divisiones visibles
+        ctx.strokeStyle = '#9CA3AF';
+        ctx.lineWidth = 0.5;
+        for (let i = step; i < d; i += step) {
+          const divX = x + (i / d) * width;
+          ctx.beginPath();
+          ctx.moveTo(divX, y + 1);
+          ctx.lineTo(divX, y + height - 1);
+          ctx.stroke();
+        }
       }
     };
 
+    // --- Dibujar las barras ---
+    let barIndex = 0;
 
-    // --- Dibujar las barras completas ---
+    // Centrar el contenido
+    const totalContentWidth = barsPerRow * barWidth + (barsPerRow - 1) * spacingX;
+    const totalContentHeight = numberOfRows * barHeight + (numberOfRows - 1) * spacingY;
+    const startX = padding + (availableWidth - totalContentWidth) / 2;
+    const startY = padding + (availableHeight - totalContentHeight) / 2;
+
+    // Dibujar barras completas
     for (let i = 0; i < wholeParts; i++) {
-      const startX = (canvas.width - barWidth) / 2;
-      drawSingleFractionBar(ctx, denominador, denominador, startX, currentY, barWidth, barHeight, '#60A5FA'); // Barra completa
-      currentY += barHeight + paddingY; // Mover Y para la siguiente barra
+      const row = Math.floor(barIndex / barsPerRow);
+      const col = barIndex % barsPerRow;
+      
+      const x = startX + col * (barWidth + spacingX);
+      const y = startY + row * (barHeight + spacingY);
+      
+      drawSingleFractionBar(ctx, denominador, denominador, x, y, barWidth, barHeight, '#3B82F6');
+      barIndex++;
     }
 
-    // --- Dibujar la barra del resto (si existe) o la barra vacía si es 0/d ---
+    // Dibujar la barra del resto
     if (remainder > 0 || (numerador === 0 && denominador > 0)) {
-      const startX = (canvas.width - barWidth) / 2;
-      const nToDraw = (numerador === 0 && denominador > 0) ? 0 : remainder; // Si es 0/d, dibuja 0 partes
-      drawSingleFractionBar(ctx, nToDraw, denominador, startX, currentY, barWidth, barHeight, '#60A5FA');
-      currentY += barHeight + paddingY;
+      const row = Math.floor(barIndex / barsPerRow);
+      const col = barIndex % barsPerRow;
+      
+      const x = startX + col * (barWidth + spacingX);
+      const y = startY + row * (barHeight + spacingY);
+      
+      const nToDraw = (numerador === 0 && denominador > 0) ? 0 : remainder;
+      drawSingleFractionBar(ctx, nToDraw, denominador, x, y, barWidth, barHeight, '#3B82F6');
     }
 
-
-    // --- Mostrar la fracción como texto debajo de las barras ---
-    ctx.fillStyle = '#1F2937'; // Color de texto
-    ctx.font = '20px Arial';
-    ctx.textAlign = 'center';
-
-    let fractionText = '';
-    if (wholeParts > 0 && remainder > 0) {
-      fractionText = `${wholeParts} y ${remainder}/${denominador}`;
-    } else if (wholeParts > 0 && remainder === 0) {
-      fractionText = `${wholeParts}`; // Solo el número entero si es una fracción exacta (e.g., 12/4 = 3)
-    } else if (numerador > 0 && remainder > 0) { // Si es una fracción propia (numerador < denominador)
-      fractionText = `${numerador}/${denominador}`;
-    } else if (numerador === 0 && denominador > 0) { // Si es 0/d
-        fractionText = `0/${denominador}`;
-    } else { // Caso de error o 0/0
-        fractionText = `${numerador}/${denominador}`;
-    }
-
-
-    // Ajustar la posición Y del texto final para que esté debajo de la última barra dibujada.
-    const lastBarBottom = currentY - paddingY; // Restar el último padding
-  
-
-
-  }, [numerador, denominador]); // Re-dibuja cuando cambian numerador o denominador
+  }, [numerador, denominador]);
 
   return (
     <canvas
       ref={canvasRef}
-      width={300} // Ancho fijo, ajusta según necesites
-      height={150} // Alto fijo, ajusta según necesites. Puede que necesites más si hay muchas barras.
-      className="border border-gray-300 rounded-lg bg-gray-50 mt-2"
+      width={350}
+      height={200}
+      className="border border-gray-300 rounded-lg bg-white"
+      style={{ width: '100%', height: 'auto', maxWidth: '400px' }}
     />
   );
 };

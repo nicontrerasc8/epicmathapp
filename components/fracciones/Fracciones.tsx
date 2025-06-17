@@ -5,9 +5,8 @@ import confetti from 'canvas-confetti'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStudent } from '@/lib/hooks/useStudent'
 import { createClient } from '@/utils/supabase/client'
-import FractionCanvas from './FractionCanvas'// ¡Añade esta línea!
+import FractionCanvas from './FractionCanvas' // ¡Añade esta línea!
 const supabase = createClient()
-
 
 // --- Tipos de nivel ---
 type Nivel = 1 | 2 | 3
@@ -49,7 +48,6 @@ const simplificarFraccion = (numerador: number, denominador: number) => {
 }
 
 // --- Generadores de preguntas por nivel ---
-
 const generarPreguntaNivel1 = (): Pregunta => {
   const denominadores = [4, 5, 6, 8]
   const denominador = denominadores[Math.floor(Math.random() * denominadores.length)]
@@ -58,9 +56,9 @@ const generarPreguntaNivel1 = (): Pregunta => {
   const b = Math.floor(Math.random() * 9) + 1 // 1 al 9
 
   const contextosNivel1 = [
-    `María tiene ${a}/${denominador} de una torta y recibe ${b}/${denominador} más`,
-    `Pedro comió ${a}/${denominador} de una pizza y luego ${b}/${denominador} más`,
-    `Ana coloreó ${a}/${denominador} de un dibujo y después ${b}/${denominador} más`
+    `María tiene ${a}/${denominador} de una torta y recibe ${b}/${denominador} más. ¿Cuánto tiene ahora?`,
+    `Pedro comió ${a}/${denominador} de una pizza y luego ${b}/${denominador} más. ¿Cuánto comió en total?`,
+    `Ana coloreó ${a}/${denominador} de un dibujo y después ${b}/${denominador} más. ¿Cuánto coloreó en total?`
   ]
 
   return {
@@ -69,7 +67,6 @@ const generarPreguntaNivel1 = (): Pregunta => {
     contexto: contextosNivel1[Math.floor(Math.random() * contextosNivel1.length)]
   }
 }
-
 
 const generarPreguntaNivel2 = (): Pregunta => {
   const denominadores = [6, 8, 10, 12, 15, 20]
@@ -80,9 +77,9 @@ const generarPreguntaNivel2 = (): Pregunta => {
   const c = Math.floor(Math.random() * 40) + 10
 
   const contextosNivel2 = [
-    `Luis tiene ${a}/${denominador} de chocolate, come ${b}/${denominador} y recibe ${c}/${denominador} más`,
-    `En la biblioteca hay ${a}/${denominador} libros, se prestan ${b}/${denominador} y llegan ${c}/${denominador} nuevos`,
-    `Un tanque tiene ${a}/${denominador} de agua, se usa ${b}/${denominador} y se añade ${c}/${denominador}`
+    `Luis tiene ${a}/${denominador} de chocolate, come ${b}/${denominador} y recibe ${c}/${denominador} más. ¿Cuánto chocolate tiene en total?`,
+    `En la biblioteca hay ${a}/${denominador} libros, se prestan ${b}/${denominador} y llegan ${c}/${denominador} nuevos. ¿Cuántos libros hay ahora?`,
+    `Un tanque tiene ${a}/${denominador} de agua, se usa ${b}/${denominador} y se añade ${c}/${denominador}. ¿Cuánta agua queda?`
   ]
 
   return {
@@ -95,7 +92,6 @@ const generarPreguntaNivel2 = (): Pregunta => {
   }
 }
 
-
 const generarPreguntaNivel3 = (): Pregunta => {
   const denominadores = [12, 15, 18, 20, 24, 30]
   const denominador = denominadores[Math.floor(Math.random() * denominadores.length)]
@@ -106,9 +102,9 @@ const generarPreguntaNivel3 = (): Pregunta => {
   const d = Math.floor(Math.random() * 151) + 50
 
   const contextosNivel3 = [
-    `Una empresa tiene ${a}/${denominador} de presupuesto, recibe ${b}/${denominador}, gasta ${c}/${denominador} y recibe ${d}/${denominador} más`,
-    `Un agricultor cosecha ${a}/${denominador} de su campo, planta ${b}/${denominador}, vende ${c}/${denominador} y cosecha ${d}/${denominador} adicional`,
-    `Un estudiante completa ${a}/${denominador} de tarea, añade ${b}/${denominador}, entrega ${c}/${denominador} y termina ${d}/${denominador} más`
+    `Una empresa tiene ${a}/${denominador} de presupuesto, recibe ${b}/${denominador}, gasta ${c}/${denominador} y recibe ${d}/${denominador} más. ¿Cuánto dinero tiene ahora?`,
+    `Un agricultor cosecha ${a}/${denominador} de su campo, planta ${b}/${denominador}, vende ${c}/${denominador} y cosecha ${d}/${denominador} adicional. ¿Cuánto tiene en total?`,
+    `Un estudiante completa ${a}/${denominador} de tarea, añade ${b}/${denominador}, entrega ${c}/${denominador} y termina ${d}/${denominador} más. ¿Cuánto ha completado en total?`
   ]
 
   return {
@@ -122,7 +118,6 @@ const generarPreguntaNivel3 = (): Pregunta => {
   }
 }
 
-
 const generarPregunta = (nivel: Nivel): Pregunta => {
   switch (nivel) {
     case 1: return generarPreguntaNivel1()
@@ -130,6 +125,9 @@ const generarPregunta = (nivel: Nivel): Pregunta => {
     case 3: return generarPreguntaNivel3()
   }
 }
+
+// --- Función para mostrar el proceso de resolución ---
+
 
 export function FraccionesHomogeneasGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
@@ -140,7 +138,7 @@ export function FraccionesHomogeneasGame() {
   const [respuestaFinal, setRespuestaFinal] = useState({ numerador: '', denominador: '' })
   const [mensaje, setMensaje] = useState<string | null>(null)
   const [mostrarAlerta, setMostrarAlerta] = useState(false)
-  const [mensajeAlerta, setMensajeAlerta] = useState('') // Corrected: ensure useState is used
+  const [mensajeAlerta, setMensajeAlerta] = useState('')
   const [estadisticas, setEstadisticas] = useState<Record<Nivel, EstadisticasNivel>>({
     1: { aciertos: 0, errores: 0, totalPreguntas: 0, consecutiveAciertos: 0, consecutiveErrores: 0 },
     2: { aciertos: 0, errores: 0, totalPreguntas: 0, consecutiveAciertos: 0, consecutiveErrores: 0 },
@@ -181,14 +179,9 @@ export function FraccionesHomogeneasGame() {
     checkOrCreateStudentPeriodo()
   }, [student, "ea5de085-2e52-40ac-b975-8931d08b9e44"])
 
-
   useEffect(() => {
-    // Este efecto se ejecuta cada vez que nivelActual cambia.
-    // Es el ÚNICO lugar que debe iniciar una nueva pregunta para el nivel actual.
-    siguientePregunta(); // Llama a la función que reinicia el juego para el nivel actual.
+    siguientePregunta()
 
-    // Inicializa las estadísticas para el nuevo nivel si no existen,
-    // o simplemente las mantiene si ya existen (y los consecutivos se habrán reiniciado desde actualizarEstadisticas)
     setEstadisticas(prev => {
       if (!prev[nivelActual]) {
         return {
@@ -202,7 +195,8 @@ export function FraccionesHomogeneasGame() {
     return () => {
       inputRefs.current = [];
     };
-  }, [nivelActual]);  // Dependencia crucial: re-ejecuta cuando nivelActual cambia
+  }, [nivelActual]);
+
   const upsertStudentPeriodo = async (nivel: Nivel) => {
     if (!student) return
 
@@ -231,7 +225,6 @@ export function FraccionesHomogeneasGame() {
       })
     }
   }
-
 
   const mostrarNotificacion = (mensaje: string) => {
     setMensajeAlerta(mensaje)
@@ -284,7 +277,8 @@ export function FraccionesHomogeneasGame() {
         setTimeout(() => finalNumeradorRef.current?.focus(), 100)
       }
     } else {
-      setMensaje(obtenerFrase('fail'))
+      // Retroalimentación pedagógica
+      setMensaje("¡Recuerda! Para sumar fracciones con el mismo denominador, solo sumamos los numeradores y mantenemos el denominador.")
       actualizarEstadisticas(false, false) // Pass false for isLevelChange
       setTimeout(() => {
         siguientePregunta() // Generate next question without level change
@@ -312,10 +306,10 @@ export function FraccionesHomogeneasGame() {
 
     if (esCorrecta) {
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
-      setMensaje(obtenerFrase('ok'))
+      setMensaje("¡Excelente! Has simplificado correctamente la fracción.")
       actualizarEstadisticas(true, true) // Pass true for isLevelChange
     } else {
-      setMensaje(obtenerFrase('fail'))
+      setMensaje("Recuerda que al simplificar una fracción debes dividir el numerador y denominador por su máximo común divisor.")
       actualizarEstadisticas(false, true) // Pass true for isLevelChange
     }
   }
@@ -358,7 +352,6 @@ export function FraccionesHomogeneasGame() {
           levelChangeOccurred = true;
         }
       }
-
 
       if (levelChangeOccurred && newLevel !== null) {
         // MUY IMPORTANTE: SOLO LLAMAR setNivelActual AQUÍ.
@@ -405,7 +398,18 @@ export function FraccionesHomogeneasGame() {
       return nuevasEstadisticasGlobal;
     });
   };
+  const mostrarProceso = (operacion: any, pasoIndex: number) => {
+  let proceso = '';
 
+  if (pasoIndex === 0) {
+    proceso = `Para resolver esta fracción, primero debes entender que estás sumando ${operacion.a}/${operacion.denominador} y ${operacion.b}/${operacion.denominador}. Ya que tienen el mismo denominador, solo sumas los numeradores.`;
+  } else {
+    const resultadoAnterior = calcularResultadoPaso(pasoIndex - 1);
+    proceso = `Ahora que tienes ${resultadoAnterior}/${operacion.denominador}, sumamos ${operacion.b}/${operacion.denominador}. El denominador sigue siendo el mismo, así que solo sumamos los numeradores.`;
+  }
+
+  return proceso;
+}
 
   const siguientePregunta = () => {
     // Esta función ahora será el punto central para reiniciar una pregunta
@@ -434,8 +438,8 @@ export function FraccionesHomogeneasGame() {
     if (!esVisible) return null
 
     let operacionTexto = ''
-    let numeradorParaCanvas1 = 0; // Para el primer operando visual (numerador)
-    let numeradorParaCanvas2 = 0; // Para el segundo operando visual (numerador)
+    let numeradorParaCanvas1 = 0;
+    let numeradorParaCanvas2 = 0;
 
     if (pasoIndex === 0) {
       operacionTexto = `${operacion.a}/${pregunta.denominador} ${operacion.operador} ${operacion.b}/${pregunta.denominador} =`
@@ -453,20 +457,23 @@ export function FraccionesHomogeneasGame() {
         key={pasoIndex}
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`bg-white rounded-lg p-4 border-2 ${estaCompletado ? 'border-green-300 bg-green-50' : 'border-gray-200'
-          }`}
+        className={`bg-white rounded-lg p-4 border-2 ${estaCompletado ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}
       >
-        <h3 className={`text-sm font-bold mb-2 text-center rounded px-2 py-1 ${estaCompletado ? 'bg-green-200' : 'bg-yellow-200'
-          }`}>
+        <h3 className={`text-sm font-bold mb-2 text-center rounded px-2 py-1 ${estaCompletado ? 'bg-green-200' : 'bg-yellow-200'}`}>
           {pasoIndex + 1}° operación
         </h3>
 
+        {/* Mostrar proceso de resolución */}
+        <div className="text-center mb-4 text-sm text-gray-600">
+          {mostrarProceso(operacion, pasoIndex)}
+        </div>
+
         {/* --- INICIO: Nuevo bloque para la visualización del Canvas --- */}
         <div className="flex flex-col items-center justify-center mb-4">
-          <div className="flex items-center gap-4"> {/* Contenedor para las dos fracciones y el operador */}
+          <div className="flex items-center gap-4">
             {/* Primera fracción para el canvas */}
             <FractionCanvas numerador={numeradorParaCanvas1} denominador={pregunta.denominador} />
-            {/* Operador (opcional, podrías dibujarlo en el canvas si quieres) */}
+            {/* Operador */}
             <span className="text-3xl font-bold text-gray-800">{operacion.operador}</span>
             {/* Segunda fracción para el canvas */}
             <FractionCanvas numerador={numeradorParaCanvas2} denominador={pregunta.denominador} />

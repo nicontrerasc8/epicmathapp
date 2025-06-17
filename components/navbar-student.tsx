@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { User, LogOut, BookOpen, GraduationCap, ChevronDown } from 'lucide-react'
 
 // Actualizado useStudent hook integrado directamente
 function useStudent(redirectIfNotFound = false) {
@@ -24,7 +25,7 @@ function useStudent(redirectIfNotFound = false) {
         localStorage.removeItem('student')
       }
     } else if (redirectIfNotFound) {
-    
+      // Redirect logic here
     }
     setLoading(false)
   }, [redirectIfNotFound, router, pathname])
@@ -42,6 +43,7 @@ export default function NavbarStudent() {
   const { student, logout, loading } = useStudent(true)
   const [authUser, setAuthUser] = useState<any>(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -58,23 +60,56 @@ export default function NavbarStudent() {
     checkAuth()
   }, [pathname])
 
-  if (loading || authLoading) return null
+  if (loading || authLoading) {
+    return (
+      <div className="flex items-center gap-4">
+        <div className="h-8 w-32 bg-muted animate-pulse rounded-md"></div>
+        <div className="h-8 w-20 bg-muted animate-pulse rounded-md"></div>
+      </div>
+    )
+  }
 
   if (student) {
     return (
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-primary-foreground">
-          👋 Hola, <span className="font-semibold">{student.username}</span>
-        </span>
-        <Link href="/dashboard/student" className="text-sm hover:underline">
-          Dashboard
+      <div className="flex items-center gap-3">
+        {/* Welcome Message */}
+        <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-full border border-primary/20">
+          <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
+            <GraduationCap className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-sm font-medium text-foreground">
+            ¡Hola, <span className="font-semibold text-white">{student.username}</span>!
+          </span>
+        </div>
+
+        {/* Mobile Welcome */}
+        <div className="sm:hidden flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full">
+          <GraduationCap className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium text-primary truncate max-w-20">
+            {student.username}
+          </span>
+        </div>
+
+        {/* Dashboard Link */}
+        <Link 
+          href="/dashboard/student" 
+          className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white hover:bg-accent/20 rounded-lg border border-border hover:border-accent transition-all duration-200 group"
+        >
+          <BookOpen className="w-4 h-4 text-muted-foreground group-hover:text-accent-foreground" />
+          <span className="text-sm font-medium text-foreground group-hover:text-accent-foreground">
+            Dashboard
+          </span>
         </Link>
+
+        {/* Logout Button */}
         <Button
           onClick={logout}
-          variant="destructive"
-          className="text-sm"
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2 bg-red hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all duration-200"
         >
-          Cerrar sesión
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline">Cerrar sesión</span>
         </Button>
       </div>
     )
@@ -82,33 +117,67 @@ export default function NavbarStudent() {
 
   if (authUser) {
     return (
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-primary-foreground">
-          👋 Hola, <span className="font-semibold">{authUser.email}</span>
-        </span>
-        <Link href="/dashboard/teacher" className="text-sm hover:underline">
-          Dashboard
+      <div className="flex items-center gap-3">
+        {/* Teacher Welcome */}
+        <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-secondary/10 to-accent/10 rounded-full border border-secondary/20">
+          <div className="w-8 h-8 bg-gradient-to-br from-secondary to-accent rounded-full flex items-center justify-center">
+            <User className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-sm font-medium text-foreground">
+            ¡Hola, <span className="text-white font-semibold">{authUser.email?.split('@')[0]}</span>!
+          </span>
+        </div>
+
+        {/* Mobile Teacher Welcome */}
+        <div className="sm:hidden flex items-center gap-2 px-3 py-1.5 bg-secondary/10 rounded-full">
+          <User className="w-4 h-4 text-secondary" />
+          <span className="text-sm font-medium text-secondary truncate max-w-20">
+            {authUser.email?.split('@')[0]}
+          </span>
+        </div>
+
+        {/* Dashboard Link */}
+        <Link 
+          href="/dashboard/teacher" 
+          className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white hover:bg-accent/20 rounded-lg border border-border hover:border-accent transition-all duration-200 group"
+        >
+          <BookOpen className="w-4 h-4 text-muted-foreground group-hover:text-accent-foreground" />
+          <span className="text-sm font-medium text-foreground group-hover:text-accent-foreground">
+            Dashboard
+          </span>
         </Link>
+
+        {/* Logout Button */}
         <Button
           onClick={async () => {
             await supabase.auth.signOut()
             router.push('/sign-in')
           }}
-          variant="destructive"
-          className="text-sm"
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2 bg-red hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all duration-200"
         >
-          Cerrar sesión
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline">Cerrar sesión</span>
         </Button>
       </div>
     )
   }
 
   return (
-    <Link
-      href="/sign-in"
-      className="text-sm underline text-primary-foreground hover:text-white"
-    >
-      Iniciar sesión
-    </Link>
+    <div className="flex items-center gap-3">
+      <Link
+        href="/sign-in"
+        className="group relative inline-flex items-center justify-center px-6 py-2 overflow-hidden font-medium text-primary transition duration-300 ease-out border-2 border-primary rounded-full hover:text-white"
+      >
+        <span className="absolute inset-0 flex items-center justify-center w-full h-full text-white duration-300 -translate-x-full bg-primary group-hover:translate-x-0 ease">
+          <User className="w-4 h-4" />
+        </span>
+        <span className="absolute flex items-center justify-center w-full h-full text-primary transition-all duration-300 transform group-hover:translate-x-full ease">
+          Iniciar sesión
+        </span>
+        <span className="relative invisible">Iniciar sesión</span>
+      </Link>
+    </div>
   )
 }
