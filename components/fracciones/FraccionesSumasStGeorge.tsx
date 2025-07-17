@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useStudent } from '@/lib/hooks/useStudent'
 import { createClient } from '@/utils/supabase/client'
 import FractionCanvas from './FractionCanvas' // ¡Añade esta línea!
+import InteractiveFractionCanvas from './InteractiveFractionCanvas'
 const supabase = createClient()
 
 // --- Tipos de nivel ---
@@ -46,21 +47,31 @@ const simplificarFraccion = (numerador: number, denominador: number) => {
     denominador: denominador / divisor
   }
 }
-
-// --- Generadores de preguntas por nivel ---
 const generarPreguntaNivel1 = (): Pregunta => {
-  const denominadores = [4, 5, 6, 8]
+  // Denominadores desde 2 hasta 20 (todos los números)
+  const denominadores = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
   const denominador = denominadores[Math.floor(Math.random() * denominadores.length)]
-
-  const a = Math.floor(Math.random() * 9) + 1 // 1 al 9
-  const b = Math.floor(Math.random() * 9) + 1 // 1 al 9
-
+  
+  let a = 0
+  let b = 0
+  
+  // Asegurar que a + b no exceda el denominador
+  do {
+    a = Math.floor(Math.random() * denominador) + 1 // mínimo 1
+    b = Math.floor(Math.random() * denominador) + 1
+  } while (a + b > denominador)
+  
   const contextosNivel1 = [
     `María tiene ${a}/${denominador} de una torta y recibe ${b}/${denominador} más. ¿Cuánto tiene ahora?`,
     `Pedro comió ${a}/${denominador} de una pizza y luego ${b}/${denominador} más. ¿Cuánto comió en total?`,
-    `Ana coloreó ${a}/${denominador} de un dibujo y después ${b}/${denominador} más. ¿Cuánto coloreó en total?`
+    `Ana coloreó ${a}/${denominador} de un dibujo y después ${b}/${denominador} más. ¿Cuánto coloreó en total?`,
+    `Carlos lee ${a}/${denominador} de un libro y luego ${b}/${denominador} más. ¿Cuánto ha leído en total?`,
+    `Sofía usa ${a}/${denominador} de pintura azul y ${b}/${denominador} de pintura roja. ¿Cuánta pintura usa en total?`,
+    `Laura camina ${a}/${denominador} de una ruta y después ${b}/${denominador} más. ¿Cuánto ha caminado?`,
+    `Diego bebe ${a}/${denominador} de un vaso de agua y luego ${b}/${denominador} más. ¿Cuánto bebió en total?`,
+    `Elena completa ${a}/${denominador} de un rompecabezas y después ${b}/${denominador} más. ¿Cuánto completó?`
   ]
-
+  
   return {
     operaciones: [{ a, b, operador: '+', denominador }],
     denominador,
@@ -69,19 +80,32 @@ const generarPreguntaNivel1 = (): Pregunta => {
 }
 
 const generarPreguntaNivel2 = (): Pregunta => {
-  const denominadores = [6, 8, 10, 12, 15, 20]
+  // Denominadores desde 6 hasta 50 (más variedad)
+  const denominadores = Array.from({length: 45}, (_, i) => i + 6) // 6 al 50
   const denominador = denominadores[Math.floor(Math.random() * denominadores.length)]
-
-  const a = Math.floor(Math.random() * 40) + 10 // 10 al 49
-  const b = Math.floor(Math.random() * 40) + 10
-  const c = Math.floor(Math.random() * 40) + 10
-
+  
+  let a, b, c
+  
+  // Generar números que no excedan 50 y asegurar que la suma total no exceda el denominador
+  do {
+    a = Math.floor(Math.random() * 50) + 1 // 1 al 50
+    b = Math.floor(Math.random() * 50) + 1 // 1 al 50
+    c = Math.floor(Math.random() * 50) + 1 // 1 al 50
+  } while ((a + b + c) > denominador)
+  
   const contextosNivel2 = [
-    `Luis tiene ${a}/${denominador} de chocolate, come ${b}/${denominador} y recibe ${c}/${denominador} más. ¿Cuánto chocolate tiene en total?`,
-    `En la biblioteca hay ${a}/${denominador} libros, se prestan ${b}/${denominador} y llegan ${c}/${denominador} nuevos. ¿Cuántos libros hay ahora?`,
-    `Un tanque tiene ${a}/${denominador} de agua, se usa ${b}/${denominador} y se añade ${c}/${denominador}. ¿Cuánta agua queda?`
+    `Luis tiene ${a}/${denominador} de chocolate, recibe ${b}/${denominador} y luego ${c}/${denominador} más. ¿Cuánto chocolate tiene en total?`,
+    `En la biblioteca hay ${a}/${denominador} libros, llegan ${b}/${denominador} y después ${c}/${denominador} nuevos. ¿Cuántos libros hay ahora?`,
+    `Un tanque tiene ${a}/${denominador} de agua, se añade ${b}/${denominador} y luego ${c}/${denominador} más. ¿Cuánta agua hay en total?`,
+    `Emma tiene ${a}/${denominador} de dulces, compra ${b}/${denominador} y recibe ${c}/${denominador} más. ¿Cuántos dulces tiene ahora?`,
+    `Un jardín tiene ${a}/${denominador} de flores, se plantan ${b}/${denominador} y después ${c}/${denominador} nuevas. ¿Cuántas flores hay en total?`,
+    `Roberto ahorra ${a}/${denominador} de dinero, recibe ${b}/${denominador} y gana ${c}/${denominador} más. ¿Cuánto tiene ahora?`,
+    `Una tienda tiene ${a}/${denominador} de productos, llegan ${b}/${denominador} y después ${c}/${denominador} nuevos. ¿Cuántos productos hay?`,
+    `Patricia estudia ${a}/${denominador} de lecciones, aprende ${b}/${denominador} y domina ${c}/${denominador} más. ¿Cuánto sabe ahora?`,
+    `Un equipo anota ${a}/${denominador} puntos, gana ${b}/${denominador} y suma ${c}/${denominador} más. ¿Cuántos puntos tiene?`,
+    `Maya recolecta ${a}/${denominador} de frutas, encuentra ${b}/${denominador} y recoge ${c}/${denominador} más. ¿Cuántas frutas tiene?`
   ]
-
+  
   return {
     operaciones: [
       { a, b, operador: '+', denominador },
@@ -93,20 +117,33 @@ const generarPreguntaNivel2 = (): Pregunta => {
 }
 
 const generarPreguntaNivel3 = (): Pregunta => {
-  const denominadores = [12, 15, 18, 20, 24, 30]
+  // Denominadores desde 20 hasta 100 (máxima variedad)
+  const denominadores = Array.from({length: 81}, (_, i) => i + 20) // 20 al 100
   const denominador = denominadores[Math.floor(Math.random() * denominadores.length)]
-
-  const a = Math.floor(Math.random() * 151) + 50 // 50 al 200
-  const b = Math.floor(Math.random() * 151) + 50
-  const c = Math.floor(Math.random() * 151) + 50
-  const d = Math.floor(Math.random() * 151) + 50
-
+  
+  let a, b, c, d
+  
+  // Generar números que no excedan 100 y asegurar que la suma total no exceda el denominador
+  do {
+    a = Math.floor(Math.random() * 100) + 1 // 1 al 100
+    b = Math.floor(Math.random() * 100) + 1 // 1 al 100
+    c = Math.floor(Math.random() * 100) + 1 // 1 al 100
+    d = Math.floor(Math.random() * 100) + 1 // 1 al 100
+  } while ((a + b + c + d) > denominador)
+  
   const contextosNivel3 = [
-    `Una empresa tiene ${a}/${denominador} de presupuesto, recibe ${b}/${denominador}, gasta ${c}/${denominador} y recibe ${d}/${denominador} más. ¿Cuánto dinero tiene ahora?`,
-    `Un agricultor cosecha ${a}/${denominador} de su campo, planta ${b}/${denominador}, vende ${c}/${denominador} y cosecha ${d}/${denominador} adicional. ¿Cuánto tiene en total?`,
-    `Un estudiante completa ${a}/${denominador} de tarea, añade ${b}/${denominador}, entrega ${c}/${denominador} y termina ${d}/${denominador} más. ¿Cuánto ha completado en total?`
+    `Una empresa tiene ${a}/${denominador} de presupuesto, recibe ${b}/${denominador}, obtiene ${c}/${denominador} y gana ${d}/${denominador} más. ¿Cuánto dinero tiene ahora?`,
+    `Un agricultor cosecha ${a}/${denominador} de su campo, recibe ${b}/${denominador} adicional, obtiene ${c}/${denominador} y cosecha ${d}/${denominador} más. ¿Cuánto tiene en total?`,
+    `Un estudiante completa ${a}/${denominador} de tarea, añade ${b}/${denominador}, termina ${c}/${denominador} y finaliza ${d}/${denominador} más. ¿Cuánto ha completado en total?`,
+    `Una fábrica produce ${a}/${denominador} de productos, aumenta ${b}/${denominador}, fabrica ${c}/${denominador} y manufactura ${d}/${denominador} adicional. ¿Cuánto tiene en stock?`,
+    `Un depósito tiene ${a}/${denominador} de mercancía, llega ${b}/${denominador} más, se almacena ${c}/${denominador} y se guarda ${d}/${denominador} adicional. ¿Cuánto hay en total?`,
+    `Un programador completa ${a}/${denominador} de código, añade ${b}/${denominador}, programa ${c}/${denominador} y desarrolla ${d}/${denominador} más. ¿Cuánto código tiene?`,
+    `Una cuenta bancaria tiene ${a}/${denominador}, recibe ${b}/${denominador}, se deposita ${c}/${denominador} y se añade ${d}/${denominador} más. ¿Cuál es el saldo?`,
+    `Un científico analiza ${a}/${denominador} de muestras, obtiene ${b}/${denominador} más, recolecta ${c}/${denominador} y consigue ${d}/${denominador} adicionales. ¿Cuántas tiene?`,
+    `Un chef prepara ${a}/${denominador} de ingredientes, añade ${b}/${denominador}, consigue ${c}/${denominador} y obtiene ${d}/${denominador} más. ¿Cuánto tiene disponible?`,
+    `Un atleta completa ${a}/${denominador} de entrenamiento, añade ${b}/${denominador}, practica ${c}/${denominador} y entrena ${d}/${denominador} más. ¿Cuánto entrenó en total?`
   ]
-
+  
   return {
     operaciones: [
       { a, b, operador: '+', denominador },
@@ -117,7 +154,6 @@ const generarPreguntaNivel3 = (): Pregunta => {
     contexto: contextosNivel3[Math.floor(Math.random() * contextosNivel3.length)]
   }
 }
-
 const generarPregunta = (nivel: Nivel): Pregunta => {
   switch (nivel) {
     case 1: return generarPreguntaNivel1()
@@ -129,9 +165,11 @@ const generarPregunta = (nivel: Nivel): Pregunta => {
 // --- Función para mostrar el proceso de resolución ---
 
 
-export function FraccionesHomogeneasGame() {
+export function FraccionesSumasStGeorgeGameGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
+  const [fraccionesVisualesCompletadas, setFraccionesVisualesCompletadas] = useState(false)
+
   const [pasoActual, setPasoActual] = useState(0)
   const { student } = useStudent()
   const [respuestas, setRespuestas] = useState<string[]>([])
@@ -354,8 +392,7 @@ export function FraccionesHomogeneasGame() {
       }
 
       if (levelChangeOccurred && newLevel !== null) {
-        // MUY IMPORTANTE: SOLO LLAMAR setNivelActual AQUÍ.
-        // El useEffect que depende de nivelActual se encargará del resto (nueva pregunta, reset de estado).
+
         setTimeout(() => {
           setNivelActual(newLevel as Nivel);
           upsertStudentPeriodo(newLevel as Nivel)
@@ -430,100 +467,129 @@ export function FraccionesHomogeneasGame() {
 
   if (!pregunta) return null
 
-  const renderPaso = (pasoIndex: number) => {
-    const operacion = pregunta.operaciones[pasoIndex]
-    const esVisible = pasoIndex <= pasoActual
-    const estaCompletado = pasoIndex < pasoActual
+const renderPaso = (pasoIndex: number) => {
+  const operacion = pregunta.operaciones[pasoIndex]
+  const esVisible = pasoIndex <= pasoActual
+  const estaCompletado = pasoIndex < pasoActual
 
-    if (!esVisible) return null
+  if (!esVisible) return null
 
-    let operacionTexto = ''
-    let numeradorParaCanvas1 = 0;
-    let numeradorParaCanvas2 = 0;
+  const den = pregunta.denominador
+  const num1 = pasoIndex === 0 ? operacion.a : calcularResultadoPaso(pasoIndex - 1)
+  const num2 = operacion.b
+  const operacionTexto = `${num1}/${den} ${operacion.operador} ${num2}/${den} =`
 
-    if (pasoIndex === 0) {
-      operacionTexto = `${operacion.a}/${pregunta.denominador} ${operacion.operador} ${operacion.b}/${pregunta.denominador} =`
-      numeradorParaCanvas1 = operacion.a;
-      numeradorParaCanvas2 = operacion.b;
+  const verificarPasoVisual = () => {
+    if (!pregunta) return
+    const sumaEsperada = num1 + num2
+    const respuestaNum = Number(respuestas[pasoIndex])
+    if (respuestaNum === sumaEsperada) {
+      setMensaje('✅ ¡Fracciones representadas correctamente!')
+      setFraccionesVisualesCompletadas(true)
     } else {
-      const resultadoAnterior = calcularResultadoPaso(pasoIndex - 1)
-      operacionTexto = `${resultadoAnterior}/${pregunta.denominador} ${operacion.operador} ${operacion.b}/${pregunta.denominador} =`
-      numeradorParaCanvas1 = resultadoAnterior;
-      numeradorParaCanvas2 = operacion.b;
+      setMensaje('❌ Revisa la representación visual. La suma no es correcta.')
+      setFraccionesVisualesCompletadas(false)
     }
-
-    return (
-      <motion.div
-        key={pasoIndex}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className={`bg-white rounded-lg p-4 border-2 ${estaCompletado ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}
-      >
-        <h3 className={`text-sm font-bold mb-2 text-center rounded px-2 py-1 ${estaCompletado ? 'bg-green-200' : 'bg-yellow-200'}`}>
-          {pasoIndex + 1}° operación
-        </h3>
-
-        {/* Mostrar proceso de resolución */}
-        <div className="text-center mb-4 text-sm text-gray-600">
-          {mostrarProceso(operacion, pasoIndex)}
-        </div>
-
-        {/* --- INICIO: Nuevo bloque para la visualización del Canvas --- */}
-        <div className="flex flex-col items-center justify-center mb-4">
-          <div className="flex items-center gap-4">
-            {/* Primera fracción para el canvas */}
-            <FractionCanvas numerador={numeradorParaCanvas1} denominador={pregunta.denominador} />
-            {/* Operador */}
-            <span className="text-3xl font-bold text-gray-800">{operacion.operador}</span>
-            {/* Segunda fracción para el canvas */}
-            <FractionCanvas numerador={numeradorParaCanvas2} denominador={pregunta.denominador} />
-          </div>
-        </div>
-        {/* --- FIN: Nuevo bloque para la visualización del Canvas --- */}
-
-        <div className="mb-4 text-center font-semibold text-gray-700 text-lg">
-          {operacionTexto}
-        </div>
-
-        <div className="flex items-center justify-center mb-4">
-          <div className="flex flex-col items-center">
-            <input
-              ref={el => { inputRefs.current[pasoIndex] = el }}
-              value={respuestas[pasoIndex] || ''}
-              onChange={(e) => actualizarRespuesta(pasoIndex, e.target.value)}
-              className="border-b-2 border-gray-300 bg-gray-200 rounded-sm text-center p-1 w-16 text-xl focus:border-blue-500 focus:outline-none bg-white font-bold"
-              maxLength={3}
-              disabled={estaCompletado}
-              placeholder="?"
-              type="number" // Asegura que solo se ingresen números
-            />
-            {/* La línea de la fracción */}
-            <div className="w-16 h-1 bg-gray-400 my-1"></div> {/* Ajustado my-1 para un espacio más natural */}
-            <div className="text-xl font-bold text-gray-700">{pregunta.denominador}</div>
-          </div>
-        </div>
-
-        {!estaCompletado && (
-          <div className="flex flex-col items-center gap-2">
-            <button
-              onClick={() => verificarPaso(pasoIndex)}
-              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition text-sm"
-            >
-              Verificar
-            </button>
-          </div>
-        )}
-
-        {estaCompletado && (
-          <div className="flex justify-center">
-            <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm">✓</span>
-            </div>
-          </div>
-        )}
-      </motion.div>
-    )
   }
+
+  return (
+    <motion.div
+      key={pasoIndex}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={`bg-white rounded-lg p-4 border-2 ${estaCompletado ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}
+    >
+      <h3 className={`text-sm font-bold mb-2 text-center rounded px-2 py-1 ${estaCompletado ? 'bg-green-200' : 'bg-yellow-200'}`}>
+        {pasoIndex + 1}° operación
+      </h3>
+
+      <div className="text-center mb-4 text-sm text-gray-600">
+        {mostrarProceso(operacion, pasoIndex)}
+      </div>
+
+      {/* Visualización con Canvas */}
+      <div className="flex flex-col items-center justify-center mb-4">
+        <div className="flex items-center gap-4">
+          <FractionCanvas numerador={num1} denominador={den} />
+          <span className="text-3xl font-bold text-gray-800">{operacion.operador}</span>
+          <FractionCanvas numerador={num2} denominador={den} />
+        </div>
+
+        {nivelActual === 1 && (
+          <>
+            <p className="text-lg font-semibold text-center text-blue-700 mt-4 mb-3">
+              Paso 1: Representa el resultado de la suma haciendo clic en la barra.
+            </p>
+            <div className="flex items-center justify-center mt-4">
+              <InteractiveFractionCanvas
+                key={`respuesta-${pasoIndex}`}
+                denominador={den}
+                initialNumerador={Number(respuestas[pasoIndex]) || 0}
+                onChange={(valor) => actualizarRespuesta(pasoIndex, valor.toString())}
+              />
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={verificarPasoVisual}
+                disabled={Number(respuestas[pasoIndex]) === 0}
+                className={`px-5 py-2 rounded-xl text-white font-semibold transition text-base ${
+                  Number(respuestas[pasoIndex]) === 0
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-blue-500 hover:bg-blue-600'
+                }`}
+              >
+                Verificar fracciones
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="mb-4 text-center font-semibold text-gray-700 text-lg">
+        {operacionTexto}
+      </div>
+
+      <div className="flex items-center justify-center mb-4">
+        <div className="flex flex-col items-center">
+          <input
+            ref={el => { inputRefs.current[pasoIndex] = el }}
+            value={respuestas[pasoIndex] || ''}
+            onChange={(e) => actualizarRespuesta(pasoIndex, e.target.value)}
+            className="border-b-2 border-gray-300 bg-gray-200 rounded-sm text-center p-1 w-16 text-xl focus:border-blue-500 focus:outline-none bg-white font-bold"
+            maxLength={3}
+            disabled={nivelActual === 1 && !fraccionesVisualesCompletadas || estaCompletado}
+            placeholder="?"
+            type="number"
+          />
+          <div className="w-16 h-1 bg-gray-400 my-1"></div>
+          <div className="text-xl font-bold text-gray-700">{den}</div>
+        </div>
+      </div>
+
+      {!estaCompletado && (
+        <div className="flex flex-col items-center gap-2">
+          <button
+            onClick={() => verificarPaso(pasoIndex)}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition text-sm"
+            disabled={nivelActual === 1 && !fraccionesVisualesCompletadas}
+          >
+            Verificar
+          </button>
+        </div>
+      )}
+
+      {estaCompletado && (
+        <div className="flex justify-center">
+          <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+            <span className="text-white text-sm">✓</span>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+
 
   const currentStats = estadisticas[nivelActual] || { aciertos: 0, errores: 0, totalPreguntas: 0, consecutiveAciertos: 0, consecutiveErrores: 0 };
 

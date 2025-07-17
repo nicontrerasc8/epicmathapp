@@ -166,18 +166,14 @@ export default function NavbarStudent() {
 
   return (
     <div className="flex items-center gap-3">
-      <Link
-        href="/sign-in"
-        className="group relative inline-flex items-center justify-center px-6 py-2 overflow-hidden font-medium text-primary transition duration-300 ease-out border-2 border-primary rounded-full hover:text-white"
-      >
-        <span className="absolute inset-0 flex items-center justify-center w-full h-full text-white duration-300 -translate-x-full bg-primary group-hover:translate-x-0 ease">
-          <User className="w-4 h-4" />
-        </span>
-        <span className="absolute flex items-center justify-center w-full h-full text-primary transition-all duration-300 transform group-hover:translate-x-full ease">
-          Iniciar sesión
-        </span>
-        <span className="relative invisible">Iniciar sesión</span>
-      </Link>
+  <Link
+  href="/sign-in"
+  className="inline-flex items-center gap-2 px-6 py-2 font-medium text-primary border-2 border-primary rounded-full bg-white hover:bg-secondary hover:text-white transition-colors duration-300"
+>
+  <User className="w-4 h-4" />
+  Iniciar sesión
+</Link>
+
     </div>
   )
 }

@@ -26,10 +26,11 @@ const config: Config = {
           DEFAULT: "#3B82F6", // azul
           foreground: "#ffffff",
         },
-        secondary: {
-          DEFAULT: "#F472B6", // rosado lúdico
-          foreground: "#ffffff",
-        },
+ secondary: {
+  DEFAULT: "#10B981", // verde esmeralda
+  foreground: "#ffffff",
+},
+
         destructive: {
           DEFAULT: "#EF4444", // rojo error
           foreground: "#ffffff",

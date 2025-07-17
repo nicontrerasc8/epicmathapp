@@ -5,11 +5,19 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
 import { SumGame } from '@/components/sum/SumGame'
-import { FraccionesHomogeneasGame } from '@/components/fracciones/Fracciones'
+import { FraccionesSumasStGeorgeGameGame } from '@/components/fracciones/FraccionesSumasStGeorge'
+import { FraccionesMultiplicacionesStGeorgeGame } from '@/components/fracciones/FraccionesMultiplicacionesStGeorge' // <-- importa nuevos juegos
 
 interface Tema {
   id: string
   tema: string
+}
+
+// Mapeo de ID de tema a componente
+const gameComponents: Record<string, React.ComponentType> = {
+  'ea5de085-2e52-40ac-b975-8931d08b9e44': FraccionesSumasStGeorgeGameGame,
+  '4f098735-8cea-416a-be52-12e91adbba23': FraccionesMultiplicacionesStGeorgeGame,
+  // Agrega más aquí cuando tengas más juegos
 }
 
 export default function TemaPlayPage() {
@@ -48,11 +56,17 @@ export default function TemaPlayPage() {
     return <div className="p-6 text-red-500">❌ No se encontró el tema.</div>
   }
 
+  // Selecciona componente según ID
+  const SelectedGame = gameComponents[tema.id]
+
   return (
     <div className="min-h-screen bg-background text-foreground p-6">
       <h1 className="text-2xl font-bold mb-4 text-center">{tema.tema}</h1>
-      <FraccionesHomogeneasGame/>
+      {SelectedGame ? (
+        <SelectedGame />
+      ) : (
+        <div className="text-red-500">⚠️ No hay juego asignado para este tema.</div>
+      )}
     </div>
   )
 }
-/*  */

@@ -23,9 +23,15 @@ const FractionCanvas: React.FC<FractionCanvasProps> = ({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Validación para evitar división por cero o valores inválidos
-    if (denominador <= 0 || numerador < 0) return;
+    if (denominador <= 0 || numerador < 0) {
+      ctx.fillStyle = '#EF4444'; // Rojo para error
+      ctx.font = '20px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Valores inválidos', canvas.width / 2, canvas.height / 2);
+      return;
+    }
 
-    // --- Parámetros de dibujo optimizados ---
+    // --- Parámetros de dibujo ---
     const padding = 15;
     const availableWidth = canvas.width - (padding * 2);
     const availableHeight = canvas.height - (padding * 2);
@@ -34,34 +40,70 @@ const FractionCanvas: React.FC<FractionCanvasProps> = ({
     const wholeParts = Math.floor(numerador / denominador);
     const remainder = numerador % denominador;
 
-    // Determinar el número de barras necesarias
-    let numberOfBars = wholeParts;
+    // Determinar el número de barras necesarias para la visualización
+    let barsToDraw = wholeParts;
     if (remainder > 0 || (numerador === 0 && denominador > 0)) {
-      numberOfBars += 1;
+      barsToDraw += 1;
     }
 
-    // Si no hay barras que dibujar, salir
-    if (numberOfBars === 0) return;
+    // --- Umbral para cambiar a representación simplificada ---
+    const MAX_VISUAL_BARS = 20; // Número máximo de barras individuales a dibujar
+
+    if (barsToDraw > MAX_VISUAL_BARS) {
+      // --- Representación Simplificada ---
+      ctx.fillStyle = '#374151'; // Color de texto
+      ctx.font = '18px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      let displayLines: string[] = [];
+
+      if (wholeParts > 0) {
+        displayLines.push(`${wholeParts} unidades completas`);
+      }
+      
+      if (remainder > 0) {
+        displayLines.push(`Más ${remainder}/${denominador} de unidad`);
+      } else if (numerador === 0 && denominador > 0) {
+        displayLines.push(`0/${denominador} de unidad`);
+      }
+      
+      if (wholeParts === 0 && remainder === 0 && numerador === 0) {
+        displayLines.push('0 unidades');
+      }
+
+      displayLines.push('(Representación simplificada)');
+
+
+      const lineHeight = 25;
+      const startY = canvas.height / 2 - (displayLines.length - 1) * lineHeight / 2;
+
+      displayLines.forEach((line, index) => {
+        ctx.fillText(line, canvas.width / 2, startY + index * lineHeight);
+      });
+
+      return; // Salir, ya se dibujó la representación simplificada
+    }
+
+    // --- Lógica de dibujo para números manejables ---
 
     // Calcular layout óptimo según el número de barras
     let barsPerRow, numberOfRows, barWidth, barHeight;
 
-    if (numberOfBars <= 3) {
-      // Para pocas barras, usar una sola fila
-      barsPerRow = numberOfBars;
+    if (barsToDraw <= 3) {
+      barsPerRow = barsToDraw;
       numberOfRows = 1;
       barWidth = Math.min(120, (availableWidth - (barsPerRow - 1) * 10) / barsPerRow);
       barHeight = Math.min(60, availableHeight - 20);
-    } else if (numberOfBars <= 12) {
-      // Para cantidades medianas, usar máximo 4 barras por fila
-      barsPerRow = Math.min(4, Math.ceil(Math.sqrt(numberOfBars)));
-      numberOfRows = Math.ceil(numberOfBars / barsPerRow);
+    } else if (barsToDraw <= 12) {
+      barsPerRow = Math.min(4, Math.ceil(Math.sqrt(barsToDraw)));
+      numberOfRows = Math.ceil(barsToDraw / barsPerRow);
       barWidth = Math.min(80, (availableWidth - (barsPerRow - 1) * 8) / barsPerRow);
       barHeight = Math.min(40, (availableHeight - (numberOfRows - 1) * 8) / numberOfRows);
     } else {
-      // Para muchas barras, optimizar el espacio
+      // Para un número de barras "grande" pero aún visualizable (hasta MAX_VISUAL_BARS)
       barsPerRow = Math.min(6, Math.floor(availableWidth / 50));
-      numberOfRows = Math.ceil(numberOfBars / barsPerRow);
+      numberOfRows = Math.ceil(barsToDraw / barsPerRow);
       barWidth = Math.max(40, (availableWidth - (barsPerRow - 1) * 5) / barsPerRow);
       barHeight = Math.max(20, Math.min(35, (availableHeight - (numberOfRows - 1) * 5) / numberOfRows));
     }
@@ -90,8 +132,9 @@ const FractionCanvas: React.FC<FractionCanvasProps> = ({
       ctx.fillStyle = fillColor;
       ctx.fillRect(x + 1, y + 1, filledWidth - 2, height - 2);
 
-      // Dibujar las divisiones internas (solo si es visualmente útil)
-      if (d <= 10 && width > 60) {
+      // Dibujar las divisiones internas (solo si es visualmente útil y el denominador no es demasiado grande)
+      const maxDivisionsToDraw = 12; // Aumentado a 12
+      if (d <= maxDivisionsToDraw && width > 30) { // Umbral de ancho reducido a 30
         ctx.strokeStyle = '#6B7280';
         ctx.lineWidth = 1;
         for (let i = 1; i < d; i++) {
@@ -101,7 +144,7 @@ const FractionCanvas: React.FC<FractionCanvasProps> = ({
           ctx.lineTo(divX, y + height - 1);
           ctx.stroke();
         }
-      } else if (d > 10 && width > 80) {
+      } else if (d > maxDivisionsToDraw && width > 50) { // Umbral de ancho ajustado a 50
         // Para denominadores grandes, solo marcar algunas divisiones clave
         const step = Math.ceil(d / 5); // Máximo 5 divisiones visibles
         ctx.strokeStyle = '#9CA3AF';
@@ -137,8 +180,8 @@ const FractionCanvas: React.FC<FractionCanvasProps> = ({
       barIndex++;
     }
 
-    // Dibujar la barra del resto
-    if (remainder > 0 || (numerador === 0 && denominador > 0)) {
+    // Dibujar la barra del resto (si aplica)
+    if (remainder > 0 || (numerador === 0 && denominador > 0 && barsToDraw > 0)) {
       const row = Math.floor(barIndex / barsPerRow);
       const col = barIndex % barsPerRow;
       
@@ -154,10 +197,10 @@ const FractionCanvas: React.FC<FractionCanvasProps> = ({
   return (
     <canvas
       ref={canvasRef}
-      width={350}
+      width={350} // Puedes ajustar el ancho y alto base del canvas
       height={200}
       className="border border-gray-300 rounded-lg bg-white"
-      style={{ width: '100%', height: 'auto', maxWidth: '400px' }}
+      style={{ width: '100%', height: 'auto', maxWidth: '400px' }} // Estilos CSS para el tamaño visible
     />
   );
 };
