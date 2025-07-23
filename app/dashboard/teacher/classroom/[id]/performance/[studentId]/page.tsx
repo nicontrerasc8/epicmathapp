@@ -25,19 +25,26 @@ export default function StudentPerformanceDetailPage() {
   useEffect(() => {
     if (!studentId) return
 
+    // Define a more specific type for the data coming directly from Supabase
+    type StudentResponseData = {
+      es_correcto: boolean
+      tiempo_segundos: number
+      // Supabase returns tema_periodo as an object with 'tema'
+      tema_periodo: { tema: string } | null
+    }
+
     const fetchData = async () => {
       const { data, error } = await supabase
         .from('student_responses')
         .select(`
           es_correcto,
           tiempo_segundos,
-          tema_periodo_id,
-        tema_periodo:tema_periodo_id ( tema )
-
+          tema_periodo:tema_periodo_id ( tema )
         `)
-        .eq('student_id', studentId)
+        .eq('student_id', studentId) as { data: StudentResponseData[] | null; error: any } // <--- Add this type assertion
 
       if (error) return console.error(error)
+      if (!data) return // Handle case where data is null
 
       const total = data.length
       const correctos = data.filter(r => r.es_correcto).length
@@ -46,14 +53,10 @@ export default function StudentPerformanceDetailPage() {
 
       setResumen({ total, correctos, incorrectos, tiempo_total })
 
-      const agrupado = {} as any
+      const agrupado = {} as any // This 'any' is okay here for aggregation
       for (const r of data) {
-      console.log("tema_periodo structure:", r.tema_periodo)
-  console.log("tema value:", r.tema_periodo?.tema)
-
-  const tema = r.tema_periodo?.tema || 'Desconocido'
-
-
+        // Ensure tema_periodo and tema exist before accessing
+        const tema = r.tema_periodo?.tema || 'Desconocido'
 
         if (!agrupado[tema]) {
           agrupado[tema] = {
