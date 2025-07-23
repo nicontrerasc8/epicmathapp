@@ -6,6 +6,7 @@ import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import Link from "next/link";
 import "./globals.css";
+import { Toaster } from "react-hot-toast";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -37,6 +38,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <main className="min-h-screen flex flex-col">
+             <Toaster position="top-center" reverseOrder={false} />
             {/* Navbar */}
             <nav className="bg-primary text-primary-foreground shadow-md">
               <div className="w-full max-w-5xl mx-auto flex justify-between items-center p-4">

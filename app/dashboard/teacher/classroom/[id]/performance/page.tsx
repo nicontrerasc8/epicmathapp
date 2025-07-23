@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import Link from 'next/link'
 
 export default function PerformancePage() {
   const supabase = createClient()
@@ -46,7 +47,7 @@ export default function PerformancePage() {
           continue
         }
 
-        const temas = (registros ?? []).map((r:any) => ({
+        const temas = (registros ?? []).map((r: any) => ({
           tema: r.tema_periodo?.tema || 'Desconocido',
           nivel: r.nivel,
         }))
@@ -91,21 +92,21 @@ export default function PerformancePage() {
   // Calcular estadísticas por tema
   const getTopicStats = () => {
     const topicStats: { [key: string]: { nivel1: number, nivel2: number, nivel3: number, total: number } } = {}
-    
+
     students.forEach((student: any) => {
       student.temas.forEach((tema: any) => {
         if (!topicStats[tema.tema]) {
           topicStats[tema.tema] = { nivel1: 0, nivel2: 0, nivel3: 0, total: 0 }
         }
-        
+
         if (tema.nivel === 1) topicStats[tema.tema].nivel1++
         else if (tema.nivel === 2) topicStats[tema.tema].nivel2++
         else if (tema.nivel === 3) topicStats[tema.tema].nivel3++
-        
+
         topicStats[tema.tema].total++
       })
     })
-    
+
     return topicStats
   }
 
@@ -147,21 +148,19 @@ export default function PerformancePage() {
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-2 border border-white/20 shadow-lg">
             <button
               onClick={() => setShowGraphs(true)}
-              className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                showGraphs 
-                  ? 'bg-primary text-primary-foreground shadow-md' 
+              className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${showGraphs
+                  ? 'bg-primary text-primary-foreground shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
+                }`}
             >
               📈 Estadísticas por Tema
             </button>
             <button
               onClick={() => setShowGraphs(false)}
-              className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                !showGraphs 
-                  ? 'bg-primary text-primary-foreground shadow-md' 
+              className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${!showGraphs
+                  ? 'bg-primary text-primary-foreground shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
+                }`}
             >
               👥 Vista por Estudiante
             </button>
@@ -192,7 +191,7 @@ export default function PerformancePage() {
                     const porcentajeNivel3 = Math.round((stats.nivel3 / stats.total) * 100)
 
                     return (
-                      <div 
+                      <div
                         key={tema}
                         className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300"
                       >
@@ -222,7 +221,7 @@ export default function PerformancePage() {
                               </span>
                             </div>
                             <div className="w-full bg-green-50 rounded-full h-4 overflow-hidden border border-green-200">
-                              <div 
+                              <div
                                 className="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-1000 ease-out rounded-full"
                                 style={{ width: `${porcentajeNivel3}%` }}
                               ></div>
@@ -241,7 +240,7 @@ export default function PerformancePage() {
                               </span>
                             </div>
                             <div className="w-full bg-yellow-50 rounded-full h-4 overflow-hidden border border-yellow-200">
-                              <div 
+                              <div
                                 className="h-full bg-gradient-to-r from-yellow-400 to-yellow-600 transition-all duration-1000 ease-out rounded-full"
                                 style={{ width: `${porcentajeNivel2}%` }}
                               ></div>
@@ -260,7 +259,7 @@ export default function PerformancePage() {
                               </span>
                             </div>
                             <div className="w-full bg-orange-50 rounded-full h-4 overflow-hidden border border-orange-200">
-                              <div 
+                              <div
                                 className="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-1000 ease-out rounded-full"
                                 style={{ width: `${porcentajeNivel1}%` }}
                               ></div>
@@ -286,13 +285,13 @@ export default function PerformancePage() {
               /* Vista por Estudiante */
               <div className="grid gap-6">
                 {students.map((student: any, index: number) => (
-                  <div 
-                    key={student.id} 
+                  <div
+                    key={student.id}
                     className="group relative overflow-hidden rounded-2xl bg-white/80 backdrop-blur-sm border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-secondary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    
+
                     <div className="relative p-6">
                       {/* Student Header */}
                       <div className="flex items-center gap-4 mb-6">
@@ -311,7 +310,7 @@ export default function PerformancePage() {
                         <div className="text-right">
                           <div className="text-sm text-muted-foreground">Nivel Promedio</div>
                           <div className="text-2xl font-bold text-primary">
-                            {student.temas.length > 0 
+                            {student.temas.length > 0
                               ? (student.temas.reduce((acc: number, tema: any) => acc + tema.nivel, 0) / student.temas.length).toFixed(1)
                               : 0
                             }
@@ -321,32 +320,44 @@ export default function PerformancePage() {
 
                       {/* Performance Grid */}
                       {student.temas.length > 0 ? (
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                          {student.temas.map((tema: any, i: number) => (
-                            <div 
-                              key={i}
-                              className="group/item p-4 rounded-xl border-2 bg-white/50 hover:bg-white/80 transition-all duration-200 hover:scale-105"
+                        <>
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {student.temas.map((tema: any, i: number) => (
+                              <div
+                                key={i}
+                                className="group/item p-4 rounded-xl border-2 bg-white/50 hover:bg-white/80 transition-all duration-200 hover:scale-105"
+                              >
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="font-semibold text-foreground text-sm leading-tight">
+                                    {tema.tema}
+                                  </h4>
+                                  <span className="text-lg flex-shrink-0 ml-2">
+                                    {getNivelEmoji(tema.nivel)}
+                                  </span>
+                                </div>
+
+                                <div className="flex justify-between items-center">
+                                  <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium border ${getNivelColor(tema.nivel)}`}>
+                                    Nivel {tema.nivel}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {getNivelLabel(tema.nivel)}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Botón para ver detalle */}
+                          <div className="mt-4 text-right">
+                            <Link
+                              href={`/dashboard/teacher/classroom/${classroomId}/performance/${student.id}`} // <-- nueva ruta
+                              className="inline-block bg-primary text-white font-medium px-4 py-2 rounded-lg hover:bg-primary/90 transition"
                             >
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-semibold text-foreground text-sm leading-tight">
-                                  {tema.tema}
-                                </h4>
-                                <span className="text-lg flex-shrink-0 ml-2">
-                                  {getNivelEmoji(tema.nivel)}
-                                </span>
-                              </div>
-                              
-                              <div className="flex justify-between items-center">
-                                <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium border ${getNivelColor(tema.nivel)}`}>
-                                  Nivel {tema.nivel}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {getNivelLabel(tema.nivel)}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                              Ver detalle de ejercicios →
+                            </Link>
+                          </div>
+                        </>
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">
                           <div className="text-3xl mb-2">📚</div>
@@ -370,7 +381,7 @@ export default function PerformancePage() {
               <div className="text-sm text-muted-foreground">Estudiantes</div>
             </div>
 
-            
+
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 text-center">
               <div className="text-2xl mb-2">📚</div>
               <div className="text-2xl font-bold text-accent-foreground">
@@ -378,16 +389,16 @@ export default function PerformancePage() {
               </div>
               <div className="text-sm text-muted-foreground">Temas Únicos</div>
             </div>
-            
+
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 text-center">
               <div className="text-2xl mb-2">⭐</div>
               <div className="text-2xl font-bold text-green-600">
                 {students.length > 0 && Object.keys(topicStats).length > 0
                   ? (
-                      Object.values(topicStats).reduce((acc, stats) => 
-                        acc + (stats.nivel1 * 1 + stats.nivel2 * 2 + stats.nivel3 * 3) / stats.total, 0
-                      ) / Object.keys(topicStats).length
-                    ).toFixed(1)
+                    Object.values(topicStats).reduce((acc, stats) =>
+                      acc + (stats.nivel1 * 1 + stats.nivel2 * 2 + stats.nivel3 * 3) / stats.total, 0
+                    ) / Object.keys(topicStats).length
+                  ).toFixed(1)
                   : '0'
                 }
               </div>
