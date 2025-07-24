@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
 
 interface Classroom {
   id: string
@@ -37,36 +38,43 @@ export default function TeacherDashboard() {
   }, [])
 
   if (loading) {
-    return <div className="min-h-screen p-6 bg-background text-foreground">Cargando clases...</div>
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+        <Loader2 className="animate-spin w-6 h-6 text-primary" />
+        <span className="ml-3 text-lg">Cargando clases...</span>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen p-6 bg-background text-foreground">
-      <h1 className="text-3xl font-bold mb-8 text-primary">Mis Clases</h1>
+    <div className="min-h-screen p-8 bg-background text-foreground">
+      <h1 className="text-4xl font-bold text-primary mb-10">📚 Mis Clases</h1>
 
       {classrooms.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {classrooms.map((cls) => (
             <div
               key={cls.id}
-              className="bg-card border border-border rounded-2xl shadow-md p-6 flex flex-col justify-between"
+              className="bg-card border border-border rounded-2xl p-6 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
             >
               <div>
-                <h2 className="text-xl font-bold text-foreground mb-2">{cls.name}</h2>
-                <p className="text-muted-foreground mb-4">Grado {cls.grade}</p>
+                <h2 className="text-2xl font-semibold mb-2 text-foreground">{cls.name}</h2>
+                <span className="inline-block bg-accent text-accent-foreground text-xs font-semibold px-3 py-1 rounded-full">
+                  Grado {cls.grade}
+                </span>
               </div>
 
               <button
-                onClick={() => router.push(`/dashboard/teacher/classroom/${cls.id}`)}
-                className="bg-primary text-white py-2 px-4 rounded-xl text-sm font-medium hover:bg-primary/90 transition"
+                onClick={() => router.push(`/dashboard/teacher/classroom/${cls.id}/performance`)}
+                className="mt-6 bg-primary text-white py-2 px-4 rounded-xl text-sm font-medium hover:bg-primary/90 transition-shadow shadow-sm hover:shadow-md"
               >
-                ➡️ Ir al salón
+                👉 Ir al salón
               </button>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-muted-foreground">No tienes clases asignadas.</p>
+        <p className="text-muted-foreground text-lg">No tienes clases asignadas por ahora.</p>
       )}
     </div>
   )

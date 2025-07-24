@@ -92,7 +92,7 @@ export default function NavbarStudent() {
 
         {/* Dashboard Link */}
         <Link 
-          href="/dashboard/student" 
+          href="/dashboard/student/play" 
           className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white hover:bg-accent/20 rounded-lg border border-border hover:border-accent transition-all duration-200 group"
         >
           <BookOpen className="w-4 h-4 text-muted-foreground group-hover:text-accent-foreground" />

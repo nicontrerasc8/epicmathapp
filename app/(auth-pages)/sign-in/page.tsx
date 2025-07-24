@@ -35,7 +35,7 @@ export default function SignInPage() {
 
     setStudentMessage(`Bienvenido, ${student.username} 👋`)
     localStorage.setItem('student', JSON.stringify(student))
-    router.push('/dashboard/student')
+    router.push('/dashboard/student/play')
   }
 
   const handleTeacherLogin = async (e: React.FormEvent) => {

@@ -10,6 +10,7 @@ import { insertStudentResponse } from '../insertStudentResponse'
 import { updateNivelStudentPeriodo } from '../updateNivelStudentPeriodo'
 import { getNivelStudentPeriodo } from '../getNivelStudent'
 import toast from 'react-hot-toast'
+import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
 const supabase = createClient()
 
 type Nivel = 1 | 2 | 3
@@ -70,6 +71,7 @@ export function FraccionesMultiplicacionStGeorgeGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
   const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
+const { elapsedSeconds, start, reset } = useQuestionTimer()
 
   const [respuestaFinal, setRespuestaFinal] = useState({
     numerador: '',
@@ -109,7 +111,7 @@ export function FraccionesMultiplicacionStGeorgeGame() {
         denominador: parseInt(respuestaFinal.denominador),
         simplificado: mostrarInputSimplificado, // se simplificó si llegó a ese paso
       },
-      tiempo_segundos: null,
+      tiempo_segundos: elapsedSeconds,
     })
   }
 
@@ -121,6 +123,7 @@ export function FraccionesMultiplicacionStGeorgeGame() {
         const nivelInicial = (nivelBD ?? 1) as Nivel
         setNivelActual(nivelInicial)
         setPregunta(generarPregunta(nivelInicial))
+        start()
       }
     }
     cargarNivel()
@@ -151,7 +154,8 @@ export function FraccionesMultiplicacionStGeorgeGame() {
         setPregunta(generarPregunta(nuevoNivel))
         setRespuestaFinal({ numerador: '', denominador: '' })
         setRespuestaSimplificada({ numerador: '', denominador: '' })
-   
+    reset()
+  start()
         setMostrarInputSimplificado(false)
         setFallosEjercicioActual(0)
       }, 2000)
@@ -217,7 +221,8 @@ toast.success('🎉 ¡Muy bien! Fracción simplificada correcta.')
         setPregunta(generarPregunta(nuevoNivel))
         setRespuestaFinal({ numerador: '', denominador: '' })
         setRespuestaSimplificada({ numerador: '', denominador: '' })
-  
+   reset()
+  start()
         setMostrarInputSimplificado(false)
       }, 2500)
     } else {

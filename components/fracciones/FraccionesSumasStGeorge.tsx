@@ -10,6 +10,7 @@ import { insertStudentResponse } from '../insertStudentResponse'
 import { updateNivelStudentPeriodo } from '../updateNivelStudentPeriodo'
 import { getNivelStudentPeriodo } from '../getNivelStudent'
 import toast from 'react-hot-toast'
+import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
 const supabase = createClient()
 
 type Nivel = 1 | 2 | 3
@@ -78,6 +79,8 @@ export function FraccionesSumasStGeorgeGameGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
   const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
+  const { elapsedSeconds, start, reset } = useQuestionTimer()
+
 
   const [respuestaFinal, setRespuestaFinal] = useState({ numerador: '', denominador: '' })
 
@@ -112,7 +115,7 @@ export function FraccionesSumasStGeorgeGameGame() {
         denominador: parseInt(respuestaFinal.denominador),
         simplificado: mostrarInputSimplificado, // se simplificó si llegó a ese paso
       },
-      tiempo_segundos: null,
+      tiempo_segundos: elapsedSeconds,
     })
   }
 
@@ -125,6 +128,7 @@ export function FraccionesSumasStGeorgeGameGame() {
         const nivelInicial = (nivelBD ?? 1) as Nivel
         setNivelActual(nivelInicial)
         setPregunta(generarPregunta(nivelInicial))
+        start()
       }
     }
     cargarNivel()
@@ -156,7 +160,8 @@ export function FraccionesSumasStGeorgeGameGame() {
         setPregunta(generarPregunta(nuevoNivel))
         setRespuestaFinal({ numerador: '', denominador: '' })
         setRespuestaSimplificada({ numerador: '', denominador: '' })
-  
+        reset()
+        start()
         setMostrarInputSimplificado(false)
         setMostrarPasoMCM(true)
         setMcmUsuario('')
@@ -176,7 +181,7 @@ export function FraccionesSumasStGeorgeGameGame() {
     const userDenominador = parseInt(respuestaFinal.denominador)
 
     if (userNumerador === nuevoA + nuevoB && userDenominador === denComun) {
-  toast.success(' Bien hecho. Ahora simplifica la fracción.')
+      toast.success(' Bien hecho. Ahora simplifica la fracción.')
       setMostrarInputSimplificado(true)
     } else {
       toast.error(' Revisa tus cálculos.')
@@ -204,7 +209,7 @@ export function FraccionesSumasStGeorgeGameGame() {
       await registrarRespuestaFinal(true)
       setAciertos(prev => prev + 1)
       setErrores(0)
-toast.success('🎉 ¡Muy bien! Fracción simplificada correcta.')
+      toast.success('🎉 ¡Muy bien! Fracción simplificada correcta.')
 
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
       let nuevoNivel = nivelActual
@@ -217,6 +222,8 @@ toast.success('🎉 ¡Muy bien! Fracción simplificada correcta.')
       }
       setTimeout(() => {
         setPregunta(generarPregunta(nuevoNivel))
+         reset()
+  start()
         setRespuestaFinal({ numerador: '', denominador: '' })
         setRespuestaSimplificada({ numerador: '', denominador: '' })
 
@@ -225,7 +232,7 @@ toast.success('🎉 ¡Muy bien! Fracción simplificada correcta.')
         setMcmUsuario('')
       }, 2500)
     } else {
-   toast.error('⚠️ Esa fracción no está bien simplificada.')
+      toast.error('⚠️ Esa fracción no está bien simplificada.')
 
       manejarError()
     }
@@ -235,7 +242,7 @@ toast.success('🎉 ¡Muy bien! Fracción simplificada correcta.')
   return (
     <div className="mx-auto bg-white w-full flex flex-col items-center shadow-md p-6 rounded-lg space-y-6">
       <div className="text-sm text-gray-600 text-center">
-          ✅ Aciertos: {aciertos} | ❌ Errores: {errores}
+        ✅ Aciertos: {aciertos} | ❌ Errores: {errores}
       </div>
       <h2 className="text-2xl font-bold text-purple-700">Nivel {nivelActual}</h2>
       <p className="text-lg text-center text-gray-800">{pregunta.contexto}</p>
