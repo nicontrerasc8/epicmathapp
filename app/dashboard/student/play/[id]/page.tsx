@@ -7,6 +7,7 @@ import { createClient } from '@/utils/supabase/client'
 import { SumGame } from '@/components/sum/SumGame'
 import { FraccionesSumasStGeorgeGameGame } from '@/components/fracciones/FraccionesSumasStGeorge'
 import { FraccionesMultiplicacionStGeorgeGame } from '@/components/fracciones/FraccionesMultiplicacionesStGeorge'
+import { PromedioModaStGeorgeGame } from '@/components/fracciones/PromedioModaSantaRosa'
 
 interface Tema {
   id: string
@@ -17,6 +18,7 @@ interface Tema {
 const gameComponents: Record<string, React.ComponentType> = {
   'ea5de085-2e52-40ac-b975-8931d08b9e44': FraccionesSumasStGeorgeGameGame,
   '4f098735-8cea-416a-be52-12e91adbba23': FraccionesMultiplicacionStGeorgeGame,
+  '11c72ff1-17aa-4e29-8882-04a686523b6c' : PromedioModaStGeorgeGame,
   // Agrega más aquí cuando tengas más juegos
 }
 
