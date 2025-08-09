@@ -44,7 +44,7 @@ export function PromedioModaStGeorgeGame() {
     nums.forEach(n => freqs[n] = (freqs[n] || 0) + 1)
     const max = Math.max(...Object.values(freqs))
     const modas = Object.keys(freqs).filter(k => freqs[+k] === max).map(Number)
-    return modas.sort((a, b) => a - b).join(',') // ordenadas y separadas por coma
+    return modas.sort((a, b) => a - b).join(',')
   }
 
   const registrarRespuesta = async (es_correcto: boolean) => {
@@ -109,7 +109,7 @@ export function PromedioModaStGeorgeGame() {
 
   const verificarPromedio = () => {
     const correcto = calcularPromedio(numeros)
-    if (parseFloat(promedioUsuario) === correcto) {
+    if (Math.abs(parseFloat(promedioUsuario) - correcto) < 0.01) {
       toast.success('✅ Promedio correcto. Ahora encuentra la moda.')
       setPaso('moda')
     } else {
@@ -127,7 +127,6 @@ export function PromedioModaStGeorgeGame() {
       await registrarRespuesta(true)
       toast.success('🎉 ¡Moda correcta!')
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
-
       setAciertos(prev => prev + 1)
       setErrores(0)
 
@@ -149,6 +148,13 @@ export function PromedioModaStGeorgeGame() {
 
   if (!numeros.length) return null
 
+  const frecuencia = numeros.reduce((acc, n) => {
+    acc[n] = (acc[n] || 0) + 1
+    return acc
+  }, {} as Record<number, number>)
+
+  const maxFrecuencia = Math.max(...Object.values(frecuencia))
+
   return (
     <div className="mx-auto bg-white w-full max-w-xl flex flex-col items-center shadow-md p-6 rounded-lg space-y-6">
       <div className="text-sm text-gray-600 text-center">
@@ -159,6 +165,36 @@ export function PromedioModaStGeorgeGame() {
         Estos son los números: <strong>{numeros.join(', ')}</strong>
       </p>
 
+      {/* Visualizaci\u00f3n bloques */}
+      <div className="flex flex-wrap gap-2 justify-center">
+        {numeros.map((num, i) => (
+          <div
+            key={i}
+            className="bg-yellow-300 text-black font-bold w-10 h-10 flex items-center justify-center rounded shadow"
+          >
+            {num}
+          </div>
+        ))}
+      </div>
+
+      {/* Gr\u00e1fico de barras */}
+      <div className="w-full max-w-md mt-4">
+        <h3 className="text-md text-gray-600 mb-2 text-center">Frecuencia de cada n\u00famero</h3>
+        <div className="space-y-2">
+          {Object.entries(frecuencia).sort((a, b) => Number(a[0]) - Number(b[0])).map(([num, count]) => (
+            <div key={num} className="flex items-center space-x-2">
+              <span className="w-6">{num}</span>
+              <div
+                className="bg-blue-400 h-4 rounded"
+                style={{ width: `${(count / maxFrecuencia) * 100}%` }}
+              />
+              <span className="text-sm">{count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Interacci\u00f3n */}
       {paso === 'promedio' ? (
         <>
           <p className="text-center font-medium text-gray-700">
@@ -171,6 +207,9 @@ export function PromedioModaStGeorgeGame() {
             placeholder="Promedio"
             className="w-full text-center p-2 text-xl bg-white text-black border border-blue-300 rounded"
           />
+          <p className="text-sm text-gray-500 text-center">
+            Puedes escribir el promedio con 0, 1 o 2 decimales. Recuerda redondear a <span className="font-semibold">dos decimales</span>.
+          </p>
           <button
             onClick={verificarPromedio}
             className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition"
@@ -181,7 +220,7 @@ export function PromedioModaStGeorgeGame() {
       ) : (
         <>
           <p className="text-center font-medium text-gray-700">
-            Paso 2: Escribe la moda. Si hay más de una, sepáralas con coma.
+            Paso 2: Escribe la moda. Si hay m\u00e1s de una, sep\u00e1ralas con coma.
           </p>
           <input
             type="text"
