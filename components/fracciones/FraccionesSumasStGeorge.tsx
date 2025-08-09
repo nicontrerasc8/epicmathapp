@@ -310,15 +310,7 @@ export function FraccionesSumasStGeorgeGameGame() {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={guidedMode}
-              onChange={() => setGuidedMode(v => !v)}
-              className="w-4 h-4 accent-primary"
-            />
-            Modo práctica guiada
-          </label>
+      
           <button
             onClick={() => setShowGuidePanel(v => !v)}
             className="px-3 py-1 rounded-md border border-border text-sm hover:bg-input"
