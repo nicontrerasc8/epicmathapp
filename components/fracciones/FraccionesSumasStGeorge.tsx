@@ -35,21 +35,65 @@ const simplificarFraccion = (numerador: number, denominador: number) => {
   return { numerador: numerador / d, denominador: denominador / d }
 }
 
-// ---------- Generación de pregunta ----------
+
+
+const lcmBound = (a: number, b: number) => Math.abs((a * b) / gcd(a, b))
+
+/**
+ * Reglas por nivel:
+ *  Nivel 1 (fácil):  d1,d2 ∈ [2..12], SIEMPRE comparten factor y
+ *                    casi siempre uno divide al otro. LCM ≤ 24.
+ *  Nivel 2 (medio):  d1,d2 ∈ [3..15], LCM ≤ 60, pueden ser coprimos.
+ *  Nivel 3 (alto):   d1,d2 ∈ [7..24], LCM ≤ 120, preferencia por coprimos.
+ */
+const pickDenominators = (nivel: Nivel): { d1: number; d2: number } => {
+  let d1 = 0, d2 = 0
+
+  if (nivel === 1) {
+    // Pares tipo (2,4), (3,6), (4,8), (5,10), (6,12) o con gcd>1 y MCM pequeño
+    const bases = [2, 3, 4, 5, 6]
+    for (; ;) {
+      const base = bases[Math.floor(Math.random() * bases.length)]
+      const multiples = [2, 3].map(k => base * k).filter(v => v <= 12)
+      const candidate = multiples.length ? multiples[Math.floor(Math.random() * multiples.length)] : base * 2
+      d1 = base
+      d2 = candidate
+      if (d1 !== d2 && gcd(d1, d2) > 1 && lcmBound(d1, d2) <= 24) break
+    }
+  }
+
+  if (nivel === 2) {
+    // Mezcla: a veces comparten factor, a veces son coprimos; LCM moderado
+    for (; ;) {
+      d1 = randInt(3, 15)
+      do { d2 = randInt(3, 15) } while (d2 === d1)
+      const l = lcmBound(d1, d2)
+      if (l <= 60) break
+    }
+  }
+
+  if (nivel === 3) {
+    // Un poco más grandes; preferencia por coprimos; LCM más alto pero acotado
+    for (; ;) {
+      d1 = randInt(7, 24)
+      do { d2 = randInt(7, 24) } while (d2 === d1)
+      const l = lcmBound(d1, d2)
+      const g = gcd(d1, d2)
+      // 70% coprimos para hacerlo más retador
+      const wantCoprime = Math.random() < 0.7
+      if (l <= 120 && (!wantCoprime || g === 1)) break
+    }
+  }
+
+  return { d1, d2 }
+}
+
 const generarPregunta = (nivel: Nivel): Pregunta => {
-  let rango: number[] = []
-  if (nivel === 1) rango = Array.from({ length: 8 }, (_, i) => i + 2) // 2-9
-  if (nivel === 2) rango = Array.from({ length: 40 }, (_, i) => i + 10) // 10-49
-  if (nivel === 3) rango = Array.from({ length: 50 }, (_, i) => i + 50) // 50-99
+  const { d1: denominador1, d2: denominador2 } = pickDenominators(nivel)
 
-  const denominador1 = rango[Math.floor(Math.random() * rango.length)]
-  let denominador2: number
-  do {
-    denominador2 = rango[Math.floor(Math.random() * rango.length)]
-  } while (denominador2 === denominador1)
-
-  const a = Math.floor(Math.random() * denominador1) + 1
-  const b = Math.floor(Math.random() * denominador2) + 1
+  // Fracciones propias para que el dibujo sea intuitivo
+  const a = randInt(1, denominador1 - 1)
+  const b = randInt(1, denominador2 - 1)
 
   const contextos = [
     `María tiene ${a}/${denominador1} de una torta y recibe ${b}/${denominador2} más. ¿Cuánto tiene ahora?`,
@@ -90,25 +134,67 @@ const buildHints = (p: Pregunta) => {
     },
     {
       title: 'Pista 4 — Simplificar',
-      text: `Si se puede, divide numerador y denominador por su MCD. Resultado esperado en forma simplificada: ${simple.numerador}/${simple.denominador}.`
+      text: `Si se puede, divide numerador y denominador por su máximo común divisor. Resultado esperado en forma simplificada: ${simple.numerador}/${simple.denominador}.`
     },
   ]
 }
 
-const buildExample = (p: Pregunta) => {
-  const denComun = mcm(p.denominador1, p.denominador2)
-  const nuevoA = p.a * (denComun / p.denominador1)
-  const nuevoB = p.b * (denComun / p.denominador2)
+// ---------- Ejemplo SIEMPRE distinto al ejercicio ----------
+const samePair = (a: number, b: number, c: number, d: number) =>
+  (a === c && b === d) || (a === d && b === c)
+
+const randInt = (min: number, max: number) =>
+  Math.floor(Math.random() * (max - min + 1)) + min
+
+const pickExampleDenominators = (nivel: Nivel, d1Real: number, d2Real: number) => {
+  let d1 = 0, d2 = 0, intentos = 0
+  while (true) {
+    intentos++
+    if (nivel === 1) {
+      // pares fáciles (uno divide al otro) y MCM pequeño
+      const base = [2, 3, 4, 5, 6][Math.floor(Math.random() * 5)]
+      const mult = [2, 3][Math.floor(Math.random() * 2)]
+      d1 = base
+      d2 = base * mult
+      if (d2 > 12) continue
+      if (lcmBound(d1, d2) > 24) continue
+    } else if (nivel === 2) {
+      // LCM moderado
+      d1 = randInt(3, 15)
+      do { d2 = randInt(3, 15) } while (d2 === d1)
+      if (lcmBound(d1, d2) > 60) continue
+    } else {
+      // preferencia por coprimos y LCM acotado
+      d1 = randInt(7, 24)
+      do { d2 = randInt(7, 24) } while (d2 === d1)
+      const wantCoprime = Math.random() < 0.7
+      if (lcmBound(d1, d2) > 120) continue
+      if (wantCoprime && gcd(d1, d2) !== 1) continue
+    }
+    if (!samePair(d1, d2, d1Real, d2Real)) break
+    if (intentos > 50) break // “escape” por si acaso
+  }
+  return { d1, d2 }
+}
+
+const buildExample = (nivel: Nivel, p: Pregunta) => {
+  const { d1, d2 } = pickExampleDenominators(nivel, p.denominador1, p.denominador2)
+
+  // numeradores pequeños, propios y distintos a los del ejercicio
+  let a = randInt(1, Math.max(2, Math.min(4, d1 - 1)))
+  let b = randInt(1, Math.max(2, Math.min(4, d2 - 1)))
+  if (a === p.a && d1 === p.denominador1) a = Math.min(a + 1, d1 - 1) || 1
+  if (b === p.b && d2 === p.denominador2) b = Math.min(b + 1, d2 - 1) || 1
+
+  const denComun = mcm(d1, d2)
+  const nuevoA = a * (denComun / d1)
+  const nuevoB = b * (denComun / d2)
   const suma = nuevoA + nuevoB
   const simple = simplificarFraccion(suma, denComun)
-  return {
-    denComun,
-    nuevoA,
-    nuevoB,
-    suma,
-    simple,
-  }
+
+  return { d1, d2, a, b, denComun, nuevoA, nuevoB, suma, simple }
 }
+
 
 export function FraccionesSumasStGeorgeGameGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
@@ -130,11 +216,14 @@ export function FraccionesSumasStGeorgeGameGame() {
   const [hintIndex, setHintIndex] = useState(0)
   const [showGuidePanel, setShowGuidePanel] = useState(true)
   const [showExample, setShowExample] = useState(false)
+  type Example = ReturnType<typeof buildExample>
+const [example, setExample] = useState<any>(null)
+
 
   // “Profe” micro‑coach
   const coachMsg = (() => {
     if (fallosEjercicioActual === 0 && !mostrarPasoMCM) return '¡Va bien! Recuerda: primero equivalencias, luego suma, al final simplifica.'
-    if (fallosEjercicioActual === 1) return 'Tranquilo, revisa si usaste bien el MCM y si convertiste ambos numeradores.'
+    if (fallosEjercicioActual === 1) return 'Tranquilo, revisa si usaste bien el mínimo común múltiplo y si convertiste ambos numeradores.'
     if (fallosEjercicioActual >= 2) return 'Respira. Mira el ejemplo paso a paso y vuelve a intentarlo 👇'
     return '¡Tú puedes!'
   })()
@@ -143,22 +232,25 @@ export function FraccionesSumasStGeorgeGameGame() {
   const finalNumeradorRef = useRef<HTMLInputElement>(null)
   const finalDenominadorRef = useRef<HTMLInputElement>(null)
   const { student } = useStudent()
+  const initRef = useRef(false)
 
-  useEffect(() => {
-    const cargarNivel = async () => {
-      if (student?.id) {
-        const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
-        const nivelInicial = (nivelBD ?? 1) as Nivel
-        setNivelActual(nivelInicial)
-        const q = generarPregunta(nivelInicial)
-        setPregunta(q)
-        setHintIndex(0)
-        setShowExample(false)
-        start()
-      }
-    }
-    cargarNivel()
-  }, [student])
+useEffect(() => {
+  if (!student?.id) return
+  if (initRef.current) return    // evita doble ejecución en StrictMode (dev)
+  initRef.current = true
+
+  ;(async () => {
+    const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
+    const nivelInicial = (nivelBD ?? 1) as Nivel
+    setNivelActual(nivelInicial)
+    const q = generarPregunta(nivelInicial)
+    setPregunta(q)
+    setExample(buildExample(nivelInicial, q))   // <-- congela ejemplo
+    setHintIndex(0)
+    setShowExample(false)
+    start()
+  })()
+}, [student])
 
   if (!pregunta) return null
 
@@ -188,20 +280,21 @@ export function FraccionesSumasStGeorgeGameGame() {
   }
 
   // --------- Lógica de manejo de fallos y nivel ----------
-  const reiniciarEjercicio = (nuevoNivel: Nivel) => {
-    const q = generarPregunta(nuevoNivel)
-    setPregunta(q)
-    setRespuestaFinal({ numerador: '', denominador: '' })
-    setRespuestaSimplificada({ numerador: '', denominador: '' })
-    setMostrarInputSimplificado(false)
-    setMostrarPasoMCM(true)
-    setMcmUsuario('')
-    setFallosEjercicioActual(0)
-    setHintIndex(0)
-    setShowExample(false)
-    reset()
-    start()
-  }
+const reiniciarEjercicio = (nuevoNivel: Nivel) => {
+  const q = generarPregunta(nuevoNivel)
+  setPregunta(q)
+  setExample(buildExample(nuevoNivel, q))  // <-- congela ejemplo
+  setRespuestaFinal({ numerador: '', denominador: '' })
+  setRespuestaSimplificada({ numerador: '', denominador: '' })
+  setMostrarInputSimplificado(false)
+  setMostrarPasoMCM(true)
+  setMcmUsuario('')
+  setFallosEjercicioActual(0)
+  setHintIndex(0)
+  setShowExample(false)
+  reset()
+  start()
+}
 
   const manejarError = async () => {
     const nuevosFallos = fallosEjercicioActual + 1
@@ -241,7 +334,7 @@ export function FraccionesSumasStGeorgeGameGame() {
     const denCorrecto = userDen === esperadoDen
 
     if (numCorrecto && !denCorrecto) {
-      toast.error('👀 El numerador está bien, pero el denominador no es el MCM.')
+      toast.error('👀 El numerador está bien, pero el denominador no es el mínimo común múltiplo.')
       if (guidedMode) setHintIndex(i => Math.max(i, 1)) // empuja hacia pista de MCM/denominador
       return manejarError()
     }
@@ -255,7 +348,7 @@ export function FraccionesSumasStGeorgeGameGame() {
       toast.success('Bien hecho. Ahora simplifica la fracción.')
       setMostrarInputSimplificado(true)
     } else {
-      toast.error('Revisa MCM, equivalencias y suma de numeradores.')
+      toast.error('Revisa mínimo común múltiplo, equivalencias y suma de numeradores.')
       if (guidedMode) setHintIndex(i => Math.min(i + 1, 3))
       manejarError()
     }
@@ -291,7 +384,7 @@ export function FraccionesSumasStGeorgeGameGame() {
       }
       setTimeout(() => reiniciarEjercicio(nuevoNivel), 1600)
     } else {
-      toast.error('⚠️ Aún puedes simplificar mejor o revisa el MCD.')
+      toast.error('⚠️ Aún puedes simplificar mejor o revisa el máximo común divisor.')
       if (guidedMode) setHintIndex(3)
       manejarError()
     }
@@ -299,7 +392,7 @@ export function FraccionesSumasStGeorgeGameGame() {
 
   // ---------- UI de guía / pistas ----------
   const hints = buildHints(pregunta)
-  const example = buildExample(pregunta)
+  //const example = buildExample(nivelActual, pregunta)
 
   return (
     <div className="mx-auto bg-card w-full flex flex-col items-center shadow-md p-6 rounded-lg space-y-6">
@@ -310,7 +403,7 @@ export function FraccionesSumasStGeorgeGameGame() {
         </div>
 
         <div className="flex items-center gap-2">
-      
+
           <button
             onClick={() => setShowGuidePanel(v => !v)}
             className="px-3 py-1 rounded-md border border-border text-sm hover:bg-input"
@@ -334,10 +427,10 @@ export function FraccionesSumasStGeorgeGameGame() {
             <div className="rounded-lg border border-border p-4 bg-background">
               <h3 className="font-semibold mb-2 text-foreground">Cómo se resuelven sumas de fracciones con distinto denominador</h3>
               <ol className="list-decimal ml-5 space-y-1 text-sm text-foreground">
-                <li>Halla el <b>MCM</b> de los denominadores.</li>
-                <li>Convierte cada fracción a un <b>denominador común</b> usando el MCM.</li>
+                <li>Halla el <b>mínimo común múltiplo</b> de los denominadores.</li>
+                <li>Convierte cada fracción a un <b>denominador común</b> usando el mínimo común múltiplo.</li>
                 <li><b>Suma</b> los numeradores. Mantén el denominador común.</li>
-                <li><b>Simplifica</b> la fracción dividiendo numerador y denominador por su <b>MCD</b>.</li>
+                <li><b>Simplifica</b> la fracción dividiendo numerador y denominador por su <b>máximo común divisor</b>.</li>
               </ol>
 
               <div className="flex gap-2 mt-3">
@@ -380,14 +473,21 @@ export function FraccionesSumasStGeorgeGameGame() {
                     exit={{ opacity: 0, y: -6 }}
                     className="mt-3 text-sm rounded-md bg-input p-3"
                   >
-                    <div className="font-medium mb-1">Ejemplo guiado (con estos denominadores)</div>
+         
+                    <div className="font-medium mb-1">Ejemplo guiado (con otros números)</div>
                     <div className="space-y-1">
-                      <div>1) MCM({pregunta.denominador1}, {pregunta.denominador2}) = <b>{example.denComun}</b></div>
-                      <div>2) Equivalencias: {pregunta.a}/{pregunta.denominador1} → <b>{example.nuevoA}/{example.denComun}</b> y {pregunta.b}/{pregunta.denominador2} → <b>{example.nuevoB}/{example.denComun}</b></div>
+                      <div>1) MCM({example.d1}, {example.d2}) = <b>{example.denComun}</b></div>
+                      <div>
+                        2) Equivalencias: {example.a}/{example.d1} → <b>{example.nuevoA}/{example.denComun}</b>
+                        &nbsp;y {example.b}/{example.d2} → <b>{example.nuevoB}/{example.denComun}</b>
+                      </div>
                       <div>3) Suma de numeradores: {example.nuevoA} + {example.nuevoB} = <b>{example.suma}</b> (denominador {example.denComun})</div>
                       <div>4) Simplificación: <b>{example.suma}/{example.denComun}</b> → <b>{example.simple.numerador}/{example.simple.denominador}</b></div>
-                      <div className="text-xs text-muted-foreground mt-1">Nota: Tu ejercicio tendrá numeradores concretos que pueden ser distintos a este ejemplo guiado.</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Nota: Este es un ejemplo distinto a tu ejercicio actual.
+                      </div>
                     </div>
+
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -495,7 +595,7 @@ export function FraccionesSumasStGeorgeGameGame() {
       {mostrarInputSimplificado && (
         <div className="w-full space-y-2">
           <p className="text-center font-medium text-foreground">
-            Paso 3: Simplifica la fracción. Divide numerador y denominador entre su <b>MCD</b>.
+            Paso 3: Simplifica la fracción. Divide numerador y denominador entre su <b>máximo común divisor</b>.
           </p>
 
           <div className="flex flex-col items-center gap-2">
