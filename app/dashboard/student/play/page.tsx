@@ -87,7 +87,7 @@ export default function PlayPage() {
         {/* 🔝 Resumen del estudiante */}
         <div className="mb-10 text-center relative z-10">
           <h1 className="text-4xl font-extrabold text-primary mb-3 drop-shadow-md">
-            ¡Hola, <span className="text-secondary">{student?.username}</span>!
+            ¡Hola, <span className="text-secondary">{student?.nombres ? student.nombres.split(' ')[0] : student?.username}</span>!
           </h1>
 
         </div>

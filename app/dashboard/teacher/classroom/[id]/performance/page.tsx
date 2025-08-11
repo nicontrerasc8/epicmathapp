@@ -20,7 +20,7 @@ export default function PerformancePage() {
     const fetchPerformance = async () => {
       const { data: studentList, error: studentError } = await supabase
         .from('students')
-        .select('id, username')
+        .select('id, nombres')
         .eq('classroom_id', classroomId)
 
       if (studentError || !studentList) {
@@ -296,11 +296,11 @@ export default function PerformancePage() {
                       {/* Student Header */}
                       <div className="flex items-center gap-4 mb-6">
                         <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                          {student.username.charAt(0).toUpperCase()}
+                          {student.nombres.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1">
                           <h2 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors">
-                            {student.username}
+                            {student.nombres}
                           </h2>
                           <p className="text-muted-foreground flex items-center gap-2">
                             <span className="text-lg">🎓</span>

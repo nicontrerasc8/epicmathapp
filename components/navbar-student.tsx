@@ -78,7 +78,7 @@ export default function NavbarStudent() {
             <GraduationCap className="w-4 h-4 text-white" />
           </div>
           <span className="text-sm font-medium text-foreground">
-            ¡Hola, <span className="font-semibold text-white">{student.username}</span>!
+            ¡Hola, <span className="font-semibold text-white">{student.nombres ? student.nombres.split(' ')[0] : student.username}</span>!
           </span>
         </div>
 
@@ -86,13 +86,15 @@ export default function NavbarStudent() {
         <div className="sm:hidden flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full">
           <GraduationCap className="w-4 h-4 text-primary" />
           <span className="text-sm font-medium text-primary truncate max-w-20">
-            {student.username}
+            {student.nombres ? student.nombres.split(' ')[0] : student.username}
           </span>
         </div>
 
+
+
         {/* Dashboard Link */}
-        <Link 
-          href="/dashboard/student/play" 
+        <Link
+          href="/dashboard/student/play"
           className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white hover:bg-accent/20 rounded-lg border border-border hover:border-accent transition-all duration-200 group"
         >
           <BookOpen className="w-4 h-4 text-muted-foreground group-hover:text-accent-foreground" />
@@ -137,8 +139,8 @@ export default function NavbarStudent() {
         </div>
 
         {/* Dashboard Link */}
-        <Link 
-          href="/dashboard/teacher" 
+        <Link
+          href="/dashboard/teacher"
           className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white hover:bg-accent/20 rounded-lg border border-border hover:border-accent transition-all duration-200 group"
         >
           <BookOpen className="w-4 h-4 text-muted-foreground group-hover:text-accent-foreground" />
@@ -166,13 +168,13 @@ export default function NavbarStudent() {
 
   return (
     <div className="flex items-center gap-3">
-  <Link
-  href="/sign-in"
-  className="inline-flex items-center gap-2 px-6 py-2 font-medium text-primary border-2 border-primary rounded-full bg-white hover:bg-secondary hover:text-white transition-colors duration-300"
->
-  <User className="w-4 h-4" />
-  Iniciar sesión
-</Link>
+      <Link
+        href="/sign-in"
+        className="inline-flex items-center gap-2 px-6 py-2 font-medium text-primary border-2 border-primary rounded-full bg-white hover:bg-secondary hover:text-white transition-colors duration-300"
+      >
+        <User className="w-4 h-4" />
+        Iniciar sesión
+      </Link>
 
     </div>
   )
