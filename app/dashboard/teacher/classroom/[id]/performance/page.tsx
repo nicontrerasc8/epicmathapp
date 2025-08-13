@@ -261,6 +261,27 @@ export default function PerformancePage() {
             </select>
           </div>
         )}
+          {students.length > 0 && (
+          <div className="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <KPI icon="👥" label="Estudiantes" value={students.length} />
+            <KPI icon="📚" label="Temas únicos" value={topicsKeys.length} />
+            <KPI
+              icon="⭐"
+              label="Nivel promedio (global)"
+              value={
+                topicsKeys.length
+                  ? (
+                      topicsKeys.reduce((acc: number, k: string) => {
+                        const s: AnyRec = (topicStats as AnyRec)[k]
+                        return acc + (s.n1 * 1 + s.n2 * 2 + s.n3 * 3) / s.total
+                      }, 0) / topicsKeys.length
+                    ).toFixed(1)
+                  : '0'
+              }
+            />
+            <KPI icon="⚡" label="Intentos 7 días" value={respAgg.reduce((a: number, r: AnyRec) => a + (r.correctos || 0) + (r.incorrectos || 0), 0)} />
+          </div>
+        )}
 
         {/* contenido */}
         {students.length === 0 ? (
@@ -351,27 +372,7 @@ export default function PerformancePage() {
           </div>
         )}
 
-        {students.length > 0 && (
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <KPI icon="👥" label="Estudiantes" value={students.length} />
-            <KPI icon="📚" label="Temas únicos" value={topicsKeys.length} />
-            <KPI
-              icon="⭐"
-              label="Nivel promedio (global)"
-              value={
-                topicsKeys.length
-                  ? (
-                      topicsKeys.reduce((acc: number, k: string) => {
-                        const s: AnyRec = (topicStats as AnyRec)[k]
-                        return acc + (s.n1 * 1 + s.n2 * 2 + s.n3 * 3) / s.total
-                      }, 0) / topicsKeys.length
-                    ).toFixed(1)
-                  : '0'
-              }
-            />
-            <KPI icon="⚡" label="Intentos 7 días" value={respAgg.reduce((a: number, r: AnyRec) => a + (r.correctos || 0) + (r.incorrectos || 0), 0)} />
-          </div>
-        )}
+      
       </div>
     </div>
   )
