@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
+import * as XLSX from 'xlsx'
 
 type AnyRec = Record<string, any>
 
@@ -97,9 +98,7 @@ export default function PerformancePage() {
         map.set(r.student_id, curr)
       })
 
-      // 👇 fuerza any[]
       setRespAgg(Array.from(map.values()) as any[])
-
       setLoading(false)
     }
 
@@ -113,7 +112,7 @@ export default function PerformancePage() {
 
     return () => {
       supabase.removeChannel(ch)
-    }
+    } 
   }, [classroomId])
 
   const getNivelColor = (nivel: any) =>
@@ -173,30 +172,43 @@ export default function PerformancePage() {
     })
   }, [studentsFull, q, temaFilter, nivelFilter])
 
-  const exportCSV = () => {
-    const rows = [
-      ['student_id', 'nombres', 'tema', 'nivel', 'correctos_7d', 'incorrectos_7d', 'ultimo_intento', 'nivel_promedio'],
-      ...studentsFull.flatMap((s: AnyRec) =>
-        (s.temas.length ? s.temas : [{ tema: '', nivel: '' }]).map((t: AnyRec) => [
-          s.id,
-          s.nombres,
-          t.tema,
-          t.nivel,
-          s.correctos,
-          s.incorrectos,
-          s.ultimo || '',
-          Number(s.nivelProm || 0).toFixed(2),
-        ])
-      ),
-    ]
-    const csv :any = rows.map(r => r.map((x:any) => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'performance.csv'
-    a.click()
-    URL.revokeObjectURL(url)
+  // ---------- Exportar a Excel (.xlsx) ----------
+  const exportExcel = () => {
+    const rows = studentsFull.flatMap((s: AnyRec) =>
+      (s.temas.length ? s.temas : [{ tema: '', nivel: '' }]).map((t: AnyRec) => ({
+        alumno: s.nombres,
+        tema: t.tema,
+        nivel: t.nivel,
+        correctos_7d: s.correctos || 0,
+        incorrectos_7d: s.incorrectos || 0,
+        ultimo_intento: s.ultimo ? new Date(s.ultimo).toLocaleString() : '',
+        nivel_promedio: Number(s.nivelProm || 0).toFixed(2),
+      }))
+    )
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Rendimiento')
+
+    const header = Object.keys(rows[0] || { a: '' })
+    ws['!cols'] = header.map(() => ({ wch: 18 }))
+
+    // ✅ descarga sin file-saver
+    try {
+      XLSX.writeFile(wb, 'performance.xlsx')
+    } catch {
+      // Fallback manual
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      const blob = new Blob([buf], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'performance.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    }
   }
 
   if (loading) {
@@ -231,7 +243,7 @@ export default function PerformancePage() {
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setShowGraphs(true)} className={`px-4 py-2 rounded-xl border ${showGraphs ? 'bg-primary text-white' : 'bg-white/80 text-foreground hover:bg-white'} transition`}>📈 Estadísticas por Tema</button>
             <button onClick={() => setShowGraphs(false)} className={`px-4 py-2 rounded-xl border ${!showGraphs ? 'bg-primary text-white' : 'bg-white/80 text-foreground hover:bg-white'} transition`}>👥 Vista por Estudiante</button>
-            <button onClick={exportCSV} className="px-4 py-2 rounded-xl border bg-accent text-accent-foreground hover:brightness-105 transition">⬇️ Exportar CSV</button>
+            <button onClick={exportExcel} className="px-4 py-2 rounded-xl border bg-accent text-accent-foreground hover:brightness-105 transition">⬇️ Exportar Excel</button>
           </div>
         </div>
 
