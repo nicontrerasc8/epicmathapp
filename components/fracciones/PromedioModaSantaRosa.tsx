@@ -179,7 +179,7 @@ export function PromedioModaStGeorgeGame() {
 
       {/* Gr\u00e1fico de barras */}
       <div className="w-full max-w-md mt-4">
-        <h3 className="text-md text-gray-600 mb-2 text-center">Frecuencia de cada n\u00famero</h3>
+        <h3 className="text-md text-gray-600 mb-2 text-center">Frecuencia de cada número</h3>
         <div className="space-y-2">
           {Object.entries(frecuencia).sort((a, b) => Number(a[0]) - Number(b[0])).map(([num, count]) => (
             <div key={num} className="flex items-center space-x-2">
