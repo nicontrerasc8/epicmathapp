@@ -27,6 +27,16 @@ interface Pregunta {
 
 const temaPeriodoId = '4f098735-8cea-416a-be52-12e91adbba23'
 
+// ---------- Loading Overlay ----------
+const LoadingOverlay = () => (
+  <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center">
+    <div className="flex flex-col items-center gap-3">
+      <div className="h-12 w-12 rounded-full border-4 border-white/30 border-t-white animate-spin" />
+      <p className="text-white font-semibold">Procesando…</p>
+    </div>
+  </div>
+)
+
 // ---------- Utilidades ----------
 const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b))
 
@@ -116,6 +126,25 @@ export function FraccionesMultiplicacionStGeorgeGame() {
   const [errores, setErrores] = useState(0)
   const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
 
+  // Loading y locks (copiado del otro juego)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const withLock = async (fn: () => Promise<void>) => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      await fn()
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+  const nextWithDelay = (ms: number, nuevoNivel: Nivel) => {
+    setIsSubmitting(true)
+    setTimeout(() => {
+      reiniciarEjercicio(nuevoNivel)
+      setIsSubmitting(false)
+    }, ms)
+  }
+
   // Guía y pistas
   const [guidedMode, setGuidedMode] = useState(true)
   const [hintIndex, setHintIndex] = useState(0)
@@ -192,13 +221,13 @@ export function FraccionesMultiplicacionStGeorgeGame() {
         toast('Bajaste de nivel para reforzar la base 📉', { icon: '📉' })
         setErrores(0)
       }
-      setTimeout(() => reiniciarEjercicio(nuevoNivel), 1200)
+      nextWithDelay(1200, nuevoNivel)
     }
   }
 
-  // Único paso: multiplicación directa
+  // Único paso: multiplicación directa (con lock y overlay)
   const verificar = async () => {
-    const { a, b, denominador1, denominador2 } = pregunta
+    const { a, b, denominador1, denominador2 } = pregunta!
     const esperadoNum = a * b
     const esperadoDen = denominador1 * denominador2
 
@@ -223,19 +252,19 @@ export function FraccionesMultiplicacionStGeorgeGame() {
         setAciertos(0)
         setErrores(0)
       }
-      setTimeout(() => reiniciarEjercicio(nuevoNivel), 1200)
+      nextWithDelay(1200, nuevoNivel)
     } else if (numCorrecto && !denCorrecto) {
       toast.error('👀 El numerador está bien. Revisa el denominador (multiplica los denominadores).')
       if (guidedMode) setHintIndex(i => Math.max(i, 2))
-      manejarError()
+      await manejarError()
     } else if (!numCorrecto && denCorrecto) {
       toast.error('🧮 El denominador está bien. Revisa el numerador (multiplica los numeradores).')
       if (guidedMode) setHintIndex(i => Math.max(i, 1))
-      manejarError()
+      await manejarError()
     } else {
       toast.error('Multiplica numeradores y denominadores directamente.')
       if (guidedMode) setHintIndex(i => Math.min(i + 1, 2))
-      manejarError()
+      await manejarError()
     }
   }
 
@@ -251,166 +280,171 @@ export function FraccionesMultiplicacionStGeorgeGame() {
   })()
 
   return (
-    <div className="mx-auto bg-card flex flex-col items-center shadow-md p-6 rounded-lg space-y-6">
-      {/* Barra superior */}
-      <div className="w-full flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          ✅ Aciertos: <b>{aciertos}</b> &nbsp;|&nbsp; ❌ Errores: <b>{errores}</b>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs font-semibold">
-            Nivel {nivelActual}
-          </span>
-          <button
-            onClick={() => setShowGuidePanel(v => !v)}
-            className="px-3 py-1 rounded-md border border-border text-sm hover:bg-input"
-          >
-            {showGuidePanel ? 'Ocultar guía' : 'Mostrar guía'}
-          </button>
-        </div>
-      </div>
-       <AnimatePresence initial={false}>
-        {guidedMode && showGuidePanel && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="w-full overflow-hidden"
-          >
-            <div className="rounded-lg border border-border p-4 bg-background">
-              <h3 className="font-semibold mb-2 text-foreground">Cómo se multiplican fracciones</h3>
-              <ol className="list-decimal ml-5 space-y-1 text-sm text-foreground">
-                <li>Multiplica <b>numeradores</b> entre sí.</li>
-                <li>Multiplica <b>denominadores</b> entre sí.</li>
-                <li><b>No</b> simplifiques en este juego.</li>
-              </ol>
+    <>
+      {isSubmitting && <LoadingOverlay />}
 
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => setHintIndex(i => Math.min(i + 1, hints.length - 1))}
-                  className="px-3 py-2 rounded-md bg-secondary text-secondary-foreground font-medium hover:opacity-90"
-                >
-                  Pedir pista
-                </button>
-              </div>
-
-              <AnimatePresence initial={false}>
-                {hints[hintIndex] && (
-                  <motion.div
-                    key={hintIndex}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    className="mt-3 rounded-md border border-dashed border-ring/40 p-3 text-sm bg-white"
-                  >
-                    <div className="font-medium">{hints[hintIndex].title}</div>
-                    <div className="text-foreground/80">{hints[hintIndex].text}</div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-            {/* Mensaje del “profe” */}
-      <div className="w-full rounded-md border border-border p-3 bg-white text-sm">
-        <span className="font-medium">Profe:</span> {coachMsg}
-      </div>
-
-      {/* Contexto */}
-      <p className="text-lg text-center text-foreground">{pregunta.contexto}</p>
-
-      {/* Visualización grande y agradable */}
-      <div className="w-full grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-6">
-        <div className="flex flex-col items-center">
-          <span className="text-sm text-muted-foreground mb-2">Fracción 1</span>
-          <div className="bg-popover rounded-lg p-4 border border-border">
-            <FractionPretty numerador={pregunta.a} denominador={pregunta.denominador1} size="text-5xl" accent />
+      <div className="mx-auto bg-card flex flex-col items-center shadow-md p-6 rounded-lg space-y-6">
+        {/* Barra superior */}
+        <div className="w-full flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            ✅ Aciertos: <b>{aciertos}</b> &nbsp;|&nbsp; ❌ Errores: <b>{errores}</b>
           </div>
-          <div className="mt-2">
-            <FractionCanvas numerador={pregunta.a} denominador={pregunta.denominador1} />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-center">
-          <span className="text-5xl font-bold text-foreground">×</span>
-        </div>
-
-        <div className="flex flex-col items-center">
-          <span className="text-sm text-muted-foreground mb-2">Fracción 2</span>
-          <div className="bg-popover rounded-lg p-4 border border-border">
-            <FractionPretty numerador={pregunta.b} denominador={pregunta.denominador2} size="text-5xl" accent />
-          </div>
-          <div className="mt-2">
-            <FractionCanvas numerador={pregunta.b} denominador={pregunta.denominador2} />
-          </div>
-        </div>
-      </div>
-
-      {/* Guía y pistas */}
-     
-
-
-
-      {/* Único paso: respuesta final */}
-      <>
-        <p className="text-center font-medium text-foreground">
-          Responde la fracción <b>resultado</b> de la multiplicación.
-        </p>
-
-        {/* Entrada con vista previa grande */}
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <div className="flex flex-col items-center gap-2">
-            <input
-              ref={finalNumeradorRef}
-              type="number"
-              value={respuestaFinal.numerador}
-              onChange={(e) => setRespuestaFinal(prev => ({ ...prev, numerador: e.target.value }))}
-              placeholder="?"
-              className="w-28 text-center p-2 text-2xl bg-white text-foreground border border-border rounded"
-            />
-            <div className="h-1 bg-muted w-28 border-b border-border" />
-            <input
-              ref={finalDenominadorRef}
-              type="number"
-              value={respuestaFinal.denominador}
-              onChange={(e) => setRespuestaFinal(prev => ({ ...prev, denominador: e.target.value }))}
-              placeholder="?"
-              className="w-28 text-center p-2 text-2xl bg-white text-foreground border border-border rounded"
-            />
-          </div>
-
-          <div className="flex items-center">
-            <span className="text-muted-foreground">Vista previa</span>
-          </div>
-
-          <div className="bg-popover rounded-xl p-4 border border-border">
-            <FractionPretty
-              numerador={respuestaFinal.numerador || ' '}
-              denominador={respuestaFinal.denominador || ' '}
-              size="text-5xl"
-              accent
-            />
-          </div>
-        </div>
-
-        <div className="w-full max-w-sm flex gap-2">
-          <button
-            onClick={verificar}
-            className="flex-1 bg-primary hover:brightness-110 text-primary-foreground font-bold py-2 rounded-lg transition"
-          >
-            Verificar respuesta
-          </button>
-          {guidedMode && (
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs font-semibold">
+              Nivel {nivelActual}
+            </span>
             <button
-              onClick={() => setHintIndex(i => Math.min(i + 1, 2))}
-              className="px-3 py-2 rounded-lg border border-border hover:bg-input text-sm"
+              onClick={() => setShowGuidePanel(v => !v)}
+              className="px-3 py-1 rounded-md border border-border text-sm hover:bg-input"
             >
-              Una pista más
+              {showGuidePanel ? 'Ocultar guía' : 'Mostrar guía'}
             </button>
-          )}
+          </div>
         </div>
-      </>
-    </div>
+         {/* Guía y pistas */}
+        <AnimatePresence initial={false}>
+          {guidedMode && showGuidePanel && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="w-full overflow-hidden"
+            >
+              <div className="rounded-lg border border-border p-4 bg-background">
+                <h3 className="font-semibold mb-2 text-foreground">Cómo se multiplican fracciones</h3>
+                <ol className="list-decimal ml-5 space-y-1 text-sm text-foreground">
+                  <li>Multiplica <b>numeradores</b> entre sí.</li>
+                  <li>Multiplica <b>denominadores</b> entre sí.</li>
+                  <li><b>No</b> simplifiques en este juego.</li>
+                </ol>
+
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => setHintIndex(i => Math.min(i + 1, hints.length - 1))}
+                    className="px-3 py-2 rounded-md bg-secondary text-secondary-foreground font-medium hover:opacity-90"
+                  >
+                    Pedir pista
+                  </button>
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {hints[hintIndex] && (
+                    <motion.div
+                      key={hintIndex}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      className="mt-3 rounded-md border border-dashed border-ring/40 p-3 text-sm bg-white"
+                    >
+                      <div className="font-medium">{hints[hintIndex].title}</div>
+                      <div className="text-foreground/80">{hints[hintIndex].text}</div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mensaje del “profe” */}
+        <div className="w-full rounded-md border border-border p-3 bg-white text-sm">
+          <span className="font-medium">Profe:</span> {coachMsg}
+        </div>
+
+        {/* Contexto */}
+        <p className="text-lg text-center text-foreground">{pregunta!.contexto}</p>
+
+        {/* Visualización grande y agradable */}
+        <div className="w-full grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-6">
+          <div className="flex flex-col items-center">
+            <span className="text-sm text-muted-foreground mb-2">Fracción 1</span>
+            <div className="bg-popover rounded-lg p-4 border border-border">
+              <FractionPretty numerador={pregunta!.a} denominador={pregunta!.denominador1} size="text-5xl" accent />
+            </div>
+            <div className="mt-2">
+              <FractionCanvas numerador={pregunta!.a} denominador={pregunta!.denominador1} />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center">
+            <span className="text-5xl font-bold text-foreground">×</span>
+          </div>
+
+          <div className="flex flex-col items-center">
+            <span className="text-sm text-muted-foreground mb-2">Fracción 2</span>
+            <div className="bg-popover rounded-lg p-4 border border-border">
+              <FractionPretty numerador={pregunta!.b} denominador={pregunta!.denominador2} size="text-5xl" accent />
+            </div>
+            <div className="mt-2">
+              <FractionCanvas numerador={pregunta!.b} denominador={pregunta!.denominador2} />
+            </div>
+          </div>
+        </div>
+
+       
+
+        {/* Único paso: respuesta final */}
+        <>
+          <p className="text-center font-medium text-foreground">
+            Responde la fracción <b>resultado</b> de la multiplicación.
+          </p>
+
+          {/* Entrada con vista previa grande */}
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            <div className="flex flex-col items-center gap-2">
+              <input
+                ref={finalNumeradorRef}
+                type="number"
+                value={respuestaFinal.numerador}
+                onChange={(e) => setRespuestaFinal(prev => ({ ...prev, numerador: e.target.value }))}
+                placeholder="?"
+                className="w-28 text-center p-2 text-2xl bg-white text-foreground border border-border rounded"
+              />
+              <div className="h-1 bg-muted w-28 border-b border-border" />
+              <input
+                ref={finalDenominadorRef}
+                type="number"
+                value={respuestaFinal.denominador}
+                onChange={(e) => setRespuestaFinal(prev => ({ ...prev, denominador: e.target.value }))}
+                placeholder="?"
+                className="w-28 text-center p-2 text-2xl bg-white text-foreground border border-border rounded"
+              />
+            </div>
+
+            <div className="flex items-center">
+              <span className="text-muted-foreground">Vista previa</span>
+            </div>
+
+            <div className="bg-popover rounded-xl p-4 border border-border">
+              <FractionPretty
+                numerador={respuestaFinal.numerador || ' '}
+                denominador={respuestaFinal.denominador || ' '}
+                size="text-5xl"
+                accent
+              />
+            </div>
+          </div>
+
+          <div className="w-full max-w-sm flex gap-2">
+            <button
+              onClick={() => withLock(verificar)}
+              disabled={isSubmitting}
+              className="flex-1 bg-primary hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed text-primary-foreground font-bold py-2 rounded-lg transition"
+            >
+              {isSubmitting ? 'Verificando…' : 'Verificar respuesta'}
+            </button>
+
+            {guidedMode && (
+              <button
+                onClick={() => setHintIndex(i => Math.min(i + 1, 2))}
+                className="px-3 py-2 rounded-lg border border-border hover:bg-input text-sm"
+              >
+                Una pista más
+              </button>
+            )}
+          </div>
+        </>
+      </div>
+    </>
   )
 }
