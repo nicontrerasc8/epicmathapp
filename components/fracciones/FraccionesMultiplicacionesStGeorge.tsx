@@ -29,10 +29,6 @@ const temaPeriodoId = '4f098735-8cea-416a-be52-12e91adbba23'
 
 // ---------- Utilidades ----------
 const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b))
-const simplificarFraccion = (numerador: number, denominador: number) => {
-  const d = gcd(numerador, denominador)
-  return { numerador: numerador / d, denominador: denominador / d }
-}
 
 // ---------- Generación de pregunta ----------
 const generarPregunta = (nivel: Nivel): Pregunta => {
@@ -67,50 +63,47 @@ const generarPregunta = (nivel: Nivel): Pregunta => {
   }
 }
 
-// ---------- Pistas y ejemplo ----------
-const buildHints = (p: Pregunta) => {
-  const productoNum = p.a * p.b
-  const productoDen = p.denominador1 * p.denominador2
-  const simple = simplificarFraccion(productoNum, productoDen)
-
-  // Posibles cancelaciones previas (opcional/avanzado)
-  const g1 = gcd(p.a, p.denominador2)
-  const g2 = gcd(p.b, p.denominador1)
-
-  return [
-    { title: 'Pista 1 — ¿Qué significa multiplicar fracciones?',
-      text: 'Es tomar una fracción de otra fracción. Por eso se multiplican numeradores entre sí y denominadores entre sí.' },
-    { title: 'Pista 2 — Multiplica numeradores',
-      text: `Multiplica ${p.a} × ${p.b}. Ese es el numerador de la respuesta.` },
-    { title: 'Pista 3 — Multiplica denominadores',
-      text: `Multiplica ${p.denominador1} × ${p.denominador2}. Ese es el denominador de la respuesta.` },
-    { title: 'Pista 4 — (Avanzado) Cancela antes de multiplicar',
-      text: (g1 > 1 || g2 > 1)
-        ? `Puedes simplificar antes: divide ${p.a} y ${p.denominador2} entre ${g1}; y/o divide ${p.b} y ${p.denominador1} entre ${g2}.`
-        : 'Si hay un factor común entre un numerador y el otro denominador, puedes dividirlos antes para hacer números más pequeños.' },
-    { title: 'Pista 5 — Simplifica el resultado',
-      text: `Después de multiplicar, simplifica ${productoNum}/${productoDen} dividiendo por el MCD hasta llegar a ${simple.numerador}/${simple.denominador}.` },
-  ]
+// ---------- UI: fracción bonita ----------
+function FractionPretty({
+  numerador,
+  denominador,
+  size = 'text-4xl',
+  accent = false,
+}: {
+  numerador: number | string
+  denominador: number | string
+  size?: string
+  accent?: boolean
+}) {
+  return (
+    <div className={`inline-flex flex-col items-center justify-center leading-none`}>
+      <span className={`${size} font-bold ${accent ? 'text-primary' : 'text-foreground'}`}>{numerador}</span>
+      <span className="w-full h-0.5 my-1 bg-border" />
+      <span className={`${size} font-bold ${accent ? 'text-primary' : 'text-foreground'}`}>{denominador}</span>
+    </div>
+  )
 }
 
-const buildExample = (p: Pregunta) => {
-  const num = p.a * p.b
-  const den = p.denominador1 * p.denominador2
-  const simple = simplificarFraccion(num, den)
-
-  // Cancelación previa (si aplica)
-  const g1 = gcd(p.a, p.denominador2)
-  const g2 = gcd(p.b, p.denominador1)
-  const pre = {
-    can1: g1 > 1 ? { a: p.a / g1, d2: p.denominador2 / g1, g: g1 } : null,
-    can2: g2 > 1 ? { b: p.b / g2, d1: p.denominador1 / g2, g: g2 } : null,
-  }
-
-  const numPre = (pre.can1 ? pre.can1.a : p.a) * (pre.can2 ? pre.can2.b : p.b)
-  const denPre = (pre.can2 ? pre.can2.d1 : p.denominador1) * (pre.can1 ? pre.can1.d2 : p.denominador2)
-  const simplePre = simplificarFraccion(numPre, denPre)
-
-  return { num, den, simple, pre, numPre, denPre, simplePre }
+// ---------- Pistas (sin simplificar) ----------
+const buildHints = (p: Pregunta) => {
+  return [
+    {
+      title: 'Pista 1 — ¿Cómo multiplico fracciones?',
+      text: 'Multiplica numeradores entre sí y denominadores entre sí. ¡Nada de simplificar por ahora!',
+    },
+    {
+      title: 'Pista 2 — Numeradores',
+      text: `Multiplica ${p.a} × ${p.b}. Ese será el numerador de tu respuesta.`,
+    },
+    {
+      title: 'Pista 3 — Denominadores',
+      text: `Multiplica ${p.denominador1} × ${p.denominador2}. Ese será el denominador de tu respuesta.`,
+    },
+    {
+      title: 'Pista 4 — Comprobación rápida',
+      text: 'Si tu numerador te salió mayor que el denominador, está bien (puede ser una fracción impropia).',
+    },
+  ]
 }
 
 export function FraccionesMultiplicacionStGeorgeGame() {
@@ -118,9 +111,7 @@ export function FraccionesMultiplicacionStGeorgeGame() {
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
 
   const [respuestaFinal, setRespuestaFinal] = useState({ numerador: '', denominador: '' })
-  const [respuestaSimplificada, setRespuestaSimplificada] = useState({ numerador: '', denominador: '' })
 
-  const [mostrarInputSimplificado, setMostrarInputSimplificado] = useState(false)
   const [aciertos, setAciertos] = useState(0)
   const [errores, setErrores] = useState(0)
   const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
@@ -129,15 +120,6 @@ export function FraccionesMultiplicacionStGeorgeGame() {
   const [guidedMode, setGuidedMode] = useState(true)
   const [hintIndex, setHintIndex] = useState(0)
   const [showGuidePanel, setShowGuidePanel] = useState(true)
-  const [showExample, setShowExample] = useState(false)
-
-  // Mensaje “profe”
-  const coachMsg = (() => {
-    if (fallosEjercicioActual === 0 && !mostrarInputSimplificado) return 'Multiplica numeradores y denominadores. Luego recién simplifica.'
-    if (fallosEjercicioActual === 1) return 'Revisa multiplicaciones básicas y si puedes cancelar factores antes de multiplicar.'
-    if (fallosEjercicioActual >= 2) return 'Mira el ejemplo guiado 👇 y vuelve a intentarlo con calma.'
-    return '¡Tú puedes!'
-  })()
 
   const { elapsedSeconds, start, reset } = useQuestionTimer()
   const finalNumeradorRef = useRef<HTMLInputElement>(null)
@@ -153,7 +135,6 @@ export function FraccionesMultiplicacionStGeorgeGame() {
         const q = generarPregunta(nivelInicial)
         setPregunta(q)
         setHintIndex(0)
-        setShowExample(false)
         start()
       }
     }
@@ -162,7 +143,7 @@ export function FraccionesMultiplicacionStGeorgeGame() {
 
   if (!pregunta) return null
 
-  const registrarRespuestaFinal = async (es_correcto: boolean) => {
+  const registrarRespuesta = async (es_correcto: boolean) => {
     if (!student?.id || !temaPeriodoId || !pregunta) return
     await insertStudentResponse({
       student_id: student.id,
@@ -180,7 +161,6 @@ export function FraccionesMultiplicacionStGeorgeGame() {
       respuesta: {
         numerador: parseInt(respuestaFinal.numerador),
         denominador: parseInt(respuestaFinal.denominador),
-        simplificado: mostrarInputSimplificado,
       },
       tiempo_segundos: elapsedSeconds,
     })
@@ -190,11 +170,8 @@ export function FraccionesMultiplicacionStGeorgeGame() {
     const q = generarPregunta(nuevoNivel)
     setPregunta(q)
     setRespuestaFinal({ numerador: '', denominador: '' })
-    setRespuestaSimplificada({ numerador: '', denominador: '' })
-    setMostrarInputSimplificado(false)
     setFallosEjercicioActual(0)
     setHintIndex(0)
-    setShowExample(false)
     reset()
     start()
   }
@@ -204,7 +181,7 @@ export function FraccionesMultiplicacionStGeorgeGame() {
     setFallosEjercicioActual(nuevosFallos)
 
     if (nuevosFallos >= 2) {
-      await registrarRespuestaFinal(false)
+      await registrarRespuesta(false)
       setErrores(prev => prev + 1)
       setAciertos(0)
 
@@ -215,11 +192,11 @@ export function FraccionesMultiplicacionStGeorgeGame() {
         toast('Bajaste de nivel para reforzar la base 📉', { icon: '📉' })
         setErrores(0)
       }
-      setTimeout(() => reiniciarEjercicio(nuevoNivel), 1400)
+      setTimeout(() => reiniciarEjercicio(nuevoNivel), 1200)
     }
   }
 
-  // Paso 1: multiplicación (sin simplificar aún)
+  // Único paso: multiplicación directa
   const verificar = async () => {
     const { a, b, denominador1, denominador2 } = pregunta
     const esperadoNum = a * b
@@ -232,39 +209,10 @@ export function FraccionesMultiplicacionStGeorgeGame() {
     const denCorrecto = userDen === esperadoDen
 
     if (numCorrecto && denCorrecto) {
-      toast.success('¡Bien! Ahora simplifica la fracción.')
-      setMostrarInputSimplificado(true)
-    } else if (numCorrecto && !denCorrecto) {
-      toast.error('👀 El numerador está bien. Revisa el denominador (multiplica los denominadores).')
-      if (guidedMode) setHintIndex(i => Math.max(i, 3))
-      manejarError()
-    } else if (!numCorrecto && denCorrecto) {
-      toast.error('🧮 El denominador está bien. Revisa el numerador (multiplica los numeradores).')
-      if (guidedMode) setHintIndex(i => Math.max(i, 2))
-      manejarError()
-    } else {
-      toast.error('Multiplica numeradores y denominadores directamente (sin simplificar todavía).')
-      if (guidedMode) setHintIndex(i => Math.min(i + 1, 3))
-      manejarError()
-    }
-  }
-
-  // Paso 2: simplificación
-  const verificarSimplificada = async () => {
-    const { a, b, denominador1, denominador2 } = pregunta
-    const resultado = simplificarFraccion(a * b, denominador1 * denominador2)
-
-    const userNum = parseInt(respuestaSimplificada.numerador)
-    const userDen = parseInt(respuestaSimplificada.denominador)
-    const userSimp = simplificarFraccion(userNum, userDen)
-
-    const esCorrecto = resultado.numerador === userSimp.numerador && resultado.denominador === userSimp.denominador
-
-    if (esCorrecto) {
-      await registrarRespuestaFinal(true)
+      await registrarRespuesta(true)
       setAciertos(prev => prev + 1)
       setErrores(0)
-      toast.success('🎉 ¡Muy bien! Fracción simplificada correcta.')
+      toast.success('🎉 ¡Correcto!')
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
 
       let nuevoNivel = nivelActual
@@ -275,17 +223,32 @@ export function FraccionesMultiplicacionStGeorgeGame() {
         setAciertos(0)
         setErrores(0)
       }
-      setTimeout(() => reiniciarEjercicio(nuevoNivel), 1600)
+      setTimeout(() => reiniciarEjercicio(nuevoNivel), 1200)
+    } else if (numCorrecto && !denCorrecto) {
+      toast.error('👀 El numerador está bien. Revisa el denominador (multiplica los denominadores).')
+      if (guidedMode) setHintIndex(i => Math.max(i, 2))
+      manejarError()
+    } else if (!numCorrecto && denCorrecto) {
+      toast.error('🧮 El denominador está bien. Revisa el numerador (multiplica los numeradores).')
+      if (guidedMode) setHintIndex(i => Math.max(i, 1))
+      manejarError()
     } else {
-      toast.error('⚠️ Aún puedes simplificar más o revisa el MCD.')
-      if (guidedMode) setHintIndex(4)
+      toast.error('Multiplica numeradores y denominadores directamente.')
+      if (guidedMode) setHintIndex(i => Math.min(i + 1, 2))
       manejarError()
     }
   }
 
   // UI guía
   const hints = buildHints(pregunta)
-  const example = buildExample(pregunta)
+
+  // Mensaje “profe”
+  const coachMsg = (() => {
+    if (fallosEjercicioActual === 0) return 'Multiplica numeradores y denominadores. ¡Tú puedes!'
+    if (fallosEjercicioActual === 1) return 'Fíjate bien: primero numeradores, luego denominadores.'
+    if (fallosEjercicioActual >= 2) return 'Mira la pista de arriba y vuelve a intentarlo con calma.'
+    return '¡Vamos!'
+  })()
 
   return (
     <div className="mx-auto bg-card flex flex-col items-center shadow-md p-6 rounded-lg space-y-6">
@@ -295,7 +258,9 @@ export function FraccionesMultiplicacionStGeorgeGame() {
           ✅ Aciertos: <b>{aciertos}</b> &nbsp;|&nbsp; ❌ Errores: <b>{errores}</b>
         </div>
         <div className="flex items-center gap-2">
-     
+          <span className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs font-semibold">
+            Nivel {nivelActual}
+          </span>
           <button
             onClick={() => setShowGuidePanel(v => !v)}
             className="px-3 py-1 rounded-md border border-border text-sm hover:bg-input"
@@ -304,11 +269,7 @@ export function FraccionesMultiplicacionStGeorgeGame() {
           </button>
         </div>
       </div>
-
-      <h2 className="text-2xl font-bold text-primary">Nivel {nivelActual}</h2>
-
-      {/* Panel guía */}
-      <AnimatePresence initial={false}>
+       <AnimatePresence initial={false}>
         {guidedMode && showGuidePanel && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
@@ -321,9 +282,7 @@ export function FraccionesMultiplicacionStGeorgeGame() {
               <ol className="list-decimal ml-5 space-y-1 text-sm text-foreground">
                 <li>Multiplica <b>numeradores</b> entre sí.</li>
                 <li>Multiplica <b>denominadores</b> entre sí.</li>
-                <li><b>No simplifiques</b> en este paso.</li>
-                <li>Al final, <b>simplifica</b> dividiendo por el MCD.</li>
-                <li><i>Avanzado:</i> si puedes, <b>cancela factores</b> entre un numerador y el otro denominador antes de multiplicar.</li>
+                <li><b>No</b> simplifiques en este juego.</li>
               </ol>
 
               <div className="flex gap-2 mt-3">
@@ -333,15 +292,8 @@ export function FraccionesMultiplicacionStGeorgeGame() {
                 >
                   Pedir pista
                 </button>
-                <button
-                  onClick={() => setShowExample(v => !v)}
-                  className="px-3 py-2 rounded-md bg-accent text-accent-foreground font-medium hover:opacity-90"
-                >
-                  {showExample ? 'Ocultar ejemplo' : 'Ver ejemplo'}
-                </button>
               </div>
 
-              {/* Pista activa */}
               <AnimatePresence initial={false}>
                 {hints[hintIndex] && (
                   <motion.div
@@ -356,108 +308,102 @@ export function FraccionesMultiplicacionStGeorgeGame() {
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {/* Ejemplo guiado */}
-              <AnimatePresence initial={false}>
-                {showExample && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    className="mt-3 text-sm rounded-md bg-input p-3"
-                  >
-                    <div className="font-medium mb-1">Ejemplo con estos mismos números</div>
-                    <div className="space-y-1">
-                      {/* Cancelación previa si aplica */}
-                      {example.pre.can1 || example.pre.can2 ? (
-                        <div>
-                          <div className="font-medium">Cancelación previa (opcional):</div>
-                          {example.pre.can1 && (
-                            <div>
-                              Divide {pregunta!.a} y {pregunta!.denominador2} entre {example.pre.can1.g} → {example.pre.can1.a} y {example.pre.can1.d2}
-                            </div>
-                          )}
-                          {example.pre.can2 && (
-                            <div>
-                              Divide {pregunta!.b} y {pregunta!.denominador1} entre {example.pre.can2.g} → {example.pre.can2.b} y {example.pre.can2.d1}
-                            </div>
-                          )}
-                          <div>Producto tras cancelar: {example.numPre}/{example.denPre} → simplifica a {example.simplePre.numerador}/{example.simplePre.denominador}</div>
-                          <div className="text-xs text-muted-foreground">Nota: También puedes multiplicar directo sin cancelar y simplificar al final.</div>
-                        </div>
-                      ) : (
-                        <div className="text-muted-foreground">No hay factores obvios para cancelar antes; multiplica directo.</div>
-                      )}
-
-                      {/* Multiplicación directa */}
-                      <div className="font-medium mt-2">Multiplicación directa:</div>
-                      <div>Numeradores: {pregunta!.a} × {pregunta!.b} = <b>{example.num / pregunta!.denominador1 / pregunta!.denominador2 ? '...' : example.num}</b></div>
-                      <div>Denominadores: {pregunta!.denominador1} × {pregunta!.denominador2} = <b>{example.den}</b></div>
-                      <div>Resultado: {example.num}/{example.den} → simplifica a <b>{example.simple.numerador}/{example.simple.denominador}</b></div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Mensaje del “profe” */}
+            {/* Mensaje del “profe” */}
       <div className="w-full rounded-md border border-border p-3 bg-white text-sm">
         <span className="font-medium">Profe:</span> {coachMsg}
       </div>
 
+      {/* Contexto */}
       <p className="text-lg text-center text-foreground">{pregunta.contexto}</p>
 
-      {/* Visualización de fracciones */}
-      <div className="flex flex-row w-full justify-center items-center gap-8 flex-nowrap">
+      {/* Visualización grande y agradable */}
+      <div className="w-full grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-6">
         <div className="flex flex-col items-center">
           <span className="text-sm text-muted-foreground mb-2">Fracción 1</span>
-          <FractionCanvas numerador={pregunta.a} denominador={pregunta.denominador1} />
+          <div className="bg-popover rounded-lg p-4 border border-border">
+            <FractionPretty numerador={pregunta.a} denominador={pregunta.denominador1} size="text-5xl" accent />
+          </div>
+          <div className="mt-2">
+            <FractionCanvas numerador={pregunta.a} denominador={pregunta.denominador1} />
+          </div>
         </div>
-        <h2 className="text-5xl">×</h2>
+
+        <div className="flex items-center justify-center">
+          <span className="text-5xl font-bold text-foreground">×</span>
+        </div>
+
         <div className="flex flex-col items-center">
           <span className="text-sm text-muted-foreground mb-2">Fracción 2</span>
-          <FractionCanvas numerador={pregunta.b} denominador={pregunta.denominador2} />
+          <div className="bg-popover rounded-lg p-4 border border-border">
+            <FractionPretty numerador={pregunta.b} denominador={pregunta.denominador2} size="text-5xl" accent />
+          </div>
+          <div className="mt-2">
+            <FractionCanvas numerador={pregunta.b} denominador={pregunta.denominador2} />
+          </div>
         </div>
       </div>
 
-      {/* Paso 1: multiplicación sin simplificar */}
+      {/* Guía y pistas */}
+     
+
+
+
+      {/* Único paso: respuesta final */}
       <>
         <p className="text-center font-medium text-foreground">
-          Paso 1: Multiplica numeradores y denominadores. <b>No simplifiques aún.</b>
+          Responde la fracción <b>resultado</b> de la multiplicación.
         </p>
-        <div className="flex flex-col items-center gap-2">
-          <input
-            ref={finalNumeradorRef}
-            type="number"
-            value={respuestaFinal.numerador}
-            onChange={(e) => setRespuestaFinal(prev => ({ ...prev, numerador: e.target.value }))}
-            placeholder="?"
-            className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
-          />
-          <div className="h-1 bg-muted w-24 border-b border-border" />
-          <input
-            ref={finalDenominadorRef}
-            type="number"
-            value={respuestaFinal.denominador}
-            onChange={(e) => setRespuestaFinal(prev => ({ ...prev, denominador: e.target.value }))}
-            placeholder="?"
-            className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
-          />
+
+        {/* Entrada con vista previa grande */}
+        <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="flex flex-col items-center gap-2">
+            <input
+              ref={finalNumeradorRef}
+              type="number"
+              value={respuestaFinal.numerador}
+              onChange={(e) => setRespuestaFinal(prev => ({ ...prev, numerador: e.target.value }))}
+              placeholder="?"
+              className="w-28 text-center p-2 text-2xl bg-white text-foreground border border-border rounded"
+            />
+            <div className="h-1 bg-muted w-28 border-b border-border" />
+            <input
+              ref={finalDenominadorRef}
+              type="number"
+              value={respuestaFinal.denominador}
+              onChange={(e) => setRespuestaFinal(prev => ({ ...prev, denominador: e.target.value }))}
+              placeholder="?"
+              className="w-28 text-center p-2 text-2xl bg-white text-foreground border border-border rounded"
+            />
+          </div>
+
+          <div className="flex items-center">
+            <span className="text-muted-foreground">Vista previa</span>
+          </div>
+
+          <div className="bg-popover rounded-xl p-4 border border-border">
+            <FractionPretty
+              numerador={respuestaFinal.numerador || ' '}
+              denominador={respuestaFinal.denominador || ' '}
+              size="text-5xl"
+              accent
+            />
+          </div>
         </div>
 
         <div className="w-full max-w-sm flex gap-2">
           <button
             onClick={verificar}
-            className="flex-1 bg-purple-500 hover:brightness-110 text-white font-bold py-2 rounded-lg transition"
+            className="flex-1 bg-primary hover:brightness-110 text-primary-foreground font-bold py-2 rounded-lg transition"
           >
             Verificar respuesta
           </button>
           {guidedMode && (
             <button
-              onClick={() => setHintIndex(i => Math.min(i + 1, 3))}
+              onClick={() => setHintIndex(i => Math.min(i + 1, 2))}
               className="px-3 py-2 rounded-lg border border-border hover:bg-input text-sm"
             >
               Una pista más
@@ -465,48 +411,6 @@ export function FraccionesMultiplicacionStGeorgeGame() {
           )}
         </div>
       </>
-
-      {/* Paso 2: simplificación */}
-      {mostrarInputSimplificado && (
-        <div className="w-full space-y-2">
-          <p className="text-center font-medium text-foreground">
-            Paso 2: Simplifica la fracción final. Divide por el <b>MCD</b>.
-          </p>
-          <div className="flex flex-col items-center gap-2">
-            <input
-              type="number"
-              value={respuestaSimplificada.numerador}
-              onChange={(e) => setRespuestaSimplificada(prev => ({ ...prev, numerador: e.target.value }))}
-              placeholder="?"
-              className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
-            />
-            <div className="h-1 bg-muted w-24 border-b border-border" />
-            <input
-              type="number"
-              value={respuestaSimplificada.denominador}
-              onChange={(e) => setRespuestaSimplificada(prev => ({ ...prev, denominador: e.target.value }))}
-              placeholder="?"
-              className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
-            />
-          </div>
-          <div className="w-full max-w-sm flex gap-2">
-            <button
-              onClick={verificarSimplificada}
-              className="flex-1 bg-accent hover:brightness-110 text-accent-foreground font-bold py-2 rounded-lg transition"
-            >
-              Verificar simplificación
-            </button>
-            {guidedMode && (
-              <button
-                onClick={() => setHintIndex(4)}
-                className="px-3 py-2 rounded-lg border border-border hover:bg-input text-sm"
-              >
-                ¿Cómo simplifico?
-              </button>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
