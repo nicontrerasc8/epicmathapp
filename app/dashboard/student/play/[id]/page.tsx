@@ -11,6 +11,8 @@ import { PromedioModaStGeorgeGame } from '@/components/fracciones/PromedioModaSa
 import { PatronesAditivosMultiplicativosGame } from '@/components/fracciones/PatronesAditivos'
 import { ReglaDeTresGame } from '@/components/fracciones/ReglaTres'
 import { MagnitudesInversasGame } from '@/components/fracciones/MagnitudesInversas'
+import SumasRestasPrimeroGame from '@/components/fracciones/SumasYRestasInmaculado'
+import CompararNumerosPrimeroGame from '@/components/fracciones/MayorYMenor'
 
 interface Tema {
   id: string
@@ -24,7 +26,9 @@ const gameComponents: Record<string, React.ComponentType> = {
   '11c72ff1-17aa-4e29-8882-04a686523b6c' : PromedioModaStGeorgeGame,
   '74164d20-db6b-4401-94f1-ef4eb0887a86' : PatronesAditivosMultiplicativosGame,
   '2a91e993-4f9e-4766-aa8f-9497f87f1bf7': ReglaDeTresGame,
-  '08655b7e-e653-4dc4-8018-773c8061fd83': MagnitudesInversasGame
+  '08655b7e-e653-4dc4-8018-773c8061fd83': MagnitudesInversasGame,
+  '37d918d2-7ab9-4b9b-b1c2-eb2712568135': SumasRestasPrimeroGame,
+  '138ef06e-1933-4628-810e-03f352b1beb6': CompararNumerosPrimeroGame,
   // Agrega más aquí cuando tengas más juegos
 }
 
