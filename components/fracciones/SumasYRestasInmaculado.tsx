@@ -115,26 +115,30 @@ function generarContexto(a: number, b: number, op: Operador) {
 }
 
 function generarPregunta(nivel: Nivel): Pregunta {
-  // Rango por nivel
-  let min = 0
-  let max = 10
-  if (nivel === 2) {
-    min = 10
-    max = 20
-  } else if (nivel === 3) {
-    min = 10
-    max = 99
-  }
+  let a = 0, b = 0
+  let op: Operador = Math.random() < 0.6 ? '+' : '-'
 
-  // Elegir operación (más sumas que restas para 1er grado)
-  const op: Operador = Math.random() < 0.6 ? '+' : '-'
-
-  let a = 0,
-    b = 0
-  if (op === '+') {
-    ;({ a, b } = generarSumaSinLlevar(min, max))
+  if (nivel === 1) {
+    // 0 a 10, sin llevar/prestar
+    if (op === '+') {
+      ({ a, b } = generarSumaSinLlevar(0, 5))
+    } else {
+      ({ a, b } = generarRestaSinPrestar(0, 5))
+    }
+  } else if (nivel === 2) {
+    // 10 a 20, sin llevar/prestar
+    if (op === '+') {
+      ({ a, b } = generarSumaSinLlevar(6, 12))
+    } else {
+      ({ a, b } = generarRestaSinPrestar(6, 12))
+    }
   } else {
-    ;({ a, b } = generarRestaSinPrestar(min, max))
+    // Nivel 3: 10 a 99, sin llevar/prestar
+    if (op === '+') {
+      ({ a, b } = generarSumaSinLlevar(13, 20))
+    } else {
+      ({ a, b } = generarRestaSinPrestar(13, 20))
+    }
   }
 
   return {
@@ -144,6 +148,7 @@ function generarPregunta(nivel: Nivel): Pregunta {
     contexto: generarContexto(a, b, op),
   }
 }
+
 
 // ---------- Componente visual de número grande ----------
 function BigNumber({ value, accent = false }: { value: number | string; accent?: boolean }) {
@@ -293,39 +298,62 @@ export default function SumasRestasPrimeroGame() {
   }
 
   const verificar = async () => {
-    if (!pregunta) return
-    const userAns = parseInt(respuesta)
-    if (Number.isNaN(userAns)) {
-      toast.error('Escribe tu respuesta.')
-      return
-    }
-
-    const esperado = pregunta.operador === '+' ? pregunta.a + pregunta.b : pregunta.a - pregunta.b
-
-    if (userAns === esperado) {
-      await registrarRespuesta(true, userAns)
-      setAciertos((prev) => prev + 1)
-      setErrores(0)
-      toast.success('🎉 ¡Correcto!')
-      confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } })
-
-      let nuevoNivel = nivelActual
-      if (aciertos + 1 >= 3 && nivelActual < 3) {
-        nuevoNivel = (nivelActual + 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
-        setAciertos(0)
-        setErrores(0)
-      }
-      nextWithDelay(900, nuevoNivel)
-    } else {
-      const tip = pregunta.operador === '+' ? 'Suma unidades y luego decenas (sin llevar).'
-        : 'Resta unidades y luego decenas (sin prestar).'
-      toast.error(`Casi… ${tip}`)
-      if (guidedMode) setHintIndex((i) => Math.min(i + 1, 2))
-      await manejarError(userAns)
-    }
+  if (!pregunta) return
+  const userAns = parseInt(respuesta)
+  if (Number.isNaN(userAns)) {
+    toast.error('Escribe tu respuesta.')
+    return
   }
+
+  const esperado = pregunta.operador === '+' ? pregunta.a + pregunta.b : pregunta.a - pregunta.b
+
+  if (userAns === esperado) {
+    await registrarRespuesta(true, userAns)
+    setAciertos((prev) => {
+      const nuevosAciertos = prev + 1
+      if (nuevosAciertos >= 3 && nivelActual < 3) {
+        const nuevoNivel = (nivelActual + 1) as Nivel
+        updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
+        setErrores(0)
+        nextWithDelay(900, nuevoNivel)
+        return 0
+      } else {
+        nextWithDelay(900, nivelActual)
+        return nuevosAciertos
+      }
+    })
+    toast.success('🎉 ¡Correcto!')
+    confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } })
+  } else {
+    const tip = pregunta.operador === '+' 
+      ? 'Suma unidades y luego decenas (sin llevar).' 
+      : 'Resta unidades y luego decenas (sin prestar).'
+    toast.error(`Casi… ${tip}`)
+    if (guidedMode) setHintIndex((i) => Math.min(i + 1, 2))
+
+    setFallosEjercicioActual((prev) => {
+      const nuevosFallos = prev + 1
+      if (nuevosFallos >= 2) {
+        registrarRespuesta(false, userAns)
+        setErrores((prevErr) => {
+          const nuevosErrores = prevErr + 1
+          let nuevoNivel = nivelActual
+          if (nuevosErrores >= 3 && nivelActual > 1) {
+            nuevoNivel = (nivelActual - 1) as Nivel
+            updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+            toast('Bajaste de nivel para reforzar la base 📉', { icon: '📉' })
+            return 0
+          }
+          return nuevosErrores
+        })
+        nextWithDelay(1000, nivelActual)
+      }
+      return nuevosFallos
+    })
+  }
+}
+
 
   const hints = buildHints(pregunta)
 

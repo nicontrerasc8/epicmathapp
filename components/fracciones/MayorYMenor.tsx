@@ -49,9 +49,9 @@ function genContexto(a: number, b: number) {
 }
 
 function genPairByNivel(n: Nivel): { a: number; b: number } {
-  let min = 0, max = 9
-  if (n === 2) { min = 10; max = 99 }
-  if (n === 3) { min = 100; max = 999 }
+  let min = 1, max = 20
+  if (n === 2) { min = 20; max = 50 }
+  if (n === 3) { min = 50; max = 99 }
 
   // 10% de casos iguales para practicar "="
   if (Math.random() < 0.1) {
