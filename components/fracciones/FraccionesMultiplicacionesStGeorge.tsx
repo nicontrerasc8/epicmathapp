@@ -61,7 +61,7 @@ async function cargarModelo(setDecisionTree: (dt: any) => void) {
   const { data, error } = await supabase
     .from('decision_trees')
     .select('modelo')
-    .eq('tema_id', temaPeriodoId)
+    .eq('tema', temaPeriodoId)
     .single()
 
   if (error) {

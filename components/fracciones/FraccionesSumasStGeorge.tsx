@@ -17,6 +17,25 @@ import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
 const supabase = createClient()
 const temaPeriodoId = 'ea5de085-2e52-40ac-b975-8931d08b9e44'
 
+function FractionPretty({
+  numerador,
+  denominador,
+  size = 'text-4xl',
+  accent = false,
+}: {
+  numerador: number | string
+  denominador: number | string
+  size?: string
+  accent?: boolean
+}) {
+  return (
+    <div className={`inline-flex flex-col items-center justify-center leading-none`}>
+      <span className={`${size} font-bold ${accent ? 'text-primary' : 'text-foreground'}`}>{numerador}</span>
+      <span className="w-full h-0.5 my-1 bg-border" />
+      <span className={`${size} font-bold ${accent ? 'text-primary' : 'text-foreground'}`}>{denominador}</span>
+    </div>
+  )
+}
 // ====== Constantes del modelo (clave para entrenar/guardar) ======
 const CLASS_NAME = 'resultado'
 const FEATURES = [
@@ -512,19 +531,57 @@ export function FraccionesSumasStGeorgeGameGame() {
             {showGuidePanel ? 'Ocultar guía' : 'Mostrar guía'}
           </button>
         </div>
+         <AnimatePresence initial={false}>
+          {guidedMode && showGuidePanel && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="w-full overflow-hidden"
+            >
+              <div className="rounded-lg border border-border p-4 bg-background mt-4">
+                <h3 className="font-semibold mb-2 text-foreground">Guía</h3>
+                {hints[hintIndex] && (
+                  <div className="rounded-md border border-dashed border-ring/40 p-3 text-sm bg-white">
+                    <div className="font-medium">{hints[hintIndex].title}</div>
+                    <div className="text-foreground/80">{hints[hintIndex].text}</div>
+                  </div>
+                )}
+                <button
+                  onClick={() => { setHintIndex(i => Math.min(i + 1, hints.length - 1)); setPistasUsadas(p => p + 1) }}
+                  className="mt-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground font-medium hover:opacity-90"
+                >
+                  Pedir pista
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <h2 className="text-2xl font-bold text-primary">Nivel {nivelActual}</h2>
         <p className="text-lg text-center text-foreground">{pregunta.contexto}</p>
 
-        <div className="flex flex-row w-full justify-center items-center gap-8 flex-nowrap">
+        <div className="w-full grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-6">
           <div className="flex flex-col items-center">
             <span className="text-sm text-muted-foreground mb-2">Fracción 1</span>
-            <FractionCanvas numerador={pregunta.a} denominador={pregunta.denominador1} />
+            <div className="bg-popover rounded-lg p-4 border border-border">
+              <FractionPretty numerador={pregunta!.a} denominador={pregunta!.denominador1} size="text-5xl" accent />
+            </div>
+            <div className="mt-2">
+              <FractionCanvas numerador={pregunta!.a} denominador={pregunta!.denominador1} />
+            </div>
           </div>
-          <h2 className="text-5xl">+</h2>
+          <div className="flex items-center justify-center">
+            <span className="text-5xl font-bold text-foreground">×</span>
+          </div>
           <div className="flex flex-col items-center">
             <span className="text-sm text-muted-foreground mb-2">Fracción 2</span>
-            <FractionCanvas numerador={pregunta.b} denominador={pregunta.denominador2} />
+            <div className="bg-popover rounded-lg p-4 border border-border">
+              <FractionPretty numerador={pregunta!.b} denominador={pregunta!.denominador2} size="text-5xl" accent />
+            </div>
+            <div className="mt-2">
+              <FractionCanvas numerador={pregunta!.b} denominador={pregunta!.denominador2} />
+            </div>
           </div>
         </div>
 
@@ -625,32 +682,7 @@ export function FraccionesSumasStGeorgeGameGame() {
         )}
 
         {/* Pistas */}
-        <AnimatePresence initial={false}>
-          {guidedMode && showGuidePanel && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="w-full overflow-hidden"
-            >
-              <div className="rounded-lg border border-border p-4 bg-background mt-4">
-                <h3 className="font-semibold mb-2 text-foreground">Guía</h3>
-                {hints[hintIndex] && (
-                  <div className="rounded-md border border-dashed border-ring/40 p-3 text-sm bg-white">
-                    <div className="font-medium">{hints[hintIndex].title}</div>
-                    <div className="text-foreground/80">{hints[hintIndex].text}</div>
-                  </div>
-                )}
-                <button
-                  onClick={() => { setHintIndex(i => Math.min(i + 1, hints.length - 1)); setPistasUsadas(p => p + 1) }}
-                  className="mt-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground font-medium hover:opacity-90"
-                >
-                  Pedir pista
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+       
       </div>
     </>
   )
