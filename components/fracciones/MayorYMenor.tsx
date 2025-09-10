@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
+import DecisionTree from 'decision-tree'
 
 import { useStudent } from '@/lib/hooks/useStudent'
 import { createClient } from '@/utils/supabase/client'
@@ -14,6 +15,7 @@ import { getNivelStudentPeriodo } from '../getNivelStudent'
 
 const supabase = createClient()
 
+// ------------------ Tipos ------------------
 type Nivel = 1 | 2 | 3
 type Comparador = '>' | '<' | '='
 
@@ -23,9 +25,9 @@ interface Pregunta {
   contexto: string
 }
 
-const temaPeriodoId = '138ef06e-1933-4628-810e-03f352b1beb6' // cambia si corresponde
+const temaPeriodoId = '138ef06e-1933-4628-810e-03f352b1beb6'
 
-// Overlay
+// ---------- Overlay ----------
 const LoadingOverlay = () => (
   <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center">
     <div className="flex flex-col items-center gap-3">
@@ -35,7 +37,7 @@ const LoadingOverlay = () => (
   </div>
 )
 
-// Utils
+// ---------- Utils ----------
 const rand = (min: number, max: number) =>
   Math.floor(Math.random() * (max - min + 1)) + min
 
@@ -53,11 +55,12 @@ function genPairByNivel(n: Nivel): { a: number; b: number } {
   if (n === 2) { min = 20; max = 50 }
   if (n === 3) { min = 50; max = 99 }
 
-  // 10% de casos iguales para practicar "="
+  // 10% de casos iguales
   if (Math.random() < 0.1) {
     const x = rand(min, max)
     return { a: x, b: x }
   }
+
   let a = rand(min, max)
   let b = rand(min, max)
   if (a === b) b = Math.min(max, Math.max(min, a + (Math.random() < 0.5 ? -1 : 1)))
@@ -69,7 +72,6 @@ function generarPregunta(nivel: Nivel): Pregunta {
   return { a, b, contexto: genContexto(a, b) }
 }
 
-// Subcomponentes
 function BigNumber({ value, accent = false }: { value: number | string; accent?: boolean }) {
   return (
     <div className="px-5 py-3 rounded-xl border border-border bg-popover text-center">
@@ -80,11 +82,11 @@ function BigNumber({ value, accent = false }: { value: number | string; accent?:
 
 const buildHints = (p: Pregunta) => [
   { title: 'Pista 1', text: 'Mira cuántas cifras tiene cada número: el que tiene más cifras es mayor.' },
-  { title: 'Pista 2', text: 'Si tienen las mismas cifras, compara de izquierda a derecha: ¿qué dígito es más grande?' },
+  { title: 'Pista 2', text: 'Si tienen las mismas cifras, compara de izquierda a derecha.' },
   { title: 'Pista 3', text: 'Si todos los dígitos son iguales, entonces los números son iguales (=).' },
 ]
 
-// Componente principal
+// ---------- Componente principal ----------
 export default function CompararNumerosPrimeroGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
@@ -94,11 +96,14 @@ export default function CompararNumerosPrimeroGame() {
   const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [decisionTree, setDecisionTree] = useState<any>(null)
+
   const withLock = async (fn: () => Promise<void>) => {
     if (isSubmitting) return
     setIsSubmitting(true)
     try { await fn() } finally { setIsSubmitting(false) }
   }
+
   const nextWithDelay = (ms: number, nuevoNivel: Nivel) => {
     setIsSubmitting(true)
     setTimeout(() => {
@@ -115,6 +120,26 @@ export default function CompararNumerosPrimeroGame() {
   const { student } = useStudent()
   const firstButtonRef = useRef<HTMLButtonElement>(null)
 
+  // -------- cargar modelo desde Supabase --------
+  async function cargarModelo() {
+    const { data, error } = await supabase
+      .from('decision_trees')
+      .select('modelo')
+      .eq('tema_id', temaPeriodoId)
+      .single()
+
+    if (error) {
+      console.error('Error cargando modelo:', error)
+      return
+    }
+
+    if (data?.modelo) {
+      const { trainingData, className, features } = data.modelo
+      const dt = new DecisionTree(trainingData, className, features)
+      setDecisionTree(dt)
+    }
+  }
+
   useEffect(() => {
     const cargar = async () => {
       if (student?.id) {
@@ -125,6 +150,7 @@ export default function CompararNumerosPrimeroGame() {
         setPregunta(q)
         setHintIndex(0)
         start()
+        await cargarModelo()
       }
     }
     cargar()
@@ -136,8 +162,9 @@ export default function CompararNumerosPrimeroGame() {
 
   if (!pregunta) return null
 
+  // -------- registrar respuesta --------
   const registrarRespuesta = async (es_correcto: boolean, respuestaOp: Comparador) => {
-    if (!student?.id || !temaPeriodoId || !pregunta) return
+    if (!student?.id || !pregunta) return
     const map = { '>': 1, '=': 0, '<': -1 } as const
     await insertStudentResponse({
       student_id: student.id,
@@ -150,6 +177,7 @@ export default function CompararNumerosPrimeroGame() {
     })
   }
 
+  // -------- reiniciar ejercicio --------
   const reiniciarEjercicio = (nuevoNivel: Nivel) => {
     const q = generarPregunta(nuevoNivel)
     setPregunta(q)
@@ -159,25 +187,45 @@ export default function CompararNumerosPrimeroGame() {
     start()
   }
 
+  // -------- manejar errores --------
   const manejarError = async (respuestaOp: Comparador) => {
     const nuevosFallos = fallosEjercicioActual + 1
     setFallosEjercicioActual(nuevosFallos)
+
     if (nuevosFallos >= 2) {
       await registrarRespuesta(false, respuestaOp)
-      setErrores((prev) => prev + 1)
+      const nuevosErrores = errores + 1  // ✅ Calcular primero
+      setErrores(nuevosErrores)
       setAciertos(0)
 
       let nuevoNivel = nivelActual
-      if (errores + 1 >= 3 && nivelActual > 1) {
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('Bajaste de nivel para reforzar la base 📉', { icon: '📉' })
-        setErrores(0)
+      if (decisionTree) {
+        const decision = decisionTree.predict({
+          nivel: nivelActual,
+          aciertos: 0,              // ✅ Los aciertos se resetean
+          errores: nuevosErrores    // ✅ Usar el valor calculado
+        })
+        if (decision === 'baja' && nivelActual > 1) {
+          nuevoNivel = (nivelActual - 1) as Nivel
+          await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+          toast('Bajaste de nivel 📉', { icon: '📉' })
+          setNivelActual(nuevoNivel)
+          setAciertos(0); setErrores(0)  // ✅ Resetear ambos
+        }
+      } else {
+        if (nuevosErrores >= 3 && nivelActual > 1) {  // ✅ Usar el valor calculado
+          nuevoNivel = (nivelActual - 1) as Nivel
+          await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+          setNivelActual(nuevoNivel)
+          setAciertos(0); setErrores(0)  // ✅ Resetear ambos
+        }
       }
+
       nextWithDelay(1000, nuevoNivel)
     }
   }
 
+  // -------- verificar --------
   const verificar = async (opElegido: Comparador) => {
     if (!pregunta) return
     const correcto: Comparador =
@@ -185,22 +233,39 @@ export default function CompararNumerosPrimeroGame() {
 
     if (opElegido === correcto) {
       await registrarRespuesta(true, opElegido)
-      setAciertos((prev) => prev + 1)
+      const nuevosAciertos = aciertos + 1  // ✅ Calcular primero
+      setAciertos(nuevosAciertos)
       setErrores(0)
       toast.success('🎉 ¡Correcto!')
       confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } })
 
       let nuevoNivel = nivelActual
-      if (aciertos + 1 >= 3 && nivelActual < 3) {
-        nuevoNivel = (nivelActual + 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
-        setAciertos(0)
-        setErrores(0)
+      if (decisionTree) {
+        const decision = decisionTree.predict({
+          nivel: nivelActual,
+          aciertos: nuevosAciertos,  // ✅ Usar el valor calculado
+          errores: errores           // ✅ Los errores no cambiaron
+        })
+        if (decision === 'sube' && nivelActual < 3) {
+          nuevoNivel = (nivelActual + 1) as Nivel
+          await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+          toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
+          setNivelActual(nuevoNivel)
+          setAciertos(0); setErrores(0)
+          nextWithDelay(900, nuevoNivel)
+          return
+        }
+      } else {
+        if (nuevosAciertos >= 3 && nivelActual < 3) {  // ✅ Usar el valor calculado
+          nuevoNivel = (nivelActual + 1) as Nivel
+          await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+          setNivelActual(nuevoNivel)
+          setAciertos(0); setErrores(0)
+        }
       }
       nextWithDelay(900, nuevoNivel)
     } else {
-      toast.error('Casi… Primero mira la cantidad de cifras; si empatan, compara de izquierda a derecha.')
+      toast.error('Casi… Primero mira la cantidad de cifras.')
       if (guidedMode) setHintIndex((i) => Math.min(i + 1, 2))
       await manejarError(opElegido)
     }
@@ -290,14 +355,13 @@ export default function CompararNumerosPrimeroGame() {
         {/* Contexto */}
         <p className="text-lg text-center text-foreground">{pregunta.contexto}</p>
 
-        {/* Layout: número A | columna de botones | número B */}
+        {/* Números y botones */}
         <div className="w-full grid grid-cols-[1fr_auto_1fr] items-center gap-6">
           <div className="flex flex-col items-center gap-2">
             <span className="text-sm text-muted-foreground">Primer número</span>
             <BigNumber value={pregunta.a} accent />
           </div>
 
-          {/* Columna vertical de botones */}
           <div className="flex flex-col items-center justify-center gap-3">
             <button
               ref={firstButtonRef}

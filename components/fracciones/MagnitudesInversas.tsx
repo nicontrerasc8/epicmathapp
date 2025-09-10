@@ -9,6 +9,7 @@ import { getNivelStudentPeriodo } from '../getNivelStudent'
 import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
 import toast from 'react-hot-toast'
 import confetti from 'canvas-confetti'
+import DecisionTree from 'decision-tree'
 
 const supabase = createClient()
 const temaPeriodoId = '08655b7e-e653-4dc4-8018-773c8061fd83'
@@ -22,88 +23,130 @@ interface Pregunta {
 }
 
 const enunciadosInversos: ((nivel: Nivel) => Pregunta)[] = [
-    // Nivel 1
+    // NIVEL 1: Números pequeños y simples (1-10)
     () => {
-        const a = 4, b = 6, c = 2
+        const trabajadores1 = Math.floor(Math.random() * 3) + 2; // 2-4
+        const dias1 = Math.floor(Math.random() * 4) + 3; // 3-6
+        const trabajadores2 = Math.floor(Math.random() * 3) + 2; // 2-4
+        
         return {
-            enunciado: `Si ${a} personas terminan un trabajo en ${b} días, ¿cuántos días tomarán ${c} personas?`,
-            resultado: (a * b) / c,
+            enunciado: `Si ${trabajadores1} trabajadores terminan un trabajo en ${dias1} días, ¿cuántos días tardarán ${trabajadores2} trabajadores?`,
+            resultado: (trabajadores1 * dias1) / trabajadores2,
             tipo: 'inversa'
         }
     },
     () => {
-        const a = 3, b = 9, c = 6
+        const personas1 = Math.floor(Math.random() * 3) + 2; // 2-4
+        const horas1 = Math.floor(Math.random() * 4) + 4; // 4-7
+        const personas2 = Math.floor(Math.random() * 4) + 3; // 3-6
+        
         return {
-            enunciado: `Si ${a} albañiles construyen un muro en ${b} días, ¿cuántos días necesitarán ${c} albañiles?`,
-            resultado: (a * b) / c,
+            enunciado: `${personas1} personas pintan una cerca en ${horas1} horas. ¿Cuántas horas tardarán ${personas2} personas?`,
+            resultado: (personas1 * horas1) / personas2,
             tipo: 'inversa'
         }
     },
     () => {
-        const a = 5, b = 10, c = 2
+        const maquinas1 = Math.floor(Math.random() * 2) + 2; // 2-3
+        const tiempo1 = Math.floor(Math.random() * 4) + 4; // 4-7
+        const maquinas2 = Math.floor(Math.random() * 3) + 3; // 3-5
+        
         return {
-            enunciado: `Si ${a} estudiantes ordenan el aula en ${b} minutos, ¿cuántos minutos necesitarán ${c} estudiantes?`,
-            resultado: (a * b) / c,
+            enunciado: `${maquinas1} máquinas fabrican un producto en ${tiempo1} horas. ¿Cuántas horas necesitarán ${maquinas2} máquinas?`,
+            resultado: (maquinas1 * tiempo1) / maquinas2,
             tipo: 'inversa'
         }
     },
-    // Nivel 2
+
+    // NIVEL 2: Números medianos (10-50)
     () => {
-        const a = 4, b = 8, c = 2
+        const velocidad1 = Math.floor(Math.random() * 20) + 20; // 20-39
+        const tiempo1 = Math.floor(Math.random() * 5) + 3; // 3-7
+        const velocidad2 = Math.floor(Math.random() * 20) + 15; // 15-34
+        
         return {
-            enunciado: `Si ${a} cocineros preparan 100 empanadas en ${b} horas, ¿cuánto demorarán ${c} cocineros?`,
-            resultado: (a * b) / c,
-            tipo: 'inversa'
-        }
-    },
-    () => {
-        const a = 6, b = 12, c = 3
-        return {
-            enunciado: `Si ${a} jardineros riegan el parque en ${b} horas, ¿cuántas horas tardarán ${c} jardineros?`,
-            resultado: (a * b) / c,
-            tipo: 'inversa'
-        }
-    },
-    () => {
-        const a = 2, b = 15, c = 5
-        return {
-            enunciado: `Si ${a} camionetas entregan todos los pedidos en ${b} horas, ¿cuántas horas tomarán ${c} camionetas?`,
-            resultado: (a * b) / c,
-            tipo: 'inversa'
-        }
-    },
-    // Nivel 3
-    () => {
-        const a = 60, b = 2, c = 30
-        return {
-            enunciado: `Un auto que va a ${a} km/h tarda ${b} horas. ¿Cuánto tardará uno que va a ${c} km/h?`,
-            resultado: (a * b) / c,
+            enunciado: `Un auto viaja a ${velocidad1} km/h y tarda ${tiempo1} horas en llegar. ¿Cuántas horas tardará a ${velocidad2} km/h?`,
+            resultado: (velocidad1 * tiempo1) / velocidad2,
             tipo: 'inversa'
         }
     },
     () => {
-        const a = 3, b = 12, c = 6
+        const obreros1 = Math.floor(Math.random() * 10) + 10; // 10-19
+        const dias1 = Math.floor(Math.random() * 8) + 5; // 5-12
+        const obreros2 = Math.floor(Math.random() * 15) + 8; // 8-22
+        
         return {
-            enunciado: `Si ${a} operarios ensamblan juguetes en ${b} horas, ¿cuántas horas necesitarán ${c} operarios?`,
-            resultado: (a * b) / c,
+            enunciado: `${obreros1} obreros construyen una casa en ${dias1} días. ¿Cuántos días necesitarán ${obreros2} obreros?`,
+            resultado: (obreros1 * dias1) / obreros2,
             tipo: 'inversa'
         }
     },
     () => {
-        const a = 2, b = 6, c = 4
+        const bombas1 = Math.floor(Math.random() * 5) + 5; // 5-9
+        const horas1 = Math.floor(Math.random() * 6) + 6; // 6-11
+        const bombas2 = Math.floor(Math.random() * 8) + 4; // 4-11
+        
         return {
-            enunciado: `Si ${a} grifos llenan un tanque en ${b} horas, ¿cuántas horas tardarán ${c} grifos?`,
-            resultado: (a * b) / c,
+            enunciado: `${bombas1} bombas llenan un tanque en ${horas1} horas. ¿Cuántas horas tardarán ${bombas2} bombas?`,
+            resultado: (bombas1 * horas1) / bombas2,
+            tipo: 'inversa'
+        }
+    },
+
+    // NIVEL 3: Números grandes (50+)
+    () => {
+        const velocidad1 = Math.floor(Math.random() * 50) + 60; // 60-109
+        const tiempo1 = Math.floor(Math.random() * 5) + 4; // 4-8
+        const velocidad2 = Math.floor(Math.random() * 40) + 50; // 50-89
+        
+        return {
+            enunciado: `Un tren viaja a ${velocidad1} km/h y recorre una distancia en ${tiempo1} horas. ¿Cuántas horas tardará a ${velocidad2} km/h?`,
+            resultado: (velocidad1 * tiempo1) / velocidad2,
+            tipo: 'inversa'
+        }
+    },
+    () => {
+        const trabajadores1 = Math.floor(Math.random() * 30) + 50; // 50-79
+        const dias1 = Math.floor(Math.random() * 10) + 8; // 8-17
+        const trabajadores2 = Math.floor(Math.random() * 40) + 40; // 40-79
+        
+        return {
+            enunciado: `${trabajadores1} trabajadores terminan un proyecto en ${dias1} días. ¿Cuántos días necesitarán ${trabajadores2} trabajadores?`,
+            resultado: (trabajadores1 * dias1) / trabajadores2,
+            tipo: 'inversa'
+        }
+    },
+    () => {
+        const maquinas1 = Math.floor(Math.random() * 15) + 25; // 25-39
+        const horas1 = Math.floor(Math.random() * 8) + 10; // 10-17
+        const maquinas2 = Math.floor(Math.random() * 20) + 20; // 20-39
+        
+        return {
+            enunciado: `${maquinas1} máquinas producen cierta cantidad en ${horas1} horas. ¿Cuántas horas necesitarán ${maquinas2} máquinas?`,
+            resultado: (maquinas1 * horas1) / maquinas2,
             tipo: 'inversa'
         }
     }
 ]
 
 const generarPregunta = (nivel: Nivel): Pregunta => {
-    const opciones = enunciadosInversos.slice(0)
-    const seleccion = opciones[Math.floor(Math.random() * opciones.length)]
-    return seleccion(nivel)
+    let indicesDisponibles: number[] = []
+    
+    // Seleccionar preguntas según el nivel
+    if (nivel === 1) {
+        indicesDisponibles = [0, 1, 2] // Primeras 3 preguntas (números pequeños)
+    } else if (nivel === 2) {
+        indicesDisponibles = [3, 4, 5] // Siguientes 3 preguntas (números medianos)
+    } else if (nivel === 3) {
+        indicesDisponibles = [6, 7, 8] // Últimas 3 preguntas (números grandes)
+    }
+    
+    const indiceSeleccionado = indicesDisponibles[Math.floor(Math.random() * indicesDisponibles.length)]
+    const generador = enunciadosInversos[indiceSeleccionado]
+    
+    return generador(nivel)
 }
+
 
 export function MagnitudesInversasGame() {
     const [nivelActual, setNivelActual] = useState<Nivel>(1)
@@ -112,54 +155,133 @@ export function MagnitudesInversasGame() {
     const [aciertos, setAciertos] = useState(0)
     const [errores, setErrores] = useState(0)
     const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
+    const [decisionTree, setDecisionTree] = useState<any>(null)
     const { student } = useStudent()
     const { elapsedSeconds, start, reset } = useQuestionTimer()
     const canvasRef = useRef<HTMLCanvasElement>(null)
 
-    useEffect(() => {
-        if (!pregunta || !canvasRef.current) return
-        const ctx = canvasRef.current.getContext('2d')
-        if (!ctx) return
-        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
+   useEffect(() => {
+    if (!pregunta || !canvasRef.current) return
+    const ctx = canvasRef.current.getContext('2d')
+    if (!ctx) return
 
-        ctx.font = '16px Arial'
-        ctx.fillStyle = '#3B82F6'
-        ctx.textAlign = 'center'
+    const canvas = canvasRef.current
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-        const drawArrow = (fromX: number, fromY: number, toX: number, toY: number) => {
-            ctx.beginPath()
-            ctx.moveTo(fromX, fromY)
-            ctx.lineTo(toX, toY)
-            ctx.strokeStyle = '#000'
-            ctx.stroke()
-            // flecha
-            const headlen = 10
-            const angle = Math.atan2(toY - fromY, toX - fromX)
-            ctx.lineTo(
-                toX - headlen * Math.cos(angle - Math.PI / 6),
-                toY - headlen * Math.sin(angle - Math.PI / 6)
-            )
-            ctx.moveTo(toX, toY)
-            ctx.lineTo(
-                toX - headlen * Math.cos(angle + Math.PI / 6),
-                toY - headlen * Math.sin(angle + Math.PI / 6)
-            )
-            ctx.stroke()
+    // --- Estilos Generales ---
+    ctx.font = 'bold 24px "Inter", sans-serif' // Fuente más moderna y en negrita
+    ctx.fillStyle = '#2c3e50' // Color de texto oscuro y elegante
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle' // Alinear el texto verticalmente al centro
+
+    // --- Función para dibujar flechas con estilo ---
+    const drawStyledArrow = (fromX:any, fromY:any, toX:any, toY:any, color = '#3498db', lineWidth = 3) => {
+        ctx.beginPath()
+        ctx.moveTo(fromX, fromY)
+        ctx.lineTo(toX, toY)
+        ctx.strokeStyle = color
+        ctx.lineWidth = lineWidth
+        ctx.lineCap = 'round' // Extremos de línea redondeados
+        ctx.stroke()
+
+        // Dibujar cabeza de flecha
+        const headlen = 12
+        const angle = Math.atan2(toY - fromY, toX - fromX)
+        ctx.beginPath()
+        ctx.moveTo(toX, toY)
+        ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 7), toY - headlen * Math.sin(angle - Math.PI / 7))
+        ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 7), toY - headlen * Math.sin(angle + Math.PI / 7))
+        ctx.closePath()
+        ctx.fillStyle = color
+        ctx.fill()
+    }
+
+    // --- Función para dibujar un "recuadro" con texto ---
+    const drawTextBox = (text:any, x:any, y:any, width:any, height:any, bgColor:any, textColor:any, shadow = true) => {
+        const cornerRadius = 8 // Esquinas redondeadas
+        
+        // Sombra
+        if (shadow) {
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)'
+            ctx.shadowBlur = 10
+            ctx.shadowOffsetX = 3
+            ctx.shadowOffsetY = 3
         }
+        
+        // Rectángulo con esquinas redondeadas
+        ctx.beginPath()
+        ctx.moveTo(x + cornerRadius, y)
+        ctx.lineTo(x + width - cornerRadius, y)
+        ctx.quadraticCurveTo(x + width, y, x + width, y + cornerRadius)
+        ctx.lineTo(x + width, y + height - cornerRadius)
+        ctx.quadraticCurveTo(x + width, y + height, x + width - cornerRadius, y + height)
+        ctx.lineTo(x + cornerRadius, y + height)
+        ctx.quadraticCurveTo(x, y + height, x, y + height - cornerRadius)
+        ctx.lineTo(x, y + cornerRadius)
+        ctx.quadraticCurveTo(x, y, x + cornerRadius, y)
+        ctx.closePath()
 
-        // Lógica específica para enunciados inversamente proporcionales
-        const match = pregunta.enunciado.match(/(\d+).*?(\d+).*?(\d+)/)
-        if (match) {
-            const [_, a, b, c] = match.map(Number)
-            ctx.fillText(`${a}`, 100, 60)
-            ctx.fillText(`${b}`, 200, 60)
-            drawArrow(100, 70, 200, 70)
+        ctx.fillStyle = bgColor
+        ctx.fill()
 
-            ctx.fillText(`${c}`, 100, 160)
-            ctx.fillText('?', 200, 160)
-            drawArrow(100, 170, 200, 170)
-        }
-    }, [pregunta])
+        // Resetear sombra antes de dibujar texto para que el texto no tenga sombra doble
+        ctx.shadowColor = 'transparent' 
+        ctx.shadowBlur = 0
+        ctx.shadowOffsetX = 0
+        ctx.shadowOffsetY = 0
+
+        ctx.fillStyle = textColor
+        ctx.font = 'bold 28px "Inter", sans-serif'
+        ctx.fillText(text, x + width / 2, y + height / 2)
+    }
+
+    // --- Lógica específica para enunciados inversamente proporcionales ---
+    const match = pregunta.enunciado.match(/(\d+).*?(\d+).*?(\d+)/)
+    if (match) {
+        const [_, a, b, c] = match.map(Number)
+
+        const boxWidth = 80
+        const boxHeight = 50
+        const spacingX = 120 // Espacio entre las cajas horizontalmente
+        const spacingY = 80 // Espacio entre las filas verticalmente
+        const startX = canvas.width / 2 - (boxWidth + spacingX) / 2
+        const startY = 50
+
+        // Colores más vibrantes y modernos
+        const boxColor1 = '#ecf0f1' // Gris claro de fondo para las cajas
+        const boxColor2 = '#e0e6e8' // Ligeramente diferente para dar contraste si se quiere
+        const textColor = '#34495e' // Azul oscuro para texto
+        const arrowColor = '#2980b9' // Azul fuerte para las flechas
+
+        // Dibujar cajas superiores
+        drawTextBox(`${a}`, startX, startY, boxWidth, boxHeight, boxColor1, textColor)
+        drawTextBox(`${b}`, startX + spacingX, startY, boxWidth, boxHeight, boxColor1, textColor)
+        
+        // Dibujar flecha superior
+        drawStyledArrow(
+            startX + boxWidth / 2, startY + boxHeight + 10,
+            startX + spacingX + boxWidth / 2, startY + boxHeight + 10,
+            arrowColor, 4
+        )
+        ctx.font = '16px "Inter", sans-serif'
+        ctx.fillStyle = '#7f8c8d' // Color para el texto "Inverso"
+        ctx.fillText('Relación Inversa', canvas.width / 2, startY + boxHeight + 30) // Texto en medio de la flecha
+
+        // Dibujar cajas inferiores
+        drawTextBox(`${c}`, startX, startY + boxHeight + spacingY, boxWidth, boxHeight, boxColor1, textColor)
+        drawTextBox('?', startX + spacingX, startY + boxHeight + spacingY, boxWidth, boxHeight, '#f39c12', '#fff') // Caja de la interrogación con color diferente
+
+        // Dibujar flecha inferior
+        drawStyledArrow(
+            startX + boxWidth / 2, startY + 2 * boxHeight + spacingY + 10,
+            startX + spacingX + boxWidth / 2, startY + 2 * boxHeight + spacingY + 10,
+            arrowColor, 4
+        )
+        ctx.font = '16px "Inter", sans-serif'
+        ctx.fillStyle = '#7f8c8d'
+        ctx.fillText('¿Cuál es el valor?', canvas.width / 2, startY + 2 * boxHeight + spacingY + 30)
+    }
+}, [pregunta])
 
     useEffect(() => {
         const cargarNivel = async () => {
@@ -169,10 +291,30 @@ export function MagnitudesInversasGame() {
                 setNivelActual(nivelInicial)
                 setPregunta(generarPregunta(nivelInicial))
                 start()
+                await cargarModelo()
             }
         }
         cargarNivel()
     }, [student])
+
+    const cargarModelo = async () => {
+        const { data, error } = await supabase
+            .from('decision_trees')
+            .select('modelo')
+            .eq('tema_id', temaPeriodoId)
+            .single()
+
+        if (error) {
+            console.error('Error cargando modelo:', error)
+            return
+        }
+
+        if (data?.modelo) {
+            const { trainingData, className, features } = data.modelo
+            const dt = new DecisionTree(trainingData, className, features)
+            setDecisionTree(dt)
+        }
+    }
 
     const nuevaPregunta = (nivel: Nivel) => {
         setPregunta(generarPregunta(nivel))
@@ -262,7 +404,7 @@ export function MagnitudesInversasGame() {
             <canvas
                 ref={canvasRef}
                 width={360}
-                height={200}
+                height={300}
                 className="border border-gray-300 rounded-md shadow-md"
             />
             <input

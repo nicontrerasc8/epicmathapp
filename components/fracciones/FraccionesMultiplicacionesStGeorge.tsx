@@ -3,18 +3,23 @@
 import { useState, useEffect, useRef } from 'react'
 import confetti from 'canvas-confetti'
 import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
+import DecisionTree from 'decision-tree'
+
 import { useStudent } from '@/lib/hooks/useStudent'
 import { createClient } from '@/utils/supabase/client'
 import FractionCanvas from './FractionCanvas'
 import { insertStudentResponse } from '../insertStudentResponse'
 import { updateNivelStudentPeriodo } from '../updateNivelStudentPeriodo'
 import { getNivelStudentPeriodo } from '../getNivelStudent'
-import toast from 'react-hot-toast'
 import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
 
 const supabase = createClient()
+const temaPeriodoId = '4f098735-8cea-416a-be52-12e91adbba23'
 
 type Nivel = 1 | 2 | 3
+type Tiempo = 'rapido' | 'moderado' | 'lento'
+type Mejora = 'mejora' | 'estable' | 'empeora'
 
 interface Pregunta {
   a: number
@@ -24,8 +29,6 @@ interface Pregunta {
   denominador2: number
   contexto: string
 }
-
-const temaPeriodoId = '4f098735-8cea-416a-be52-12e91adbba23'
 
 // ---------- Loading Overlay ----------
 const LoadingOverlay = () => (
@@ -37,8 +40,41 @@ const LoadingOverlay = () => (
   </div>
 )
 
-// ---------- Utilidades ----------
-const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b))
+// ---------- Helpers adaptativos ----------
+const getTiempoCategoria = (segundos: number): Tiempo => {
+  if (segundos <= 20) return 'rapido'
+  if (segundos <= 40) return 'moderado'
+  return 'lento'
+}
+
+const getTendencia = (hist: boolean[]): Mejora => {
+  if (hist.length < 3) return 'estable'
+  const ult = hist.slice(-3)
+  const aciertos = ult.filter(Boolean).length
+  if (aciertos === 3) return 'mejora'
+  if (aciertos === 0) return 'empeora'
+  return 'estable'
+}
+
+// ---------- Árbol de decisión ----------
+async function cargarModelo(setDecisionTree: (dt: any) => void) {
+  const { data, error } = await supabase
+    .from('decision_trees')
+    .select('modelo')
+    .eq('tema_id', temaPeriodoId)
+    .single()
+
+  if (error) {
+    console.error('Error cargando modelo:', error)
+    return
+  }
+
+  if (data?.modelo) {
+    const { trainingData, className, features } = data.modelo
+    const dt = new DecisionTree(trainingData, className, features)
+    setDecisionTree(dt)
+  }
+}
 
 // ---------- Generación de pregunta ----------
 const generarPregunta = (nivel: Nivel): Pregunta => {
@@ -63,14 +99,7 @@ const generarPregunta = (nivel: Nivel): Pregunta => {
     `Carlos tiene ${a}/${denominador1} de una colección y vende ${b}/${denominador2} de su parte. ¿Qué fracción de la colección vendió?`,
   ]
 
-  return {
-    a,
-    b,
-    operador: '×',
-    denominador1,
-    denominador2,
-    contexto: contextos[Math.floor(Math.random() * contextos.length)],
-  }
+  return { a, b, operador: '×', denominador1, denominador2, contexto: contextos[Math.floor(Math.random() * contextos.length)] }
 }
 
 // ---------- UI: fracción bonita ----------
@@ -94,48 +123,35 @@ function FractionPretty({
   )
 }
 
-// ---------- Pistas (sin simplificar) ----------
+// ---------- Pistas ----------
 const buildHints = (p: Pregunta) => {
   return [
-    {
-      title: 'Pista 1 — ¿Cómo multiplico fracciones?',
-      text: 'Multiplica numeradores entre sí y denominadores entre sí. ¡Nada de simplificar por ahora!',
-    },
-    {
-      title: 'Pista 2 — Numeradores',
-      text: `Multiplica ${p.a} × ${p.b}. Ese será el numerador de tu respuesta.`,
-    },
-    {
-      title: 'Pista 3 — Denominadores',
-      text: `Multiplica ${p.denominador1} × ${p.denominador2}. Ese será el denominador de tu respuesta.`,
-    },
-    {
-      title: 'Pista 4 — Comprobación rápida',
-      text: 'Si tu numerador te salió mayor que el denominador, está bien (puede ser una fracción impropia).',
-    },
+    { title: 'Pista 1 — ¿Cómo multiplico fracciones?', text: 'Multiplica numeradores entre sí y denominadores entre sí. ¡No simplifiques en este juego!' },
+    { title: 'Pista 2 — Numeradores', text: `Multiplica ${p.a} × ${p.b}. Ese será el numerador.` },
+    { title: 'Pista 3 — Denominadores', text: `Multiplica ${p.denominador1} × ${p.denominador2}. Ese será el denominador.` },
   ]
 }
 
 export function FraccionesMultiplicacionStGeorgeGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
+  const [decisionTree, setDecisionTree] = useState<any>(null)
 
   const [respuestaFinal, setRespuestaFinal] = useState({ numerador: '', denominador: '' })
-
   const [aciertos, setAciertos] = useState(0)
   const [errores, setErrores] = useState(0)
   const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
 
-  // Loading y locks (copiado del otro juego)
+  // Métricas extra para el árbol
+  const [racha, setRacha] = useState(0)
+  const [pistasUsadas, setPistasUsadas] = useState(0)
+  const [historial, setHistorial] = useState<boolean[]>([])
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const withLock = async (fn: () => Promise<void>) => {
     if (isSubmitting) return
     setIsSubmitting(true)
-    try {
-      await fn()
-    } finally {
-      setIsSubmitting(false)
-    }
+    try { await fn() } finally { setIsSubmitting(false) }
   }
   const nextWithDelay = (ms: number, nuevoNivel: Nivel) => {
     setIsSubmitting(true)
@@ -145,7 +161,6 @@ export function FraccionesMultiplicacionStGeorgeGame() {
     }, ms)
   }
 
-  // Guía y pistas
   const [guidedMode, setGuidedMode] = useState(true)
   const [hintIndex, setHintIndex] = useState(0)
   const [showGuidePanel, setShowGuidePanel] = useState(true)
@@ -154,45 +169,105 @@ export function FraccionesMultiplicacionStGeorgeGame() {
   const finalNumeradorRef = useRef<HTMLInputElement>(null)
   const finalDenominadorRef = useRef<HTMLInputElement>(null)
   const { student } = useStudent()
+  const initRef = useRef(false)
 
   useEffect(() => {
-    const cargarNivel = async () => {
-      if (student?.id) {
-        const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
-        const nivelInicial = (nivelBD ?? 1) as Nivel
-        setNivelActual(nivelInicial)
-        const q = generarPregunta(nivelInicial)
-        setPregunta(q)
-        setHintIndex(0)
-        start()
-      }
-    }
-    cargarNivel()
+    if (!student?.id) return
+    if (initRef.current) return
+    initRef.current = true
+
+    ;(async () => {
+      const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
+      const nivelInicial = (nivelBD ?? 1) as Nivel
+      setNivelActual(nivelInicial)
+      setPregunta(generarPregunta(nivelInicial))
+      setHintIndex(0)
+      start()
+      await cargarModelo(setDecisionTree)
+    })()
   }, [student])
 
   if (!pregunta) return null
 
+  // -------- Registro de intento (sin cambiar tipos)
   const registrarRespuesta = async (es_correcto: boolean) => {
     if (!student?.id || !temaPeriodoId || !pregunta) return
+    const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
+    const nuevaRacha = es_correcto ? racha + 1 : 0
+    const tendencia: Mejora = getTendencia([...historial, es_correcto])
+
     await insertStudentResponse({
       student_id: student.id,
       tema_periodo_id: temaPeriodoId,
       nivel: nivelActual,
       es_correcto,
       ejercicio_data: {
-        a: pregunta.a,
-        b: pregunta.b,
-        operador: pregunta.operador,
-        denominador1: pregunta.denominador1,
-        denominador2: pregunta.denominador2,
+        a: pregunta.a, b: pregunta.b, operador: pregunta.operador,
+        denominador1: pregunta.denominador1, denominador2: pregunta.denominador2,
         contexto: pregunta.contexto,
       },
+      // Guardamos features dentro de "respuesta" para no tocar tipos
       respuesta: {
         numerador: parseInt(respuestaFinal.numerador),
         denominador: parseInt(respuestaFinal.denominador),
+        tiempo_promedio: tiempoCat,
+        pistas_usadas: pistasUsadas,
+        racha: nuevaRacha,
+        mejora: tendencia,
+        tipo_problema: 'fracciones', // etiqueta genérica compatible con el modelo
       },
       tiempo_segundos: elapsedSeconds,
     })
+  }
+
+  // -------- Decidir nivel SOLO por el árbol (con fallback)
+  const decidirNivel = async (nuevoAciertos: number, nuevosErrores: number, es_correcto: boolean) => {
+    let nuevoNivel = nivelActual
+
+    if (decisionTree) {
+      const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
+      const nuevaRacha = es_correcto ? racha + 1 : 0
+      const tendencia: Mejora = getTendencia([...historial, es_correcto])
+
+      const decision = decisionTree.predict({
+        nivel: nivelActual,
+        aciertos: nuevoAciertos,
+        errores: nuevosErrores,
+        tiempo_promedio: tiempoCat,
+        pistas_usadas: pistasUsadas,
+        racha: nuevaRacha,
+        mejora: tendencia,
+        tipo_problema: 'fracciones',
+      })
+
+      if (decision === 'sube' && nivelActual < 3) {
+        nuevoNivel = (nivelActual + 1) as Nivel
+        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
+        setNivelActual(nuevoNivel)
+        setAciertos(0); setErrores(0)
+      } else if (decision === 'baja' && nivelActual > 1) {
+        nuevoNivel = (nivelActual - 1) as Nivel
+        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        toast('Bajaste de nivel 📉', { icon: '📉' })
+        setNivelActual(nuevoNivel)
+        setAciertos(0); setErrores(0)
+      }
+    } else {
+      // Fallback simple
+      if (nuevoAciertos >= 3 && nivelActual < 3) {
+        nuevoNivel = (nivelActual + 1) as Nivel
+        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        setNivelActual(nuevoNivel); setAciertos(0); setErrores(0)
+      }
+      if (nuevosErrores >= 3 && nivelActual > 1) {
+        nuevoNivel = (nivelActual - 1) as Nivel
+        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        setNivelActual(nuevoNivel); setAciertos(0); setErrores(0)
+      }
+    }
+
+    return nuevoNivel
   }
 
   const reiniciarEjercicio = (nuevoNivel: Nivel) => {
@@ -201,6 +276,7 @@ export function FraccionesMultiplicacionStGeorgeGame() {
     setRespuestaFinal({ numerador: '', denominador: '' })
     setFallosEjercicioActual(0)
     setHintIndex(0)
+    setPistasUsadas(0) // reset por ejercicio
     reset()
     start()
   }
@@ -211,21 +287,17 @@ export function FraccionesMultiplicacionStGeorgeGame() {
 
     if (nuevosFallos >= 2) {
       await registrarRespuesta(false)
-      setErrores(prev => prev + 1)
+      const nuevosErrores = errores + 1
+      setErrores(nuevosErrores)
       setAciertos(0)
-
-      let nuevoNivel = nivelActual
-      if (errores + 1 >= 3 && nivelActual > 1) {
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('Bajaste de nivel para reforzar la base 📉', { icon: '📉' })
-        setErrores(0)
-      }
+      setRacha(0)
+      setHistorial((h) => [...h, false])
+      toast.error('❌ Fallaste. Nueva pregunta.')
+      const nuevoNivel = await decidirNivel(0, nuevosErrores, false)
       nextWithDelay(1200, nuevoNivel)
     }
   }
 
-  // Único paso: multiplicación directa (con lock y overlay)
   const verificar = async () => {
     const { a, b, denominador1, denominador2 } = pregunta!
     const esperadoNum = a * b
@@ -239,43 +311,29 @@ export function FraccionesMultiplicacionStGeorgeGame() {
 
     if (numCorrecto && denCorrecto) {
       await registrarRespuesta(true)
-      setAciertos(prev => prev + 1)
+      const nuevosAciertos = aciertos + 1
+      setAciertos(nuevosAciertos)
       setErrores(0)
+      setRacha((r) => r + 1)
+      setHistorial((h) => [...h, true])
+
       toast.success('🎉 ¡Correcto!')
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
-
-      let nuevoNivel = nivelActual
-      if (aciertos + 1 >= 3 && nivelActual < 3) {
-        nuevoNivel = (nivelActual + 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
-        setAciertos(0)
-        setErrores(0)
-      }
+      const nuevoNivel = await decidirNivel(nuevosAciertos, 0, true)
       nextWithDelay(1200, nuevoNivel)
-    } else if (numCorrecto && !denCorrecto) {
-      toast.error('👀 El numerador está bien. Revisa el denominador (multiplica los denominadores).')
-      if (guidedMode) setHintIndex(i => Math.max(i, 2))
-      await manejarError()
-    } else if (!numCorrecto && denCorrecto) {
-      toast.error('🧮 El denominador está bien. Revisa el numerador (multiplica los numeradores).')
-      if (guidedMode) setHintIndex(i => Math.max(i, 1))
-      await manejarError()
     } else {
-      toast.error('Multiplica numeradores y denominadores directamente.')
-      if (guidedMode) setHintIndex(i => Math.min(i + 1, 2))
+      toast.error('Multiplica numeradores y denominadores correctamente.')
+      if (guidedMode) setHintIndex((i) => Math.min(i + 1, 2))
       await manejarError()
     }
   }
 
-  // UI guía
   const hints = buildHints(pregunta)
 
-  // Mensaje “profe”
   const coachMsg = (() => {
     if (fallosEjercicioActual === 0) return 'Multiplica numeradores y denominadores. ¡Tú puedes!'
-    if (fallosEjercicioActual === 1) return 'Fíjate bien: primero numeradores, luego denominadores.'
-    if (fallosEjercicioActual >= 2) return 'Mira la pista de arriba y vuelve a intentarlo con calma.'
+    if (fallosEjercicioActual === 1) return 'Fíjate: primero numeradores, luego denominadores.'
+    if (fallosEjercicioActual >= 2) return 'Mira la pista y vuelve a intentarlo con calma.'
     return '¡Vamos!'
   })()
 
@@ -284,10 +342,9 @@ export function FraccionesMultiplicacionStGeorgeGame() {
       {isSubmitting && <LoadingOverlay />}
 
       <div className="mx-auto bg-card flex flex-col items-center shadow-md p-6 rounded-lg space-y-6">
-        {/* Barra superior */}
         <div className="w-full flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            ✅ Aciertos: <b>{aciertos}</b> &nbsp;|&nbsp; ❌ Errores: <b>{errores}</b>
+            ✅ Aciertos: <b>{aciertos}</b> | ❌ Errores: <b>{errores}</b> | 🔁 Racha: <b>{racha}</b> | 💡 Pistas: <b>{pistasUsadas}</b>
           </div>
           <div className="flex items-center gap-2">
             <span className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs font-semibold">
@@ -301,7 +358,7 @@ export function FraccionesMultiplicacionStGeorgeGame() {
             </button>
           </div>
         </div>
-         {/* Guía y pistas */}
+
         <AnimatePresence initial={false}>
           {guidedMode && showGuidePanel && (
             <motion.div
@@ -310,51 +367,37 @@ export function FraccionesMultiplicacionStGeorgeGame() {
               exit={{ height: 0, opacity: 0 }}
               className="w-full overflow-hidden"
             >
-              <div className="rounded-lg border border-border p-4 bg-background">
+              <div className="rounded-lg border border-border p-4 bg-background mt-4">
                 <h3 className="font-semibold mb-2 text-foreground">Cómo se multiplican fracciones</h3>
                 <ol className="list-decimal ml-5 space-y-1 text-sm text-foreground">
                   <li>Multiplica <b>numeradores</b> entre sí.</li>
                   <li>Multiplica <b>denominadores</b> entre sí.</li>
-                  <li><b>No</b> simplifiques en este juego.</li>
+                  <li>No simplifiques en este juego.</li>
                 </ol>
-
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => setHintIndex(i => Math.min(i + 1, hints.length - 1))}
-                    className="px-3 py-2 rounded-md bg-secondary text-secondary-foreground font-medium hover:opacity-90"
-                  >
-                    Pedir pista
-                  </button>
-                </div>
-
-                <AnimatePresence initial={false}>
-                  {hints[hintIndex] && (
-                    <motion.div
-                      key={hintIndex}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      className="mt-3 rounded-md border border-dashed border-ring/40 p-3 text-sm bg-white"
-                    >
-                      <div className="font-medium">{hints[hintIndex].title}</div>
-                      <div className="text-foreground/80">{hints[hintIndex].text}</div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {hints[hintIndex] && (
+                  <div className="rounded-md border border-dashed border-ring/40 p-3 text-sm bg-white mt-3">
+                    <div className="font-medium">{hints[hintIndex].title}</div>
+                    <div className="text-foreground/80">{hints[hintIndex].text}</div>
+                  </div>
+                )}
+                <button
+                  onClick={() => { setHintIndex(i => Math.min(i + 1, 2)); setPistasUsadas(p => p + 1) }}
+                  className="mt-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground font-medium hover:opacity-90"
+                >
+                  Una pista más
+                </button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Mensaje del “profe” */}
+        {/* Mensaje del profe */}
         <div className="w-full rounded-md border border-border p-3 bg-white text-sm">
           <span className="font-medium">Profe:</span> {coachMsg}
         </div>
 
-        {/* Contexto */}
         <p className="text-lg text-center text-foreground">{pregunta!.contexto}</p>
 
-        {/* Visualización grande y agradable */}
         <div className="w-full grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-6">
           <div className="flex flex-col items-center">
             <span className="text-sm text-muted-foreground mb-2">Fracción 1</span>
@@ -365,11 +408,9 @@ export function FraccionesMultiplicacionStGeorgeGame() {
               <FractionCanvas numerador={pregunta!.a} denominador={pregunta!.denominador1} />
             </div>
           </div>
-
           <div className="flex items-center justify-center">
             <span className="text-5xl font-bold text-foreground">×</span>
           </div>
-
           <div className="flex flex-col items-center">
             <span className="text-sm text-muted-foreground mb-2">Fracción 2</span>
             <div className="bg-popover rounded-lg p-4 border border-border">
@@ -381,69 +422,58 @@ export function FraccionesMultiplicacionStGeorgeGame() {
           </div>
         </div>
 
-       
+        <p className="text-center font-medium text-foreground">
+          Responde la fracción <b>resultado</b> de la multiplicación.
+        </p>
 
-        {/* Único paso: respuesta final */}
-        <>
-          <p className="text-center font-medium text-foreground">
-            Responde la fracción <b>resultado</b> de la multiplicación.
-          </p>
-
-          {/* Entrada con vista previa grande */}
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            <div className="flex flex-col items-center gap-2">
-              <input
-                ref={finalNumeradorRef}
-                type="number"
-                value={respuestaFinal.numerador}
-                onChange={(e) => setRespuestaFinal(prev => ({ ...prev, numerador: e.target.value }))}
-                placeholder="?"
-                className="w-28 text-center p-2 text-2xl bg-white text-foreground border border-border rounded"
-              />
-              <div className="h-1 bg-muted w-28 border-b border-border" />
-              <input
-                ref={finalDenominadorRef}
-                type="number"
-                value={respuestaFinal.denominador}
-                onChange={(e) => setRespuestaFinal(prev => ({ ...prev, denominador: e.target.value }))}
-                placeholder="?"
-                className="w-28 text-center p-2 text-2xl bg-white text-foreground border border-border rounded"
-              />
-            </div>
-
-            <div className="flex items-center">
-              <span className="text-muted-foreground">Vista previa</span>
-            </div>
-
-            <div className="bg-popover rounded-xl p-4 border border-border">
-              <FractionPretty
-                numerador={respuestaFinal.numerador || ' '}
-                denominador={respuestaFinal.denominador || ' '}
-                size="text-5xl"
-                accent
-              />
-            </div>
+        <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="flex flex-col items-center gap-2">
+            <input
+              ref={finalNumeradorRef}
+              type="number"
+              value={respuestaFinal.numerador}
+              onChange={(e) => setRespuestaFinal(prev => ({ ...prev, numerador: e.target.value }))}
+              placeholder="?"
+              className="w-28 text-center p-2 text-2xl bg-white text-foreground border border-border rounded"
+            />
+            <div className="h-1 bg-muted w-28 border-b border-border" />
+            <input
+              ref={finalDenominadorRef}
+              type="number"
+              value={respuestaFinal.denominador}
+              onChange={(e) => setRespuestaFinal(prev => ({ ...prev, denominador: e.target.value }))}
+              placeholder="?"
+              className="w-28 text-center p-2 text-2xl bg-white text-foreground border border-border rounded"
+            />
           </div>
 
-          <div className="w-full max-w-sm flex gap-2">
+          <div className="bg-popover rounded-xl p-4 border border-border">
+            <FractionPretty
+              numerador={respuestaFinal.numerador || ' '}
+              denominador={respuestaFinal.denominador || ' '}
+              size="text-5xl"
+              accent
+            />
+          </div>
+        </div>
+
+        <div className="w-full max-w-sm flex gap-2">
+          <button
+            onClick={() => withLock(verificar)}
+            disabled={isSubmitting}
+            className="flex-1 bg-primary text-primary-foreground font-bold py-2 rounded-lg transition"
+          >
+            {isSubmitting ? 'Verificando…' : 'Verificar respuesta'}
+          </button>
+          {guidedMode && (
             <button
-              onClick={() => withLock(verificar)}
-              disabled={isSubmitting}
-              className="flex-1 bg-primary hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed text-primary-foreground font-bold py-2 rounded-lg transition"
+              onClick={() => { setHintIndex(i => Math.min(i + 1, 2)); setPistasUsadas(p => p + 1) }}
+              className="px-3 py-2 rounded-lg border border-border hover:bg-input text-sm"
             >
-              {isSubmitting ? 'Verificando…' : 'Verificar respuesta'}
+              Una pista más
             </button>
-
-            {guidedMode && (
-              <button
-                onClick={() => setHintIndex(i => Math.min(i + 1, 2))}
-                className="px-3 py-2 rounded-lg border border-border hover:bg-input text-sm"
-              >
-                Una pista más
-              </button>
-            )}
-          </div>
-        </>
+          )}
+        </div>
       </div>
     </>
   )

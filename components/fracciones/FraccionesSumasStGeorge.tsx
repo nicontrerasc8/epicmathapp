@@ -3,18 +3,50 @@
 import { useState, useEffect, useRef } from 'react'
 import confetti from 'canvas-confetti'
 import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
+import DecisionTree from 'decision-tree'
+
 import { useStudent } from '@/lib/hooks/useStudent'
 import { createClient } from '@/utils/supabase/client'
 import FractionCanvas from './FractionCanvas'
 import { insertStudentResponse } from '../insertStudentResponse'
 import { updateNivelStudentPeriodo } from '../updateNivelStudentPeriodo'
 import { getNivelStudentPeriodo } from '../getNivelStudent'
-import toast from 'react-hot-toast'
 import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
 
 const supabase = createClient()
+const temaPeriodoId = 'ea5de085-2e52-40ac-b975-8931d08b9e44'
+
+// ====== Constantes del modelo (clave para entrenar/guardar) ======
+const CLASS_NAME = 'resultado'
+const FEATURES = [
+  'nivel',
+  'aciertos',
+  'errores',
+  'tiempo_promedio',
+  'pistas_usadas',
+  'racha',
+  'mejora',
+  'tipo_problema',
+] as const
 
 type Nivel = 1 | 2 | 3
+type Tiempo = 'rapido' | 'moderado' | 'lento'
+type Mejora = 'mejora' | 'estable' | 'empeora'
+type Resultado = 'sube' | 'baja' | 'mantiene'
+
+type Sample = {
+  nivel: Nivel
+  aciertos: number
+  errores: number
+  tiempo_promedio: Tiempo
+  pistas_usadas: number
+  racha: number
+  mejora: Mejora
+  tipo_problema: 'fracciones'
+}
+
+type TrainingRow = Sample & { resultado: Resultado }
 
 interface Pregunta {
   a: number
@@ -25,17 +57,32 @@ interface Pregunta {
   contexto: string
 }
 
-const temaPeriodoId = 'ea5de085-2e52-40ac-b975-8931d08b9e44'
-
-
-// ---------- Utilidades matemáticas ----------
+// ---------- Utils matemáticas ----------
 const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b))
 const mcm = (a: number, b: number): number => Math.abs((a * b) / gcd(a, b))
 const simplificarFraccion = (numerador: number, denominador: number) => {
   const d = gcd(numerador, denominador)
   return { numerador: numerador / d, denominador: denominador / d }
 }
+const randInt = (min: number, max: number) =>
+  Math.floor(Math.random() * (max - min + 1)) + min
 
+// ---------- Helpers adaptativos ----------
+const getTiempoCategoria = (segundos: number): Tiempo => {
+  if (segundos <= 20) return 'rapido'
+  if (segundos <= 40) return 'moderado'
+  return 'lento'
+}
+const getTendencia = (hist: boolean[]): Mejora => {
+  if (hist.length < 3) return 'estable'
+  const ultimos = hist.slice(-3)
+  const aciertos = ultimos.filter(Boolean).length
+  if (aciertos === 3) return 'mejora'
+  if (aciertos === 0) return 'empeora'
+  return 'estable'
+}
+
+// ---------- Loading ----------
 const LoadingOverlay = () => (
   <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center">
     <div className="flex flex-col items-center gap-3">
@@ -45,21 +92,100 @@ const LoadingOverlay = () => (
   </div>
 )
 
+// ---------- Árbol de decisión: cargar + upsert/entrenar ----------
+async function cargarModelo(setDecisionTree: (dt: any) => void) {
+  console.log('[DT] Cargando modelo tema_id=', temaPeriodoId)
+  const { data, error } = await supabase
+    .from('decision_trees')
+    .select('modelo')
+    .eq('tema', temaPeriodoId)
+    .single()
 
+  if (error) {
+    console.error('[DT] Error cargando modelo:', error)
+    return
+  }
+
+  if (!data?.modelo) {
+    console.warn('[DT] No hay modelo. Creando fila vacía por upsert…')
+    const empty = { trainingData: [] as TrainingRow[], className: CLASS_NAME, features: FEATURES }
+    const up = await supabase
+      .from('decision_trees')
+      .upsert({ tema: temaPeriodoId, modelo: empty }, { onConflict: 'tema' })
+    if (up.error) console.error('[DT] Error creando fila vacía:', up.error)
+    return
+  }
+
+  const { trainingData, className, features } = data.modelo
+  console.log('[DT] Modelo cargado. Ejemplos=', trainingData?.length ?? 0)
+  try {
+    const dt = new DecisionTree(trainingData ?? [], className ?? CLASS_NAME, features ?? FEATURES)
+    setDecisionTree(dt)
+    console.log('[DT] Árbol reconstruido en memoria ✅')
+  } catch (e) {
+    console.error('[DT] Error reconstruyendo árbol:', e)
+  }
+}
+
+async function appendTrainingExample(
+  setDecisionTree: (dt: any) => void,
+  example: TrainingRow
+) {
+  console.log('[DT] Agregando ejemplo de entrenamiento:', example)
+
+  // 1) Leer modelo actual (o crear base vacía)
+  const { data, error } = await supabase
+    .from('decision_trees')
+    .select('modelo')
+    .eq('tema', temaPeriodoId)
+    .single()
+
+  let trainingData: TrainingRow[] = []
+  let className = CLASS_NAME
+  let features :any = FEATURES
+
+  if (error) {
+    console.error('[DT] Error leyendo modelo antes de upsert:', error)
+  } else if (data?.modelo) {
+    trainingData = (data.modelo.trainingData as TrainingRow[]) ?? []
+    className = (data.modelo.className as string) ?? CLASS_NAME
+    features = (data.modelo.features as string[]) ?? FEATURES
+  } else {
+    console.warn('[DT] No había modelo, se creará uno nuevo')
+  }
+
+  // 2) Añadir ejemplo
+  trainingData.push(example)
+
+  // 3) Guardar con upsert (MUY IMPORTANTE: onConflict por tema_id)
+  const modelo = { trainingData, className, features }
+  const { data: upserted, error: upErr } = await supabase
+    .from('decision_trees')
+    .upsert({ tema: temaPeriodoId, modelo }, { onConflict: 'tema' })
+    .select()
+
+  if (upErr) {
+    console.error('[DT] Error al upsert del modelo:', upErr)
+    return
+  }
+  console.log('[DT] Modelo upserteado correctamente. Total ejemplos=', trainingData.length, 'Resp:', upserted)
+
+  // 4) Re-entrenar en memoria
+  try {
+    const dt = new DecisionTree(trainingData, className, features)
+    setDecisionTree(dt)
+    console.log('[DT] Árbol re-entrenado en memoria ✅')
+  } catch (e) {
+    console.error('[DT] Error re-entrenando árbol en memoria:', e)
+  }
+}
+
+// ---------- Generación de denominadores ----------
 const lcmBound = (a: number, b: number) => Math.abs((a * b) / gcd(a, b))
 
-/**
- * Reglas por nivel:
- *  Nivel 1 (fácil):  d1,d2 ∈ [2..12], SIEMPRE comparten factor y
- *                    casi siempre uno divide al otro. LCM ≤ 24.
- *  Nivel 2 (medio):  d1,d2 ∈ [3..15], LCM ≤ 60, pueden ser coprimos.
- *  Nivel 3 (alto):   d1,d2 ∈ [7..24], LCM ≤ 120, preferencia por coprimos.
- */
 const pickDenominators = (nivel: Nivel): { d1: number; d2: number } => {
   let d1 = 0, d2 = 0
-
   if (nivel === 1) {
-    // Casi siempre uno divide al otro, rangos chicos
     const bases = [2, 3, 4, 5, 6]
     while (true) {
       const base = bases[Math.floor(Math.random() * bases.length)]
@@ -69,51 +195,39 @@ const pickDenominators = (nivel: Nivel): { d1: number; d2: number } => {
       if (d2 <= 10 && lcmBound(d1, d2) <= 20) break
     }
   } else if (nivel === 2) {
-    // Siempre comparten factor (evita coprimos), LCM moderado
     while (true) {
       d1 = randInt(3, 10)
       do { d2 = randInt(3, 10) } while (d2 === d1)
       if (gcd(d1, d2) > 1 && lcmBound(d1, d2) <= 36) break
     }
   } else {
-    // Todavía amigable: pocos coprimos y MCM acotado
     while (true) {
       d1 = randInt(4, 12)
       do { d2 = randInt(4, 12) } while (d2 === d1)
       const l = lcmBound(d1, d2)
       const g = gcd(d1, d2)
-      const wantCoprime = Math.random() < 0.2 // solo 20% coprimos
+      const wantCoprime = Math.random() < 0.2
       if (l <= 48 && (!wantCoprime || g === 1)) break
     }
   }
   return { d1, d2 }
 }
 
-
 const generarPregunta = (nivel: Nivel): Pregunta => {
   const { d1: denominador1, d2: denominador2 } = pickDenominators(nivel)
-
-  // Numeradores más chicos (máx ~1/3 del denominador)
   const cap = (d: number) => Math.max(1, Math.floor(d / 3))
   const a = randInt(1, cap(denominador1))
   const b = randInt(1, cap(denominador2))
-
   const contextos = [
     `María tiene ${a}/${denominador1} de una torta y recibe ${b}/${denominador2} más. ¿Cuánto tiene ahora?`,
     `Pedro comió ${a}/${denominador1} de una pizza y luego ${b}/${denominador2} más. ¿Cuánto comió en total?`,
     `Ana coloreó ${a}/${denominador1} de un dibujo y después ${b}/${denominador2} más. ¿Cuánto coloreó en total?`,
     `Carlos lee ${a}/${denominador1} de un libro y luego ${b}/${denominador2} más. ¿Cuánto ha leído en total?`,
   ]
-
-  return {
-    a, b, operador: '+',
-    denominador1, denominador2,
-    contexto: contextos[Math.floor(Math.random() * contextos.length)],
-  }
+  return { a, b, operador: '+', denominador1, denominador2, contexto: contextos[Math.floor(Math.random() * contextos.length)] }
 }
 
-
-// ---------- Motor de pistas guiadas ----------
+// ---------- Pistas ----------
 const buildHints = (p: Pregunta) => {
   const denComun = mcm(p.denominador1, p.denominador2)
   const nuevoA = p.a * (denComun / p.denominador1)
@@ -121,120 +235,31 @@ const buildHints = (p: Pregunta) => {
   const suma = nuevoA + nuevoB
   const simple = simplificarFraccion(suma, denComun)
   return [
-    {
-      title: 'Pista 1 — Denominador común',
-      text: `Busca el mínimo común múltiplo (MCM) entre ${p.denominador1} y ${p.denominador2}.`
-    },
-    {
-      title: 'Pista 2 — Equivalentes',
-      text: `Convierte ${p.a}/${p.denominador1} a denominador ${denComun} y ${p.b}/${p.denominador2} a denominador ${denComun}.`
-    },
-    {
-      title: 'Pista 3 — Suma',
-      text: `Suma los numeradores ya convertidos: ${nuevoA} + ${nuevoB}. Mantén el denominador ${denComun}.`
-    },
-    {
-      title: 'Pista 4 — Simplificar',
-      text: `Si se puede, divide numerador y denominador por su máximo común divisor. Resultado esperado en forma simplificada: ${simple.numerador}/${simple.denominador}.`
-    },
+    { title: 'Pista 1 — Denominador común', text: `Busca el MCM entre ${p.denominador1} y ${p.denominador2}.` },
+    { title: 'Pista 2 — Equivalentes', text: `Convierte ${p.a}/${p.denominador1} y ${p.b}/${p.denominador2} al denominador ${denComun}.` },
+    { title: 'Pista 3 — Suma', text: `Suma ${nuevoA} + ${nuevoB}. Denominador: ${denComun}.` },
+    { title: 'Pista 4 — Simplifica', text: `Simplifica: ${suma}/${denComun} → ${simple.numerador}/${simple.denominador}.` },
   ]
 }
 
-// ---------- Ejemplo SIEMPRE distinto al ejercicio ----------
-const samePair = (a: number, b: number, c: number, d: number) =>
-  (a === c && b === d) || (a === d && b === c)
-
-const randInt = (min: number, max: number) =>
-  Math.floor(Math.random() * (max - min + 1)) + min
-
-const pickExampleDenominators = (nivel: Nivel, d1Real: number, d2Real: number) => {
-  let d1 = 0, d2 = 0, intentos = 0
-  while (true) {
-    intentos++
-    if (nivel === 1) {
-      // pares fáciles (uno divide al otro) y MCM pequeño
-      const base = [2, 3, 4, 5, 6][Math.floor(Math.random() * 5)]
-      const mult = [2, 3][Math.floor(Math.random() * 2)]
-      d1 = base
-      d2 = base * mult
-      if (d2 > 12) continue
-      if (lcmBound(d1, d2) > 24) continue
-    } else if (nivel === 2) {
-      // LCM moderado
-      d1 = randInt(3, 15)
-      do { d2 = randInt(3, 15) } while (d2 === d1)
-      if (lcmBound(d1, d2) > 60) continue
-    } else {
-      // preferencia por coprimos y LCM acotado
-      d1 = randInt(7, 24)
-      do { d2 = randInt(7, 24) } while (d2 === d1)
-      const wantCoprime = Math.random() < 0.7
-      if (lcmBound(d1, d2) > 120) continue
-      if (wantCoprime && gcd(d1, d2) !== 1) continue
-    }
-    if (!samePair(d1, d2, d1Real, d2Real)) break
-    if (intentos > 50) break // “escape” por si acaso
-  }
-  return { d1, d2 }
-}
-
-const buildExample = (nivel: Nivel, p: Pregunta) => {
-  const { d1, d2 } = pickExampleDenominators(nivel, p.denominador1, p.denominador2)
-
-  // numeradores pequeños, propios y distintos a los del ejercicio
-  let a = randInt(1, Math.max(2, Math.min(4, d1 - 1)))
-  let b = randInt(1, Math.max(2, Math.min(4, d2 - 1)))
-  if (a === p.a && d1 === p.denominador1) a = Math.min(a + 1, d1 - 1) || 1
-  if (b === p.b && d2 === p.denominador2) b = Math.min(b + 1, d2 - 1) || 1
-
-  const denComun = mcm(d1, d2)
-  const nuevoA = a * (denComun / d1)
-  const nuevoB = b * (denComun / d2)
-  const suma = nuevoA + nuevoB
-  const simple = simplificarFraccion(suma, denComun)
-
-  return { d1, d2, a, b, denComun, nuevoA, nuevoB, suma, simple }
-}
-
-
+// ---------- Componente principal ----------
 export function FraccionesSumasStGeorgeGameGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
+  const [decisionTree, setDecisionTree] = useState<any>(null)
 
   const [respuestaFinal, setRespuestaFinal] = useState({ numerador: '', denominador: '' })
   const [respuestaSimplificada, setRespuestaSimplificada] = useState({ numerador: '', denominador: '' })
-
   const [mostrarInputSimplificado, setMostrarInputSimplificado] = useState(false)
   const [mcmUsuario, setMcmUsuario] = useState('')
   const [mostrarPasoMCM, setMostrarPasoMCM] = useState(true)
-  // arriba del componente (junto a otros useState)
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // helper para envolver acciones async y evitar doble click
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const withLock = async (fn: () => Promise<void>) => {
     if (isSubmitting) return
     setIsSubmitting(true)
-    try {
-      await fn()
-    } finally {
-      setIsSubmitting(false)
-    }
+    try { await fn() } finally { setIsSubmitting(false) }
   }
-
-
-  const [aciertos, setAciertos] = useState(0)
-  const [errores, setErrores] = useState(0)
-  const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
-
-  // Guía y pistas
-  const [guidedMode, setGuidedMode] = useState(true)
-  const [hintIndex, setHintIndex] = useState(0)
-  const [showGuidePanel, setShowGuidePanel] = useState(true)
-  const [showExample, setShowExample] = useState(false)
-  type Example = ReturnType<typeof buildExample>
-  const [example, setExample] = useState<any>(null)
-
-  // helper para transición entre ejercicios
   const nextWithDelay = (ms: number, nuevoNivel: Nivel) => {
     setIsSubmitting(true)
     setTimeout(() => {
@@ -243,15 +268,16 @@ export function FraccionesSumasStGeorgeGameGame() {
     }, ms)
   }
 
+  const [aciertos, setAciertos] = useState(0)
+  const [errores, setErrores] = useState(0)
+  const [racha, setRacha] = useState(0)
+  const [pistasUsadas, setPistasUsadas] = useState(0)
+  const [historial, setHistorial] = useState<boolean[]>([])
+  const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
 
-
-  // “Profe” micro‑coach
-  const coachMsg = (() => {
-    if (fallosEjercicioActual === 0 && !mostrarPasoMCM) return '¡Va bien! Recuerda: primero equivalencias, luego suma, al final simplifica.'
-    if (fallosEjercicioActual === 1) return 'Tranquilo, revisa si usaste bien el mínimo común múltiplo y si convertiste ambos numeradores.'
-    if (fallosEjercicioActual >= 2) return 'Respira. Mira el ejemplo paso a paso y vuelve a intentarlo 👇'
-    return '¡Tú puedes!'
-  })()
+  const [guidedMode, setGuidedMode] = useState(true)
+  const [hintIndex, setHintIndex] = useState(0)
+  const [showGuidePanel, setShowGuidePanel] = useState(true)
 
   const { elapsedSeconds, start, reset } = useQuestionTimer()
   const finalNumeradorRef = useRef<HTMLInputElement>(null)
@@ -259,28 +285,36 @@ export function FraccionesSumasStGeorgeGameGame() {
   const { student } = useStudent()
   const initRef = useRef(false)
 
+  // init
   useEffect(() => {
     if (!student?.id) return
-    if (initRef.current) return    // evita doble ejecución en StrictMode (dev)
+    if (initRef.current) return
     initRef.current = true
 
-      ; (async () => {
-        const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
-        const nivelInicial = (nivelBD ?? 1) as Nivel
-        setNivelActual(nivelInicial)
-        const q = generarPregunta(nivelInicial)
-        setPregunta(q)
-        setExample(buildExample(nivelInicial, q))   // <-- congela ejemplo
-        setHintIndex(0)
-        setShowExample(false)
-        start()
-      })()
+    ;(async () => {
+      const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
+      const nivelInicial = (nivelBD ?? 1) as Nivel
+      setNivelActual(nivelInicial)
+      setPregunta(generarPregunta(nivelInicial))
+      setHintIndex(0)
+      start()
+      await cargarModelo(setDecisionTree)
+    })()
   }, [student])
 
   if (!pregunta) return null
 
+  // ======== Registro con métricas extendidas (SIN CAMBIAR TIPOS) ========
   const registrarRespuestaFinal = async (es_correcto: boolean) => {
     if (!student?.id || !temaPeriodoId || !pregunta) return
+
+    const nuevaRacha = es_correcto ? racha + 1 : 0
+    const tendencia = getTendencia([...historial, es_correcto])
+    const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
+
+    console.log('[LOG] insertStudentResponse', {
+      nivel: nivelActual, es_correcto, tiempo: elapsedSeconds, tiempoCat, pistasUsadas, nuevaRacha, tendencia
+    })
 
     await insertStudentResponse({
       student_id: student.id,
@@ -288,27 +322,87 @@ export function FraccionesSumasStGeorgeGameGame() {
       nivel: nivelActual,
       es_correcto,
       ejercicio_data: {
-        a: pregunta.a,
-        b: pregunta.b,
-        operador: pregunta.operador,
-        denominador1: pregunta.denominador1,
-        denominador2: pregunta.denominador2,
+        a: pregunta.a, b: pregunta.b, operador: pregunta.operador,
+        denominador1: pregunta.denominador1, denominador2: pregunta.denominador2,
         contexto: pregunta.contexto,
       },
       respuesta: {
         numerador: parseInt(respuestaFinal.numerador),
         denominador: parseInt(respuestaFinal.denominador),
         simplificado: mostrarInputSimplificado,
+        tiempo_promedio: tiempoCat,
+        pistas_usadas: pistasUsadas,
+        racha: nuevaRacha,
+        mejora: tendencia,
       },
       tiempo_segundos: elapsedSeconds,
     })
   }
 
-  // --------- Lógica de manejo de fallos y nivel ----------
-  const reiniciarEjercicio = (nuevoNivel: Nivel) => {
-    const q = generarPregunta(nuevoNivel)
+  // ======== Decidir nivel y devolver sample/decision para entrenar ========
+  const decidirNivel = async (
+    nuevoAciertos: number,
+    nuevosErrores: number,
+    es_correcto: boolean
+  ): Promise<{ nuevoNivel: Nivel; decision: Resultado; sample: Sample }> => {
+    const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
+    const nuevaRacha = es_correcto ? racha + 1 : 0
+    const tendencia = getTendencia([...historial, es_correcto])
+
+    const sample: Sample = {
+      nivel: nivelActual,
+      aciertos: nuevoAciertos,
+      errores: nuevosErrores,
+      tiempo_promedio: tiempoCat,
+      pistas_usadas: pistasUsadas,
+      racha: nuevaRacha,
+      mejora: tendencia,
+      tipo_problema: 'fracciones',
+    }
+
+    let decision: Resultado = 'mantiene'
+    let nuevoNivel = nivelActual
+
+    if (decisionTree) {
+      decision = decisionTree.predict(sample) as Resultado
+      console.log('[DT] predict(sample)=', decision, 'sample=', sample)
+      if (decision === 'sube' && nivelActual < 3) {
+        nuevoNivel = (nivelActual + 1) as Nivel
+        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
+        setNivelActual(nuevoNivel)
+        setAciertos(0); setErrores(0)
+      } else if (decision === 'baja' && nivelActual > 1) {
+        nuevoNivel = (nivelActual - 1) as Nivel
+        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        toast('Bajaste de nivel 📉', { icon: '📉' })
+        setNivelActual(nuevoNivel)
+        setAciertos(0); setErrores(0)
+      }
+    } else {
+      // Fallback por si no hay árbol
+      if (nuevoAciertos >= 3 && nivelActual < 3) {
+        decision = 'sube'
+        nuevoNivel = (nivelActual + 1) as Nivel
+        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        setNivelActual(nuevoNivel); setAciertos(0); setErrores(0)
+      } else if (nuevosErrores >= 3 && nivelActual > 1) {
+        decision = 'baja'
+        nuevoNivel = (nivelActual - 1) as Nivel
+        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        setNivelActual(nuevoNivel); setAciertos(0); setErrores(0)
+      } else {
+        decision = 'mantiene'
+      }
+      console.log('[DT] Fallback decision=', decision, 'sample=', sample)
+    }
+
+    return { nuevoNivel, decision, sample }
+  }
+
+  const reiniciarEjercicio = (nivel: Nivel) => {
+    const q = generarPregunta(nivel)
     setPregunta(q)
-    setExample(buildExample(nuevoNivel, q))  // <-- congela ejemplo
     setRespuestaFinal({ numerador: '', denominador: '' })
     setRespuestaSimplificada({ numerador: '', denominador: '' })
     setMostrarInputSimplificado(false)
@@ -316,7 +410,7 @@ export function FraccionesSumasStGeorgeGameGame() {
     setMcmUsuario('')
     setFallosEjercicioActual(0)
     setHintIndex(0)
-    setShowExample(false)
+    setPistasUsadas(0)
     reset()
     start()
   }
@@ -326,64 +420,45 @@ export function FraccionesSumasStGeorgeGameGame() {
     setFallosEjercicioActual(nuevosFallos)
 
     if (nuevosFallos >= 2) {
-      // Fallo definitivo (cambiar de ejercicio)
       await registrarRespuestaFinal(false)
-      setErrores(prev => prev + 1)
+      const nuevosErrores = errores + 1
+      setErrores(nuevosErrores)
       setAciertos(0)
+      setRacha(0)
+      setHistorial(prev => [...prev, false])
 
-      let nuevoNivel = nivelActual
-      if (errores + 1 >= 3 && nivelActual > 1) {
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('Bajaste de nivel para repasar fundamentos 👇', { icon: '📉' })
-        setErrores(0)
-      }
-      nextWithDelay(1400, nuevoNivel)
+      toast.error('❌ Fallaste. Nueva pregunta.')
+      const { nuevoNivel, decision, sample } = await decidirNivel(0, nuevosErrores, false)
 
+      // 👇 ENTRENAMIENTO: guardamos el ejemplo con etiqueta "decision"
+      await appendTrainingExample(setDecisionTree, { ...sample, resultado: decision })
+
+      setTimeout(() => reiniciarEjercicio(nuevoNivel), 1400)
     }
   }
 
-
-  // --------- Verificaciones con feedback específico ----------
   const verificar = async () => {
-    if (isSubmitting) return
+    if (!pregunta) return
     const { a, b, denominador1, denominador2 } = pregunta
-    const denMin = mcm(denominador1, denominador2)
-
     const userNum = parseInt(respuestaFinal.numerador)
     const userDen = parseInt(respuestaFinal.denominador)
 
-    // Valida que userDen sea múltiplo común (no necesariamente el mínimo)
     const esComun = userDen > 0 && userDen % denominador1 === 0 && userDen % denominador2 === 0
-    const esperadoNumConUserDen =
-      a * (userDen / denominador1) + b * (userDen / denominador2)
-
+    const esperadoNumConUserDen = a * (userDen / denominador1) + b * (userDen / denominador2)
     const numCorrecto = esComun && userNum === esperadoNumConUserDen
 
-    if (numCorrecto && esComun) {
-      // Si no usó el MCM, igual está bien, pero avisamos
-      if (userDen !== denMin) {
-        toast.success('Correcto. (Tip: con el MCM los números son más pequeños 😉)')
-      } else {
-        toast.success('Bien hecho. Ahora simplifica la fracción.')
-      }
+    if (numCorrecto) {
+      toast.success('Bien hecho. Ahora simplifica la fracción.')
       setMostrarInputSimplificado(true)
     } else {
-      // Retro específica
-      if (!esComun) {
-        toast.error('El denominador debe ser múltiplo de ambos denominadores. Revisa el MCM.')
-        if (guidedMode) setHintIndex(i => Math.max(i, 1))
-      } else {
-        toast.error('Revisa la conversión de numeradores antes de sumar.')
-        if (guidedMode) setHintIndex(i => Math.max(i, 2))
-      }
-      return manejarError()
+      toast.error('Revisa denominador común y numeradores.')
+      if (guidedMode) setHintIndex(i => Math.max(i, 1))
+      await manejarError()
     }
   }
 
-
   const verificarSimplificada = async () => {
-    if (isSubmitting) return
+    if (!pregunta) return
     const { a, b, denominador1, denominador2 } = pregunta
     const denComun = mcm(denominador1, denominador2)
     const nuevoA = a * (denComun / denominador1)
@@ -398,42 +473,38 @@ export function FraccionesSumasStGeorgeGameGame() {
 
     if (esCorrecto) {
       await registrarRespuestaFinal(true)
-      setAciertos(prev => prev + 1)
+      const nuevosAciertos = aciertos + 1
+      setAciertos(nuevosAciertos)
       setErrores(0)
+      setRacha(r => r + 1)
+      setHistorial(prev => [...prev, true])
+
       toast.success('🎉 ¡Muy bien! Fracción simplificada correcta.')
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
 
-      let nuevoNivel = nivelActual
-      if (aciertos + 1 >= 3 && nivelActual < 3) {
-        nuevoNivel = (nivelActual + 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('¡Subiste de nivel! 🔼', { icon: '🚀' })
-        setAciertos(0)
-        setErrores(0)
-      }
-      setTimeout(() => reiniciarEjercicio(nuevoNivel), 1600)
+      const { nuevoNivel, decision, sample } = await decidirNivel(nuevosAciertos, 0, true)
+
+      // 👇 ENTRENAMIENTO: guardamos el ejemplo con etiqueta "decision"
+      await appendTrainingExample(setDecisionTree, { ...sample, resultado: decision })
+
+      nextWithDelay(1600, nuevoNivel)
     } else {
-      toast.error('⚠️ Aún puedes simplificar mejor o revisa el máximo común divisor.')
+      toast.error('⚠️ Aún puedes simplificar mejor.')
       if (guidedMode) setHintIndex(3)
-      manejarError()
+      await manejarError()
     }
   }
 
-  // ---------- UI de guía / pistas ----------
   const hints = buildHints(pregunta)
-  //const example = buildExample(nivelActual, pregunta)
 
-  return <>
-    {isSubmitting && <LoadingOverlay />}
-    <div className="mx-auto bg-card w-full flex flex-col items-center shadow-md p-6 rounded-lg space-y-6">
-      {/* Barra superior */}
-      <div className="w-full flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          ✅ Aciertos: <b>{aciertos}</b> &nbsp;|&nbsp; ❌ Errores: <b>{errores}</b>
-        </div>
-
-        <div className="flex items-center gap-2">
-
+  return (
+    <>
+      {isSubmitting && <LoadingOverlay />}
+      <div className="mx-auto bg-card w-full flex flex-col items-center shadow-md p-6 rounded-lg space-y-6">
+        <div className="w-full flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            ✅ Aciertos: <b>{aciertos}</b> | ❌ Errores: <b>{errores}</b> | 🔁 Racha: <b>{racha}</b> | 💡 Pistas: <b>{pistasUsadas}</b>
+          </div>
           <button
             onClick={() => setShowGuidePanel(v => !v)}
             className="px-3 py-1 rounded-md border border-border text-sm hover:bg-input"
@@ -441,236 +512,146 @@ export function FraccionesSumasStGeorgeGameGame() {
             {showGuidePanel ? 'Ocultar guía' : 'Mostrar guía'}
           </button>
         </div>
-      </div>
 
-      <h2 className="text-2xl font-bold text-primary">Nivel {nivelActual}</h2>
+        <h2 className="text-2xl font-bold text-primary">Nivel {nivelActual}</h2>
+        <p className="text-lg text-center text-foreground">{pregunta.contexto}</p>
 
-      {/* Panel de guía (mini-tutorial dentro del juego) */}
-      <AnimatePresence initial={false}>
-        {guidedMode && showGuidePanel && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="w-full overflow-hidden"
-          >
-            <div className="rounded-lg border border-border p-4 bg-background">
-              <h3 className="font-semibold mb-2 text-foreground">Cómo se resuelven sumas de fracciones con distinto denominador</h3>
-              <ol className="list-decimal ml-5 space-y-1 text-sm text-foreground">
-                <li>Halla el <b>mínimo común múltiplo</b> de los denominadores.</li>
-                <li>Convierte cada fracción a un <b>denominador común</b> usando el mínimo común múltiplo.</li>
-                <li><b>Suma</b> los numeradores. Mantén el denominador común.</li>
-                <li><b>Simplifica</b> la fracción dividiendo numerador y denominador por su <b>máximo común divisor</b>.</li>
-              </ol>
-
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => setHintIndex(i => Math.min(i + 1, hints.length - 1))}
-                  className="px-3 py-2 rounded-md bg-secondary text-secondary-foreground font-medium hover:opacity-90"
-                >
-                  Pedir pista
-                </button>
-                <button
-                  onClick={() => setShowExample(v => !v)}
-                  className="px-3 py-2 rounded-md bg-accent text-accent-foreground font-medium hover:opacity-90"
-                >
-                  {showExample ? 'Ocultar ejemplo' : 'Ver ejemplo'}
-                </button>
-              </div>
-
-              {/* Pista activa */}
-              <AnimatePresence initial={false}>
-                {hints[hintIndex] && (
-                  <motion.div
-                    key={hintIndex}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    className="mt-3 rounded-md border border-dashed border-ring/40 p-3 text-sm bg-white"
-                  >
-                    <div className="font-medium">{hints[hintIndex].title}</div>
-                    <div className="text-foreground/80">{hints[hintIndex].text}</div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Ejemplo con mismos denominadores (no revela directamente la respuesta del ejercicio actual) */}
-              <AnimatePresence initial={false}>
-                {showExample && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    className="mt-3 text-sm rounded-md bg-input p-3"
-                  >
-
-                    <div className="font-medium mb-1">Ejemplo guiado (con otros números)</div>
-                    <div className="space-y-1">
-                      <div>1) MCM({example.d1}, {example.d2}) = <b>{example.denComun}</b></div>
-                      <div>
-                        2) Equivalencias: {example.a}/{example.d1} → <b>{example.nuevoA}/{example.denComun}</b>
-                        &nbsp;y {example.b}/{example.d2} → <b>{example.nuevoB}/{example.denComun}</b>
-                      </div>
-                      <div>3) Suma de numeradores: {example.nuevoA} + {example.nuevoB} = <b>{example.suma}</b> (denominador {example.denComun})</div>
-                      <div>4) Simplificación: <b>{example.suma}/{example.denComun}</b> → <b>{example.simple.numerador}/{example.simple.denominador}</b></div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Nota: Este es un ejemplo distinto a tu ejercicio actual.
-                      </div>
-                    </div>
-
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Mensaje del “profe” */}
-      <div className="w-full rounded-md border border-border p-3 bg-white text-sm">
-        <span className="font-medium">Profe:</span> {coachMsg}
-      </div>
-
-      <p className="text-lg text-center text-foreground">{pregunta.contexto}</p>
-
-      {/* Visualización de fracciones */}
-      <div className="flex flex-row w-full justify-center items-center gap-8 flex-nowrap">
-        <div className="flex flex-col items-center">
-          <span className="text-sm text-muted-foreground mb-2">Fracción 1</span>
-          <FractionCanvas numerador={pregunta.a} denominador={pregunta.denominador1} />
-        </div>
-        <h2 className="text-5xl">+</h2>
-        <div className="flex flex-col items-center">
-          <span className="text-sm text-muted-foreground mb-2">Fracción 2</span>
-          <FractionCanvas numerador={pregunta.b} denominador={pregunta.denominador2} />
-        </div>
-      </div>
-
-      {/* Paso 1: MCM */}
-      {mostrarPasoMCM ? (
-        <div className="w-full flex flex-col items-center space-y-2">
-          <p className="text-center font-medium text-foreground">
-            Paso 1: Calcula el <span className="font-bold text-primary">mínimo común múltiplo</span> entre {pregunta.denominador1} y {pregunta.denominador2}.
-          </p>
-          <input
-            type="number"
-            value={mcmUsuario}
-            onChange={(e) => setMcmUsuario(e.target.value)}
-            className="w-full max-w-xs text-center p-2 text-xl bg-white text-foreground border border-border rounded"
-            placeholder="Mínimo común múltiplo"
-          />
-          <button
-            onClick={() => withLock(async () => {
-              const esperado = mcm(pregunta.denominador1, pregunta.denominador2)
-              if (parseInt(mcmUsuario) === esperado) {
-                setMostrarPasoMCM(false)
-                toast.success('Correcto. Ahora resuelve la suma.')
-              } else {
-                toast.error('Ese no es el MCM. Revisa múltiplos de ambos números.')
-                if (guidedMode) setHintIndex(0)
-                await manejarError()
-              }
-            })}
-            disabled={isSubmitting}
-            className="w-full max-w-xs bg-primary hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed text-primary-foreground font-bold py-2 rounded-lg transition"
-          >
-            {isSubmitting ? 'Validando…' : 'Validar MCM'}
-          </button>
-
-        </div>
-      ) : (
-        <>
-          {/* Paso 2: Suma con denominador común */}
-          <p className="text-center font-medium text-foreground">
-            Paso 2: Suma las fracciones usando el <span className="font-bold text-primary">denominador común</span>. No simplifiques aún.
-          </p>
-          <div className="flex flex-col items-center gap-2">
-            <input
-              ref={finalNumeradorRef}
-              type="number"
-              value={respuestaFinal.numerador}
-              onChange={(e) => setRespuestaFinal(prev => ({ ...prev, numerador: e.target.value }))}
-              placeholder="?"
-              className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
-            />
-            <div className="h-1 bg-muted w-24 border-b border-border" />
-            <input
-              ref={finalDenominadorRef}
-              type="number"
-              value={respuestaFinal.denominador}
-              onChange={(e) => setRespuestaFinal(prev => ({ ...prev, denominador: e.target.value }))}
-              placeholder="?"
-              className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
-            />
+        <div className="flex flex-row w-full justify-center items-center gap-8 flex-nowrap">
+          <div className="flex flex-col items-center">
+            <span className="text-sm text-muted-foreground mb-2">Fracción 1</span>
+            <FractionCanvas numerador={pregunta.a} denominador={pregunta.denominador1} />
           </div>
+          <h2 className="text-5xl">+</h2>
+          <div className="flex flex-col items-center">
+            <span className="text-sm text-muted-foreground mb-2">Fracción 2</span>
+            <FractionCanvas numerador={pregunta.b} denominador={pregunta.denominador2} />
+          </div>
+        </div>
 
-          <div className="w-full max-w-sm flex gap-2">
+        {mostrarPasoMCM ? (
+          <div className="w-full flex flex-col items-center space-y-2">
+            <p className="text-center font-medium text-foreground">
+              Paso 1: Calcula el <b>MCM</b> entre {pregunta.denominador1} y {pregunta.denominador2}.
+            </p>
+            <input
+              type="number"
+              value={mcmUsuario}
+              onChange={(e) => setMcmUsuario(e.target.value)}
+              className="w-full max-w-xs text-center p-2 text-xl bg-white text-foreground border border-border rounded"
+              placeholder="Mínimo común múltiplo"
+            />
+            <button
+              onClick={() => withLock(async () => {
+                const esperado = mcm(pregunta.denominador1, pregunta.denominador2)
+                if (parseInt(mcmUsuario) === esperado) {
+                  setMostrarPasoMCM(false)
+                  toast.success('Correcto. Ahora resuelve la suma.')
+                } else {
+                  toast.error('Ese no es el MCM.')
+                  if (guidedMode) setHintIndex(0)
+                  await manejarError()
+                }
+              })}
+              disabled={isSubmitting}
+              className="w-full max-w-xs bg-primary text-primary-foreground font-bold py-2 rounded-lg transition"
+            >
+              {isSubmitting ? 'Validando…' : 'Validar MCM'}
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-center font-medium text-foreground">
+              Paso 2: Suma las fracciones con denominador común. No simplifiques aún.
+            </p>
+            <div className="flex flex-col items-center gap-2">
+              <input
+                ref={finalNumeradorRef}
+                type="number"
+                value={respuestaFinal.numerador}
+                onChange={(e) => setRespuestaFinal(prev => ({ ...prev, numerador: e.target.value }))}
+                placeholder="?"
+                className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
+              />
+              <div className="h-1 bg-muted w-24 border-b border-border" />
+              <input
+                ref={finalDenominadorRef}
+                type="number"
+                value={respuestaFinal.denominador}
+                onChange={(e) => setRespuestaFinal(prev => ({ ...prev, denominador: e.target.value }))}
+                placeholder="?"
+                className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
+              />
+            </div>
             <button
               onClick={() => withLock(verificar)}
               disabled={isSubmitting}
-              className="flex-1 bg-purple-500 hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg transition"
+              className="w-full max-w-sm bg-purple-500 text-white font-bold py-2 rounded-lg transition"
             >
               {isSubmitting ? 'Verificando…' : 'Verificar respuesta'}
             </button>
+          </>
+        )}
 
-
-
-            {guidedMode && (
-              <button
-                onClick={() => setHintIndex(i => Math.min(i + 1, 2))}
-                className="px-3 py-2 rounded-lg border border-border hover:bg-input text-sm"
-              >
-                Una pista más
-              </button>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Paso 3: Simplificación */}
-      {mostrarInputSimplificado && (
-        <div className="w-full space-y-2">
-          <p className="text-center font-medium text-foreground">
-            Paso 3: Simplifica la fracción. Divide numerador y denominador entre su <b>máximo común divisor</b>.
-          </p>
-
-          <div className="flex flex-col items-center gap-2">
-            <input
-              type="number"
-              value={respuestaSimplificada.numerador}
-              onChange={(e) => setRespuestaSimplificada(prev => ({ ...prev, numerador: e.target.value }))}
-              placeholder="?"
-              className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
-            />
-            <div className="h-1 bg-muted w-24 border-b border-border" />
-            <input
-              type="number"
-              value={respuestaSimplificada.denominador}
-              onChange={(e) => setRespuestaSimplificada(prev => ({ ...prev, denominador: e.target.value }))}
-              placeholder="?"
-              className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
-            />
-          </div>
-          <div className="w-full max-w-sm flex gap-2">
+        {mostrarInputSimplificado && (
+          <div className="w-full space-y-2">
+            <p className="text-center font-medium text-foreground">
+              Paso 3: Simplifica la fracción.
+            </p>
+            <div className="flex flex-col items-center gap-2">
+              <input
+                type="number"
+                value={respuestaSimplificada.numerador}
+                onChange={(e) => setRespuestaSimplificada(prev => ({ ...prev, numerador: e.target.value }))}
+                placeholder="?"
+                className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
+              />
+              <div className="h-1 bg-muted w-24 border-b border-border" />
+              <input
+                type="number"
+                value={respuestaSimplificada.denominador}
+                onChange={(e) => setRespuestaSimplificada(prev => ({ ...prev, denominador: e.target.value }))}
+                placeholder="?"
+                className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
+              />
+            </div>
             <button
               onClick={() => withLock(verificarSimplificada)}
               disabled={isSubmitting}
-              className="flex-1 bg-accent hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed text-accent-foreground font-bold py-2 rounded-lg transition"
+              className="w-full max-w-sm bg-accent text-accent-foreground font-bold py-2 rounded-lg transition"
             >
               {isSubmitting ? 'Verificando…' : 'Verificar simplificación'}
             </button>
-
-            {guidedMode && (
-              <button
-                onClick={() => setHintIndex(3)}
-                className="px-3 py-2 rounded-lg border border-border hover:bg-input text-sm"
-              >
-                ¿Cómo simplifico?
-              </button>
-            )}
           </div>
-        </div>
-      )}
-    </div>
-  </>
+        )}
+
+        {/* Pistas */}
+        <AnimatePresence initial={false}>
+          {guidedMode && showGuidePanel && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="w-full overflow-hidden"
+            >
+              <div className="rounded-lg border border-border p-4 bg-background mt-4">
+                <h3 className="font-semibold mb-2 text-foreground">Guía</h3>
+                {hints[hintIndex] && (
+                  <div className="rounded-md border border-dashed border-ring/40 p-3 text-sm bg-white">
+                    <div className="font-medium">{hints[hintIndex].title}</div>
+                    <div className="text-foreground/80">{hints[hintIndex].text}</div>
+                  </div>
+                )}
+                <button
+                  onClick={() => { setHintIndex(i => Math.min(i + 1, hints.length - 1)); setPistasUsadas(p => p + 1) }}
+                  className="mt-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground font-medium hover:opacity-90"
+                >
+                  Pedir pista
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </>
+  )
 }

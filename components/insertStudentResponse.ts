@@ -25,17 +25,18 @@ export async function insertStudentResponse({
   respuesta,
   tiempo_segundos = null,
 }: InsertStudentResponseParams): Promise<{ success: boolean; error?: any }> {
-  const { error } = await supabase.from('student_responses').insert([
-    {
-      student_id,
-      tema_periodo_id,
-      nivel,
-      es_correcto,
-      ejercicio_data,
-      respuesta,
-      tiempo_segundos,
-    },
-  ])
+  // Aquí puedes enriquecer la respuesta con más info sin romper el tipo
+  const payload = {
+    student_id,
+    tema_periodo_id,
+    nivel,
+    es_correcto,
+    ejercicio_data,
+    respuesta, // puedes incluir aquí las nuevas métricas como { ...respuesta, tiempo_promedio, pistas_usadas, racha, mejora }
+    tiempo_segundos,
+  }
+
+  const { error } = await supabase.from('student_responses').insert([payload])
 
   if (error) {
     console.error('Error al insertar student_response:', error)

@@ -10,6 +10,7 @@ import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
 import toast from 'react-hot-toast'
 import confetti from 'canvas-confetti'
 import { motion } from 'framer-motion'
+import DecisionTree from 'decision-tree'
 
 const supabase = createClient()
 const temaPeriodoId = '74164d20-db6b-4401-94f1-ef4eb0887a86'
@@ -64,15 +65,35 @@ const generarPregunta = (nivel: Nivel): Pregunta => {
 export function PatronesAditivosMultiplicativosGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
-  const [respuestaUsuario, setRespuestaUsuario] = useState('')
+  const [respuestaUsuario, setRespuestaUsuario] = useState('') 
   const [aciertos, setAciertos] = useState(0)
   const [errores, setErrores] = useState(0)
   const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
+  const [decisionTree, setDecisionTree] = useState<any>(null)
   const [mostrarPista, setMostrarPista] = useState(false)
   const { student } = useStudent()
   const { elapsedSeconds, start, reset } = useQuestionTimer()
 
   useEffect(() => {
+    const cargarModelo = async () => {
+      const { data, error } = await supabase
+        .from('decision_trees')
+        .select('modelo')
+        .eq('tema_id', temaPeriodoId)
+        .single()
+
+      if (error) {
+        console.error('Error cargando modelo:', error)
+        return
+      }
+
+      if (data?.modelo) {
+        const { trainingData, className, features } = data.modelo
+        const dt = new DecisionTree(trainingData, className, features)
+        setDecisionTree(dt)
+      }
+    }
+
     const cargarNivel = async () => {
       if (student?.id) {
         const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
@@ -80,6 +101,7 @@ export function PatronesAditivosMultiplicativosGame() {
         setNivelActual(nivelInicial)
         setPregunta(generarPregunta(nivelInicial))
         start()
+        await cargarModelo()
       }
     }
     cargarNivel()
@@ -197,13 +219,14 @@ export function PatronesAditivosMultiplicativosGame() {
       </button>
 
       <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="text-sm italic text-gray-700 text-center"
-      >
-        🧠 Profe Nico: "{pregunta.tipo === 'mixto' ? 'Suma y multiplica' : pregunta.tipo === 'aditivo' ? 'Suma constante' : 'Multiplicación constante'}... ¿lo notas?"
-      </motion.p>
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ delay: 0.5 }}
+  className="text-sm italic text-gray-700 text-center"
+>
+  🧠 Profe Nico: "{pregunta.tipo === 'mixto' ? 'Suma y multiplica: Primero sumamos los dos primeros números y luego multiplicamos el resultado por el siguiente número. El patrón es una mezcla de ambos.' : pregunta.tipo === 'aditivo' ? 'Suma constante: Para completar la secuencia, solo debes sumar un número fijo a cada término.' : 'Multiplicación constante: Cada término es el resultado de multiplicar el anterior por un número fijo. Fíjate en el patrón de multiplicación.'}"
+</motion.p>
+
 
       {!mostrarPista && (
         <button
