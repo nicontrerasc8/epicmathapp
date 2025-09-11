@@ -110,6 +110,7 @@ export default function SumasRestasJuego() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
   const [respuesta, setRespuesta] = useState('')
+  const [respuestasEnNivel, setRespuestasEnNivel] = useState<any>(0)
   const [aciertos, setAciertos] = useState(0)
   const [errores, setErrores] = useState(0)
   const [decisionTree, setDecisionTree] = useState<any>(null)
@@ -163,49 +164,67 @@ export default function SumasRestasJuego() {
   if (!pregunta) return null
 
   // ------------------ Decisión de nivel ------------------
-  const decidirNivel = async (nuevosAciertos: number, nuevosErrores: number) => {
-    let nuevoNivel = nivelActual
+// Agregar estado para acumular respuestas en el nivel actual
 
-    if (decisionTree) {
-      const decision = decisionTree.predict({
-        nivel: nivelActual,
-        aciertos: nuevosAciertos,
-        errores: nuevosErrores,
-      })
+const MIN_RESPUESTAS_PARA_EVALUAR = 5 // Mínimo de respuestas antes de cambiar nivel
 
-      if (decision === 'sube' && nivelActual < 3) {
-        nuevoNivel = (nivelActual + 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-
-        setAciertos(0)
-      }
-
-      if (decision === 'baja' && nivelActual > 1) {
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-
-        setAciertos(0)
-      }
-    } else {
-      // fallback clásico: 3 aciertos sube, 3 errores baja
-      if (nuevosAciertos >= 3 && nivelActual < 3) {
-        nuevoNivel = (nivelActual + 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
-
-        setAciertos(0)
-      }
-      if (nuevosErrores >= 3 && nivelActual > 1) {
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('Bajaste de nivel 📉', { icon: '📉' })
-
-        setAciertos(0)
-      }
-    }
-
-    return nuevoNivel
+const decidirNivel = async (nuevosAciertos: number, nuevosErrores: number) => {
+  let nuevoNivel = nivelActual
+  const totalRespuestas = respuestasEnNivel + 1
+  
+  // Solo evaluar cambio de nivel después de cierto número de respuestas
+  if (totalRespuestas < MIN_RESPUESTAS_PARA_EVALUAR) {
+    setRespuestasEnNivel(totalRespuestas)
+    return nivelActual
   }
+
+  if (decisionTree) {
+    const decision = decisionTree.predict({
+      nivel: nivelActual,
+      aciertos: nuevosAciertos,
+      errores: nuevosErrores,
+      total_respuestas: totalRespuestas
+    })
+
+    if (decision === 'sube' && nivelActual < 3) {
+      nuevoNivel = (nivelActual + 1) as Nivel
+      await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+      setAciertos(0)
+      setErrores(0) // También resetear errores
+      setRespuestasEnNivel(0) // Resetear contador
+      toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
+    }
+    
+    if (decision === 'baja' && nivelActual > 1) {
+      nuevoNivel = (nivelActual - 1) as Nivel
+      await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+      setAciertos(0)
+      setErrores(0)
+      setRespuestasEnNivel(0)
+      toast('Bajaste de nivel 📉', { icon: '📉' })
+    }
+  } else {
+    // Lógica fallback mejorada
+    if (nuevosAciertos >= 3 && nivelActual < 3) {
+      nuevoNivel = (nivelActual + 1) as Nivel
+      await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+      toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
+      setAciertos(0)
+      setErrores(0)
+      setRespuestasEnNivel(0)
+    }
+    if (nuevosErrores >= 4 && nivelActual > 1) { // Aumentar umbral de errores
+      nuevoNivel = (nivelActual - 1) as Nivel
+      await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+      toast('Bajaste de nivel 📉', { icon: '📉' })
+      setAciertos(0)
+      setErrores(0)
+      setRespuestasEnNivel(0)
+    }
+  }
+
+  return nuevoNivel
+}
 
   // Registrar en BD
   const registrarRespuesta = async (es_correcto: boolean, respuestaNum: number) => {

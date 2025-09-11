@@ -79,6 +79,7 @@ function BigNumber({ value, accent = false }: { value: number | string; accent?:
     </div>
   )
 }
+const MIN_RESPUESTAS_PARA_EVALUAR = 5
 
 const buildHints = (p: Pregunta) => [
   { title: 'Pista 1', text: 'Mira cuántas cifras tiene cada número: el que tiene más cifras es mayor.' },
@@ -90,7 +91,7 @@ const buildHints = (p: Pregunta) => [
 export default function CompararNumerosPrimeroGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
-
+const [respuestasEnNivel, setRespuestasEnNivel] = useState(0)
   const [aciertos, setAciertos] = useState(0)
   const [errores, setErrores] = useState(0)
   const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
@@ -188,89 +189,123 @@ export default function CompararNumerosPrimeroGame() {
   }
 
   // -------- manejar errores --------
-  const manejarError = async (respuestaOp: Comparador) => {
-    const nuevosFallos = fallosEjercicioActual + 1
-    setFallosEjercicioActual(nuevosFallos)
+  // Reemplazar la función manejarError:
+// -------- manejar errores --------
+const manejarError = async (respuestaOp: Comparador) => {
+  // CAMBIO: Ejecutar inmediatamente al primer error
+  await registrarRespuesta(false, respuestaOp)
+  const nuevosErrores = errores + 1
+  const nuevasRespuestas = respuestasEnNivel + 1
+  
+  setErrores(nuevosErrores)
+  setAciertos(0)
+  setRespuestasEnNivel(nuevasRespuestas)
 
-    if (nuevosFallos >= 2) {
-      await registrarRespuesta(false, respuestaOp)
-      const nuevosErrores = errores + 1  // ✅ Calcular primero
-      setErrores(nuevosErrores)
-      setAciertos(0)
+  let nuevoNivel = nivelActual
 
-      let nuevoNivel = nivelActual
-      if (decisionTree) {
-        const decision = decisionTree.predict({
-          nivel: nivelActual,
-          aciertos: 0,              // ✅ Los aciertos se resetean
-          errores: nuevosErrores    // ✅ Usar el valor calculado
-        })
-        if (decision === 'baja' && nivelActual > 1) {
-          nuevoNivel = (nivelActual - 1) as Nivel
-          await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-          toast('Bajaste de nivel 📉', { icon: '📉' })
-          setNivelActual(nuevoNivel)
-          setAciertos(0); setErrores(0)  // ✅ Resetear ambos
-        }
-      } else {
-        if (nuevosErrores >= 3 && nivelActual > 1) {  // ✅ Usar el valor calculado
-          nuevoNivel = (nivelActual - 1) as Nivel
-          await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-          setNivelActual(nuevoNivel)
-          setAciertos(0); setErrores(0)  // ✅ Resetear ambos
-        }
+  // Solo evaluar cambio de nivel después de suficientes respuestas
+  if (nuevasRespuestas >= MIN_RESPUESTAS_PARA_EVALUAR) {
+    const totalRespuestas = nuevosErrores + aciertos
+    const porcentajeAciertos = aciertos / totalRespuestas
+
+    if (decisionTree) {
+      const decision = decisionTree.predict({
+        nivel: nivelActual,
+        aciertos: aciertos,
+        errores: nuevosErrores,
+        porcentaje_aciertos: porcentajeAciertos
+      })
+      
+      // Solo bajar si el rendimiento es consistentemente malo
+      if (decision === 'baja' && nivelActual > 1 && 
+          porcentajeAciertos < 0.3 && totalRespuestas >= 5) {
+        nuevoNivel = (nivelActual - 1) as Nivel
+        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        toast('Bajaste de nivel 📉', { icon: '📉' })
+        setNivelActual(nuevoNivel)
+        setAciertos(0)
+        setErrores(0)
+        setRespuestasEnNivel(0)
       }
-
-      nextWithDelay(1000, nuevoNivel)
+    } else {
+      // Lógica fallback más restrictiva
+      if (nuevosErrores >= 6 && nivelActual > 1) {
+        nuevoNivel = (nivelActual - 1) as Nivel
+        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+        setNivelActual(nuevoNivel)
+        setAciertos(0)
+        setErrores(0)
+        setRespuestasEnNivel(0)
+      }
     }
   }
 
-  // -------- verificar --------
-  const verificar = async (opElegido: Comparador) => {
-    if (!pregunta) return
-    const correcto: Comparador =
-      pregunta.a > pregunta.b ? '>' : pregunta.a < pregunta.b ? '<' : '='
+  // CAMBIO: Siempre cambiar pregunta después del primer error
+  nextWithDelay(1000, nuevoNivel)
+}
 
-    if (opElegido === correcto) {
-      await registrarRespuesta(true, opElegido)
-      const nuevosAciertos = aciertos + 1  // ✅ Calcular primero
-      setAciertos(nuevosAciertos)
-      setErrores(0)
-      toast.success('🎉 ¡Correcto!')
-      confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } })
+// -------- verificar --------
+const verificar = async (opElegido: Comparador) => {
+  if (!pregunta) return
+  const correcto: Comparador =
+    pregunta.a > pregunta.b ? '>' : pregunta.a < pregunta.b ? '<' : '='
 
-      let nuevoNivel = nivelActual
+  if (opElegido === correcto) {
+    await registrarRespuesta(true, opElegido)
+    const nuevosAciertos = aciertos + 1
+    const nuevasRespuestas = respuestasEnNivel + 1
+    
+    setAciertos(nuevosAciertos)
+    setErrores(0)
+    setRespuestasEnNivel(nuevasRespuestas)
+    toast.success('🎉 ¡Correcto!')
+    confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } })
+
+    let nuevoNivel = nivelActual
+
+    // Solo evaluar subida de nivel con suficientes respuestas
+    if (nuevasRespuestas >= MIN_RESPUESTAS_PARA_EVALUAR) {
+      const totalRespuestas = nuevosAciertos + errores
+      const porcentajeAciertos = nuevosAciertos / totalRespuestas
+
       if (decisionTree) {
         const decision = decisionTree.predict({
           nivel: nivelActual,
-          aciertos: nuevosAciertos,  // ✅ Usar el valor calculado
-          errores: errores           // ✅ Los errores no cambiaron
+          aciertos: nuevosAciertos,
+          errores: errores,
+          porcentaje_aciertos: porcentajeAciertos
         })
-        if (decision === 'sube' && nivelActual < 3) {
+        
+        if (decision === 'sube' && nivelActual < 3 && porcentajeAciertos >= 0.8) {
           nuevoNivel = (nivelActual + 1) as Nivel
           await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
           toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
           setNivelActual(nuevoNivel)
-          setAciertos(0); setErrores(0)
+          setAciertos(0)
+          setErrores(0)
+          setRespuestasEnNivel(0)
           nextWithDelay(900, nuevoNivel)
           return
         }
       } else {
-        if (nuevosAciertos >= 3 && nivelActual < 3) {  // ✅ Usar el valor calculado
+        if (nuevosAciertos >= 4 && nivelActual < 3) {
           nuevoNivel = (nivelActual + 1) as Nivel
           await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
           setNivelActual(nuevoNivel)
-          setAciertos(0); setErrores(0)
+          setAciertos(0)
+          setErrores(0)
+          setRespuestasEnNivel(0)
         }
       }
-      nextWithDelay(900, nuevoNivel)
-    } else {
-      toast.error('Casi… Primero mira la cantidad de cifras.')
-      if (guidedMode) setHintIndex((i) => Math.min(i + 1, 2))
-      await manejarError(opElegido)
     }
+    nextWithDelay(900, nuevoNivel)
+  } else {
+    toast.error('Casi… Primero mira la cantidad de cifras.')
+    if (guidedMode) setHintIndex((i) => Math.min(i + 1, 2))
+    // CAMBIO: Llamar directamente a manejarError (que ya no usa fallosEjercicioActual)
+    await manejarError(opElegido)
   }
-
+}
   const hints = buildHints(pregunta)
   const coachMsg =
     fallosEjercicioActual === 0
