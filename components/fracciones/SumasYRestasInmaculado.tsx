@@ -104,6 +104,39 @@ function BigNumber({ value, accent = false }: { value: number | string; accent?:
     </div>
   )
 }
+type Resultado = 'sube' | 'mantiene' | 'baja'
+
+interface TrainingRow {
+  nivel: Nivel
+  aciertos: number
+  errores: number
+  total_respuestas: number
+  resultado: Resultado
+}
+
+function splitData<T>(data: T[], testRatio = 0.2) {
+  const shuffled = [...data].sort(() => Math.random() - 0.5)
+  const testSize = Math.floor(data.length * testRatio)
+  return {
+    train: shuffled.slice(testSize),
+    test: shuffled.slice(0, testSize),
+  }
+}
+
+function evaluarPrecision(data: TrainingRow[]): number | null {
+  if (data.length < 10) return null // no hay suficientes ejemplos para medir
+  const { train, test } = splitData(data, 0.2)
+  const dt = new DecisionTree(train, "resultado", ["nivel", "aciertos", "errores", "total_respuestas"])
+
+  let correctos = 0
+  test.forEach((row) => {
+    const pred = dt.predict(row)
+    if (pred === row.resultado) correctos++
+  })
+
+  return correctos / test.length
+}
+
 
 // ------------------ Juego ------------------
 export default function SumasRestasJuego() {
@@ -132,7 +165,7 @@ export default function SumasRestasJuego() {
     const { data, error } = await supabase
       .from('decision_trees')
       .select('modelo')
-      .eq('tema_id', temaPeriodoId)
+      .eq('tema', temaPeriodoId)
       .single()
 
     if (error) {
@@ -146,6 +179,61 @@ export default function SumasRestasJuego() {
       setDecisionTree(dt)
     }
   }
+
+async function appendTrainingExample(example: TrainingRow, setDecisionTree: (dt: any) => void) {
+  console.log("[DT] ➕ Añadiendo ejemplo real:", example)
+
+  const { data, error } = await supabase
+    .from("decision_trees")
+    .select("modelo")
+    .eq("tema", temaPeriodoId)
+    .single()
+
+  let trainingData: TrainingRow[] = []
+  let className = "resultado"
+  let features: string[] = ["nivel", "aciertos", "errores", "total_respuestas"]
+
+  if (!error && data?.modelo) {
+    trainingData = (data.modelo.trainingData as TrainingRow[]) ?? []
+    className = data.modelo.className ?? className
+    features = data.modelo.features ?? features
+  }
+
+  trainingData.push(example)
+
+  const modelo = { trainingData, className, features }
+  const { error: upErr } = await supabase
+    .from("decision_trees")
+    .upsert({ tema: temaPeriodoId, modelo }, { onConflict: "tema" })
+    .select()
+
+  if (upErr) {
+    console.error("[DT] ❌ Error guardando ejemplo:", upErr)
+    return
+  }
+
+  // Reentrenar y evaluar
+  try {
+    const dt = new DecisionTree(trainingData, className, features)
+    setDecisionTree(dt)
+
+    const acc = evaluarPrecision(trainingData)
+    if (acc !== null) {
+      const porcentaje = (acc * 100).toFixed(1)
+      console.log(
+        `[DT] 📊 Precisión actual: ${porcentaje}% | Ejemplos totales: ${trainingData.length}`
+      )
+      console.log("[DT] Dataset ejemplo (últimos 3):", trainingData.slice(-3))
+      toast.success(`📊 Precisión: ${porcentaje}%`)
+    } else {
+      console.log("[DT] ℹ️ No hay suficientes ejemplos para evaluar precisión")
+    }
+  } catch (e) {
+    console.error("[DT] Error reentrenando árbol:", e)
+  }
+}
+
+
 
   useEffect(() => {
     const init = async () => {
@@ -171,7 +259,10 @@ const MIN_RESPUESTAS_PARA_EVALUAR = 5 // Mínimo de respuestas antes de cambiar 
 const decidirNivel = async (nuevosAciertos: number, nuevosErrores: number) => {
   let nuevoNivel = nivelActual
   const totalRespuestas = respuestasEnNivel + 1
-  
+
+  // Por defecto se queda igual
+  let decision: Resultado = "mantiene"
+
   // Solo evaluar cambio de nivel después de cierto número de respuestas
   if (totalRespuestas < MIN_RESPUESTAS_PARA_EVALUAR) {
     setRespuestasEnNivel(totalRespuestas)
@@ -179,52 +270,67 @@ const decidirNivel = async (nuevosAciertos: number, nuevosErrores: number) => {
   }
 
   if (decisionTree) {
-    const decision = decisionTree.predict({
+    decision = decisionTree.predict({
       nivel: nivelActual,
       aciertos: nuevosAciertos,
       errores: nuevosErrores,
-      total_respuestas: totalRespuestas
-    })
+      total_respuestas: totalRespuestas,
+    }) as Resultado
+     console.log(
+    `[DT] 🔮 Predicción: ${decision} | Nivel actual: ${nivelActual} | Aciertos: ${nuevosAciertos} | Errores: ${nuevosErrores} | Total: ${totalRespuestas}`
+  )
 
-    if (decision === 'sube' && nivelActual < 3) {
+    if (decision === "sube" && nivelActual < 3) {
       nuevoNivel = (nivelActual + 1) as Nivel
       await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
       setAciertos(0)
-      setErrores(0) // También resetear errores
-      setRespuestasEnNivel(0) // Resetear contador
-      toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
+      setErrores(0)
+      setRespuestasEnNivel(0)
+      toast("¡Subiste de nivel! 🚀", { icon: "🚀" })
     }
-    
-    if (decision === 'baja' && nivelActual > 1) {
+
+    if (decision === "baja" && nivelActual > 1) {
       nuevoNivel = (nivelActual - 1) as Nivel
       await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
       setAciertos(0)
       setErrores(0)
       setRespuestasEnNivel(0)
-      toast('Bajaste de nivel 📉', { icon: '📉' })
+      toast("Bajaste de nivel 📉", { icon: "📉" })
     }
   } else {
-    // Lógica fallback mejorada
+    // Fallback manual
     if (nuevosAciertos >= 3 && nivelActual < 3) {
+      decision = "sube"
       nuevoNivel = (nivelActual + 1) as Nivel
       await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-      toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
+      toast("¡Subiste de nivel! 🚀", { icon: "🚀" })
       setAciertos(0)
       setErrores(0)
       setRespuestasEnNivel(0)
-    }
-    if (nuevosErrores >= 4 && nivelActual > 1) { // Aumentar umbral de errores
+    } else if (nuevosErrores >= 4 && nivelActual > 1) {
+      decision = "baja"
       nuevoNivel = (nivelActual - 1) as Nivel
       await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-      toast('Bajaste de nivel 📉', { icon: '📉' })
+      toast("Bajaste de nivel 📉", { icon: "📉" })
       setAciertos(0)
       setErrores(0)
       setRespuestasEnNivel(0)
     }
   }
 
+  const nuevoRow: TrainingRow = {
+    nivel: nivelActual,
+    aciertos: nuevosAciertos,
+    errores: nuevosErrores,
+    total_respuestas: totalRespuestas,
+    resultado: decision,
+  }
+
+  await appendTrainingExample(nuevoRow, setDecisionTree)
+
   return nuevoNivel
 }
+
 
   // Registrar en BD
   const registrarRespuesta = async (es_correcto: boolean, respuestaNum: number) => {

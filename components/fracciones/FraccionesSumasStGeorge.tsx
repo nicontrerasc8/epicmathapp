@@ -76,6 +76,8 @@ interface Pregunta {
   contexto: string
 }
 
+
+
 // ---------- Utils matemáticas ----------
 const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b))
 const mcm = (a: number, b: number): number => Math.abs((a * b) / gcd(a, b))
@@ -161,7 +163,7 @@ async function appendTrainingExample(
 
   let trainingData: TrainingRow[] = []
   let className = CLASS_NAME
-  let features :any = FEATURES
+  let features: any = FEATURES
 
   if (error) {
     console.error('[DT] Error leyendo modelo antes de upsert:', error)
@@ -304,22 +306,74 @@ export function FraccionesSumasStGeorgeGameGame() {
   const { student } = useStudent()
   const initRef = useRef(false)
 
+  async function enriquecerModeloConDataset(n = 1000) {
+  console.log(`[DT] Enriqueciendo modelo con ${n} ejemplos sintéticos…`)
+
+  // 1) Leer modelo actual
+  const { data, error } = await supabase
+    .from('decision_trees')
+    .select('modelo')
+    .eq('tema', temaPeriodoId)
+    .single()
+
+  if (error) {
+    console.error('[DT] Error leyendo modelo:', error)
+    return
+  }
+
+  let trainingData: TrainingRow[] = []
+  let className = CLASS_NAME
+  let features: any = FEATURES
+
+  if (data?.modelo) {
+    trainingData = (data.modelo.trainingData as TrainingRow[]) ?? []
+    className = data.modelo.className ?? CLASS_NAME
+    features = data.modelo.features ?? FEATURES
+  }
+
+  // 2) Generar dataset sintético
+  const synthetic = generarDataset(n)
+
+  // 3) Unir con dataset actual
+  const merged = [...trainingData, ...synthetic]
+
+  // 4) Guardar con upsert
+  const modelo = { trainingData: merged, className, features }
+  const { error: upErr } = await supabase
+    .from('decision_trees')
+    .upsert({ tema: temaPeriodoId, modelo }, { onConflict: 'tema' })
+
+  if (upErr) {
+    console.error('[DT] Error al enriquecer modelo:', upErr)
+  } else {
+    console.log(`[DT] Modelo enriquecido. Ahora tiene ${merged.length} ejemplos.`)
+    toast.success(`Modelo enriquecido con ${n} ejemplos. Total: ${merged.length}`)
+  }
+}
+
+
   // init
   useEffect(() => {
-    if (!student?.id) return
-    if (initRef.current) return
-    initRef.current = true
+  if (!student?.id) return
+  if (initRef.current) return
+  initRef.current = true
 
-    ;(async () => {
-      const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
-      const nivelInicial = (nivelBD ?? 1) as Nivel
-      setNivelActual(nivelInicial)
-      setPregunta(generarPregunta(nivelInicial))
-      setHintIndex(0)
-      start()
-      await cargarModelo(setDecisionTree)
-    })()
-  }, [student])
+  ;(async () => {
+    const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
+    const nivelInicial = (nivelBD ?? 1) as Nivel
+    setNivelActual(nivelInicial)
+    setPregunta(generarPregunta(nivelInicial))
+    setHintIndex(0)
+    start()
+
+    // 🔹 primero carga el modelo existente
+    await cargarModelo(setDecisionTree)
+
+    // 🔹 luego lo enriqueces con ejemplos sintéticos
+    await enriquecerModeloConDataset(500)
+  })()
+}, [student])
+
 
   if (!pregunta) return null
 
@@ -358,6 +412,48 @@ export function FraccionesSumasStGeorgeGameGame() {
     })
   }
 
+  function generarDataset(n = 10000): TrainingRow[] {
+  const niveles: Nivel[] = [1, 2, 3]
+  const mejoras: Mejora[] = ["mejora", "estable", "empeora"]
+  const tiempos: Tiempo[] = ["rapido", "moderado", "lento"]
+
+  const dataset: TrainingRow[] = []
+
+  for (let i = 0; i < n; i++) {
+    const nivel = niveles[Math.floor(Math.random() * niveles.length)]
+    const aciertos = Math.floor(Math.random() * 4) // 0-3
+    const errores = Math.floor(Math.random() * 4) // 0-3
+    const racha = Math.floor(Math.random() * 5)   // 0-4
+    const pistas_usadas = Math.floor(Math.random() * 4)
+    const mejora = mejoras[Math.floor(Math.random() * mejoras.length)]
+    const tiempo_promedio = tiempos[Math.floor(Math.random() * tiempos.length)]
+
+    let resultado: Resultado = "mantiene"
+    if (aciertos >= 3 && errores === 0 && mejora === "mejora") {
+      resultado = nivel < 3 ? "sube" : "mantiene"
+    } else if (errores >= 3 || mejora === "empeora") {
+      resultado = nivel > 1 ? "baja" : "mantiene"
+    }
+
+    dataset.push({
+      nivel,
+      aciertos,
+      errores,
+      racha,
+      mejora,
+      pistas_usadas,
+      tiempo_promedio,
+      tipo_problema: "fracciones",
+      resultado
+    })
+  }
+
+  return dataset
+}
+
+
+
+
   // ======== Decidir nivel y devolver sample/decision para entrenar ========
   const decidirNivel = async (
     nuevoAciertos: number,
@@ -367,6 +463,8 @@ export function FraccionesSumasStGeorgeGameGame() {
     const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
     const nuevaRacha = es_correcto ? racha + 1 : 0
     const tendencia = getTendencia([...historial, es_correcto])
+
+    generarDataset(1000)
 
     const sample: Sample = {
       nivel: nivelActual,
@@ -390,13 +488,13 @@ export function FraccionesSumasStGeorgeGameGame() {
         await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
         toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
         setNivelActual(nuevoNivel)
-        setAciertos(0); setErrores(0)
+    
       } else if (decision === 'baja' && nivelActual > 1) {
         nuevoNivel = (nivelActual - 1) as Nivel
         await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
         toast('Bajaste de nivel 📉', { icon: '📉' })
         setNivelActual(nuevoNivel)
-        setAciertos(0); setErrores(0)
+    
       }
     } else {
       // Fallback por si no hay árbol
@@ -404,12 +502,12 @@ export function FraccionesSumasStGeorgeGameGame() {
         decision = 'sube'
         nuevoNivel = (nivelActual + 1) as Nivel
         await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        setNivelActual(nuevoNivel); setAciertos(0); setErrores(0)
+        setNivelActual(nuevoNivel); 
       } else if (nuevosErrores >= 3 && nivelActual > 1) {
         decision = 'baja'
         nuevoNivel = (nivelActual - 1) as Nivel
         await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        setNivelActual(nuevoNivel); setAciertos(0); setErrores(0)
+        setNivelActual(nuevoNivel);
       } else {
         decision = 'mantiene'
       }
@@ -427,7 +525,7 @@ export function FraccionesSumasStGeorgeGameGame() {
     setMostrarInputSimplificado(false)
     setMostrarPasoMCM(true)
     setMcmUsuario('')
-    setFallosEjercicioActual(0)
+
     setHintIndex(0)
     setPistasUsadas(0)
     reset()
@@ -435,25 +533,21 @@ export function FraccionesSumasStGeorgeGameGame() {
   }
 
   const manejarError = async () => {
-    const nuevosFallos = fallosEjercicioActual + 1
-    setFallosEjercicioActual(nuevosFallos)
+    // CAMBIO: Evaluar inmediatamente al primer error
+    await registrarRespuestaFinal(false)
+    const nuevosErrores = errores + 1
+    setErrores(nuevosErrores)
+  
+    setRacha(0)
+    setHistorial(prev => [...prev, false])
 
-    if (nuevosFallos >= 2) {
-      await registrarRespuestaFinal(false)
-      const nuevosErrores = errores + 1
-      setErrores(nuevosErrores)
-      setAciertos(0)
-      setRacha(0)
-      setHistorial(prev => [...prev, false])
+    toast.error('❌ Respuesta incorrecta. Nueva pregunta.')
+    const { nuevoNivel, decision, sample } = await decidirNivel(0, nuevosErrores, false)
 
-      toast.error('❌ Fallaste. Nueva pregunta.')
-      const { nuevoNivel, decision, sample } = await decidirNivel(0, nuevosErrores, false)
+    // Entrenamiento: guardamos el ejemplo con etiqueta "decision"
+    await appendTrainingExample(setDecisionTree, { ...sample, resultado: decision })
 
-      // 👇 ENTRENAMIENTO: guardamos el ejemplo con etiqueta "decision"
-      await appendTrainingExample(setDecisionTree, { ...sample, resultado: decision })
-
-      setTimeout(() => reiniciarEjercicio(nuevoNivel), 1400)
-    }
+    setTimeout(() => reiniciarEjercicio(nuevoNivel), 1400)
   }
 
   const verificar = async () => {
@@ -472,10 +566,12 @@ export function FraccionesSumasStGeorgeGameGame() {
     } else {
       toast.error('Revisa denominador común y numeradores.')
       if (guidedMode) setHintIndex(i => Math.max(i, 1))
+      // CAMBIO: Llamar directamente a manejarError
       await manejarError()
     }
   }
 
+  // Reemplazar la función verificarSimplificada:
   const verificarSimplificada = async () => {
     if (!pregunta) return
     const { a, b, denominador1, denominador2 } = pregunta
@@ -503,16 +599,104 @@ export function FraccionesSumasStGeorgeGameGame() {
 
       const { nuevoNivel, decision, sample } = await decidirNivel(nuevosAciertos, 0, true)
 
-      // 👇 ENTRENAMIENTO: guardamos el ejemplo con etiqueta "decision"
+      // Entrenamiento: guardamos el ejemplo con etiqueta "decision"
       await appendTrainingExample(setDecisionTree, { ...sample, resultado: decision })
 
       nextWithDelay(1600, nuevoNivel)
     } else {
       toast.error('⚠️ Aún puedes simplificar mejor.')
       if (guidedMode) setHintIndex(3)
+      // CAMBIO: Llamar directamente a manejarError
       await manejarError()
     }
   }
+
+  // ====== Evaluar precisión del modelo ======
+function splitData<T>(data: T[], testRatio = 0.2) {
+  const shuffled = [...data].sort(() => Math.random() - 0.5)
+  const testSize = Math.floor(data.length * testRatio)
+  return {
+    train: shuffled.slice(testSize),
+    test: shuffled.slice(0, testSize),
+  }
+}
+
+function evaluarPrecision(data: TrainingRow[]) {
+  if (data.length < 5) return null // muy pocos ejemplos
+  const { train, test } = splitData(data, 0.2)
+  const dt = new DecisionTree(train, CLASS_NAME, FEATURES)
+
+  let correctos = 0
+  test.forEach((row) => {
+    const pred = dt.predict(row)
+    if (pred === row.resultado) correctos++
+  })
+
+  return correctos / test.length
+}
+
+// ====== Modificado appendTrainingExample con evaluación ======
+async function appendTrainingExample(
+  setDecisionTree: (dt: any) => void,
+  example: TrainingRow
+) {
+  console.log('[DT] Agregando ejemplo de entrenamiento:', example)
+
+  // 1) Leer modelo actual (o crear base vacía)
+  const { data, error } = await supabase
+    .from('decision_trees')
+    .select('modelo')
+    .eq('tema', temaPeriodoId)
+    .single()
+
+  let trainingData: TrainingRow[] = []
+  let className = CLASS_NAME
+  let features: any = FEATURES
+
+  if (!error && data?.modelo) {
+    trainingData = (data.modelo.trainingData as TrainingRow[]) ?? []
+    className = (data.modelo.className as string) ?? CLASS_NAME
+    features = (data.modelo.features as string[]) ?? FEATURES
+  }
+
+  // 2) Añadir ejemplo
+  trainingData.push(example)
+
+  // 3) Guardar con upsert
+  const modelo = { trainingData, className, features }
+  const { data: upserted, error: upErr } = await supabase
+    .from('decision_trees')
+    .upsert({ tema: temaPeriodoId, modelo }, { onConflict: 'tema' })
+    .select()
+
+  if (upErr) {
+    console.error('[DT] Error al upsert del modelo:', upErr)
+    return
+  }
+  console.log('[DT] Modelo actualizado. Total ejemplos=', trainingData.length)
+
+  // 4) Re-entrenar en memoria
+  try {
+    const dt = new DecisionTree(trainingData, className, features)
+    setDecisionTree(dt)
+    console.log('[DT] Árbol re-entrenado en memoria ✅')
+
+    // 5) 🔍 Evaluar precisión (modo prueba)
+    const acc = evaluarPrecision(trainingData)
+    if (acc !== null) {
+      const porcentaje = (acc * 100).toFixed(1)
+      console.log(`[DT] Precisión del modelo: ${porcentaje}%`)
+      toast.success(`📊 Precisión actual: ${porcentaje}%`)
+    } else {
+      console.log('[DT] No hay suficientes ejemplos para evaluar precisión')
+    }
+  } catch (e) {
+    console.error('[DT] Error re-entrenando árbol en memoria:', e)
+  }
+}
+
+
+ 
 
   const hints = buildHints(pregunta)
 
@@ -531,7 +715,7 @@ export function FraccionesSumasStGeorgeGameGame() {
             {showGuidePanel ? 'Ocultar guía' : 'Mostrar guía'}
           </button>
         </div>
-         <AnimatePresence initial={false}>
+        <AnimatePresence initial={false}>
           {guidedMode && showGuidePanel && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
@@ -572,7 +756,7 @@ export function FraccionesSumasStGeorgeGameGame() {
             </div>
           </div>
           <div className="flex items-center justify-center">
-            <span className="text-5xl font-bold text-foreground">×</span>
+            <span className="text-5xl font-bold text-foreground">+</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm text-muted-foreground mb-2">Fracción 2</span>
@@ -606,6 +790,7 @@ export function FraccionesSumasStGeorgeGameGame() {
                 } else {
                   toast.error('Ese no es el MCM.')
                   if (guidedMode) setHintIndex(0)
+                  // CAMBIO: Llamar directamente a manejarError
                   await manejarError()
                 }
               })}
@@ -682,7 +867,7 @@ export function FraccionesSumasStGeorgeGameGame() {
         )}
 
         {/* Pistas */}
-       
+
       </div>
     </>
   )

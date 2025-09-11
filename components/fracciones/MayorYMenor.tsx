@@ -18,6 +18,7 @@ const supabase = createClient()
 // ------------------ Tipos ------------------
 type Nivel = 1 | 2 | 3
 type Comparador = '>' | '<' | '='
+type Resultado = 'sube' | 'mantiene' | 'baja'
 
 interface Pregunta {
   a: number
@@ -25,7 +26,16 @@ interface Pregunta {
   contexto: string
 }
 
+interface TrainingRow {
+  nivel: Nivel
+  aciertos: number
+  errores: number
+  total_respuestas: number
+  resultado: Resultado
+}
+
 const temaPeriodoId = '138ef06e-1933-4628-810e-03f352b1beb6'
+const MIN_RESPUESTAS_PARA_EVALUAR = 5
 
 // ---------- Overlay ----------
 const LoadingOverlay = () => (
@@ -72,6 +82,80 @@ function generarPregunta(nivel: Nivel): Pregunta {
   return { a, b, contexto: genContexto(a, b) }
 }
 
+function splitData<T>(data: T[], testRatio = 0.2) {
+  const shuffled = [...data].sort(() => Math.random() - 0.5)
+  const testSize = Math.floor(data.length * testRatio)
+  return {
+    train: shuffled.slice(testSize),
+    test: shuffled.slice(0, testSize),
+  }
+}
+
+function evaluarPrecision(data: TrainingRow[]): number | null {
+  if (data.length < 10) return null
+  const { train, test } = splitData(data, 0.2)
+  const dt = new DecisionTree(train, "resultado", ["nivel", "aciertos", "errores", "total_respuestas"])
+
+  let correctos = 0
+  test.forEach((row: any) => {
+    const pred = dt.predict(row)
+    if (pred === row.resultado) correctos++
+  })
+
+  return correctos / test.length
+}
+
+async function appendTrainingExample(example: TrainingRow, setDecisionTree: (dt: any) => void) {
+  console.log("[DT] ➕ Añadiendo ejemplo real:", example)
+
+  const { data, error } = await supabase
+    .from("decision_trees")
+    .select("modelo")
+    .eq("tema", temaPeriodoId)
+    .single()
+
+  let trainingData: TrainingRow[] = []
+  let className = "resultado"
+  let features: string[] = ["nivel", "aciertos", "errores", "total_respuestas"]
+
+  if (!error && data?.modelo) {
+    trainingData = (data.modelo.trainingData as TrainingRow[]) ?? []
+    className = data.modelo.className ?? className
+    features = data.modelo.features ?? features
+  }
+
+  trainingData.push(example)
+
+  const modelo = { trainingData, className, features }
+  const { error: upErr } = await supabase
+    .from("decision_trees")
+    .upsert({ tema: temaPeriodoId, modelo }, { onConflict: "tema" })
+    .select()
+
+  if (upErr) {
+    console.error("[DT] ❌ Error guardando ejemplo:", upErr)
+    return
+  }
+
+  try {
+    const dt = new DecisionTree(trainingData, className, features)
+    setDecisionTree(dt)
+
+    const acc = evaluarPrecision(trainingData)
+    if (acc !== null) {
+      const porcentaje = (acc * 100).toFixed(1)
+      console.log(`[DT] 📊 Precisión actual: ${porcentaje}% | Ejemplos: ${trainingData.length}`)
+      console.log("[DT] Últimos 3 ejemplos:", trainingData.slice(-3))
+      toast.success(`📊 Precisión: ${porcentaje}%`)
+    } else {
+      console.log("[DT] ℹ️ No hay suficientes ejemplos para evaluar precisión")
+    }
+  } catch (e) {
+    console.error("[DT] Error reentrenando árbol:", e)
+  }
+}
+
+// ------------------ UI ------------------
 function BigNumber({ value, accent = false }: { value: number | string; accent?: boolean }) {
   return (
     <div className="px-5 py-3 rounded-xl border border-border bg-popover text-center">
@@ -79,7 +163,6 @@ function BigNumber({ value, accent = false }: { value: number | string; accent?:
     </div>
   )
 }
-const MIN_RESPUESTAS_PARA_EVALUAR = 5
 
 const buildHints = (p: Pregunta) => [
   { title: 'Pista 1', text: 'Mira cuántas cifras tiene cada número: el que tiene más cifras es mayor.' },
@@ -91,13 +174,20 @@ const buildHints = (p: Pregunta) => [
 export default function CompararNumerosPrimeroGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
   const [pregunta, setPregunta] = useState<Pregunta | null>(null)
-const [respuestasEnNivel, setRespuestasEnNivel] = useState(0)
+  const [respuestasEnNivel, setRespuestasEnNivel] = useState(0)
   const [aciertos, setAciertos] = useState(0)
   const [errores, setErrores] = useState(0)
   const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
-
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [decisionTree, setDecisionTree] = useState<any>(null)
+
+  const [guidedMode, setGuidedMode] = useState(true)
+  const [hintIndex, setHintIndex] = useState(0)
+  const [showGuidePanel, setShowGuidePanel] = useState(true)
+
+  const { elapsedSeconds, start, reset } = useQuestionTimer()
+  const { student } = useStudent()
+  const firstButtonRef = useRef<HTMLButtonElement>(null)
 
   const withLock = async (fn: () => Promise<void>) => {
     if (isSubmitting) return
@@ -113,20 +203,11 @@ const [respuestasEnNivel, setRespuestasEnNivel] = useState(0)
     }, ms)
   }
 
-  const [guidedMode, setGuidedMode] = useState(true)
-  const [hintIndex, setHintIndex] = useState(0)
-  const [showGuidePanel, setShowGuidePanel] = useState(true)
-
-  const { elapsedSeconds, start, reset } = useQuestionTimer()
-  const { student } = useStudent()
-  const firstButtonRef = useRef<HTMLButtonElement>(null)
-
-  // -------- cargar modelo desde Supabase --------
   async function cargarModelo() {
     const { data, error } = await supabase
       .from('decision_trees')
       .select('modelo')
-      .eq('tema_id', temaPeriodoId)
+      .eq('tema', temaPeriodoId)
       .single()
 
     if (error) {
@@ -138,6 +219,11 @@ const [respuestasEnNivel, setRespuestasEnNivel] = useState(0)
       const { trainingData, className, features } = data.modelo
       const dt = new DecisionTree(trainingData, className, features)
       setDecisionTree(dt)
+
+      const acc = evaluarPrecision(trainingData)
+      if (acc !== null) {
+        console.log(`[DT] 🔍 Precisión inicial: ${(acc * 100).toFixed(1)}% | Ejemplos: ${trainingData.length}`)
+      }
     }
   }
 
@@ -178,7 +264,6 @@ const [respuestasEnNivel, setRespuestasEnNivel] = useState(0)
     })
   }
 
-  // -------- reiniciar ejercicio --------
   const reiniciarEjercicio = (nuevoNivel: Nivel) => {
     const q = generarPregunta(nuevoNivel)
     setPregunta(q)
@@ -189,108 +274,36 @@ const [respuestasEnNivel, setRespuestasEnNivel] = useState(0)
   }
 
   // -------- manejar errores --------
-  // Reemplazar la función manejarError:
-// -------- manejar errores --------
-const manejarError = async (respuestaOp: Comparador) => {
-  // CAMBIO: Ejecutar inmediatamente al primer error
-  await registrarRespuesta(false, respuestaOp)
-  const nuevosErrores = errores + 1
-  const nuevasRespuestas = respuestasEnNivel + 1
-  
-  setErrores(nuevosErrores)
-  setAciertos(0)
-  setRespuestasEnNivel(nuevasRespuestas)
-
-  let nuevoNivel = nivelActual
-
-  // Solo evaluar cambio de nivel después de suficientes respuestas
-  if (nuevasRespuestas >= MIN_RESPUESTAS_PARA_EVALUAR) {
-    const totalRespuestas = nuevosErrores + aciertos
-    const porcentajeAciertos = aciertos / totalRespuestas
-
-    if (decisionTree) {
-      const decision = decisionTree.predict({
-        nivel: nivelActual,
-        aciertos: aciertos,
-        errores: nuevosErrores,
-        porcentaje_aciertos: porcentajeAciertos
-      })
-      
-      // Solo bajar si el rendimiento es consistentemente malo
-      if (decision === 'baja' && nivelActual > 1 && 
-          porcentajeAciertos < 0.3 && totalRespuestas >= 5) {
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('Bajaste de nivel 📉', { icon: '📉' })
-        setNivelActual(nuevoNivel)
-        setAciertos(0)
-        setErrores(0)
-        setRespuestasEnNivel(0)
-      }
-    } else {
-      // Lógica fallback más restrictiva
-      if (nuevosErrores >= 6 && nivelActual > 1) {
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        setNivelActual(nuevoNivel)
-        setAciertos(0)
-        setErrores(0)
-        setRespuestasEnNivel(0)
-      }
-    }
-  }
-
-  // CAMBIO: Siempre cambiar pregunta después del primer error
-  nextWithDelay(1000, nuevoNivel)
-}
-
-// -------- verificar --------
-const verificar = async (opElegido: Comparador) => {
-  if (!pregunta) return
-  const correcto: Comparador =
-    pregunta.a > pregunta.b ? '>' : pregunta.a < pregunta.b ? '<' : '='
-
-  if (opElegido === correcto) {
-    await registrarRespuesta(true, opElegido)
-    const nuevosAciertos = aciertos + 1
+  const manejarError = async (respuestaOp: Comparador) => {
+    await registrarRespuesta(false, respuestaOp)
+    const nuevosErrores = errores + 1
     const nuevasRespuestas = respuestasEnNivel + 1
     
-    setAciertos(nuevosAciertos)
-    setErrores(0)
+    setErrores(nuevosErrores)
+    setAciertos(0)
     setRespuestasEnNivel(nuevasRespuestas)
-    toast.success('🎉 ¡Correcto!')
-    confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } })
 
     let nuevoNivel = nivelActual
+    let decision: Resultado = "mantiene"
 
-    // Solo evaluar subida de nivel con suficientes respuestas
     if (nuevasRespuestas >= MIN_RESPUESTAS_PARA_EVALUAR) {
-      const totalRespuestas = nuevosAciertos + errores
-      const porcentajeAciertos = nuevosAciertos / totalRespuestas
+      const totalRespuestas = nuevosErrores + aciertos
+      const porcentajeAciertos = aciertos / totalRespuestas
 
       if (decisionTree) {
-        const decision = decisionTree.predict({
+        decision = decisionTree.predict({
           nivel: nivelActual,
-          aciertos: nuevosAciertos,
-          errores: errores,
-          porcentaje_aciertos: porcentajeAciertos
-        })
-        
-        if (decision === 'sube' && nivelActual < 3 && porcentajeAciertos >= 0.8) {
-          nuevoNivel = (nivelActual + 1) as Nivel
+          aciertos: aciertos,
+          errores: nuevosErrores,
+          total_respuestas: totalRespuestas,
+        }) as Resultado
+
+        console.log(`[DT] 🔮 Predicción error: ${decision} | Nivel ${nivelActual} | Aciertos=${aciertos} | Errores=${nuevosErrores} | Total=${totalRespuestas}`)
+
+        if (decision === 'baja' && nivelActual > 1 && porcentajeAciertos < 0.3) {
+          nuevoNivel = (nivelActual - 1) as Nivel
           await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-          toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
-          setNivelActual(nuevoNivel)
-          setAciertos(0)
-          setErrores(0)
-          setRespuestasEnNivel(0)
-          nextWithDelay(900, nuevoNivel)
-          return
-        }
-      } else {
-        if (nuevosAciertos >= 4 && nivelActual < 3) {
-          nuevoNivel = (nivelActual + 1) as Nivel
-          await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+          toast('Bajaste de nivel 📉', { icon: '📉' })
           setNivelActual(nuevoNivel)
           setAciertos(0)
           setErrores(0)
@@ -298,14 +311,83 @@ const verificar = async (opElegido: Comparador) => {
         }
       }
     }
-    nextWithDelay(900, nuevoNivel)
-  } else {
-    toast.error('Casi… Primero mira la cantidad de cifras.')
-    if (guidedMode) setHintIndex((i) => Math.min(i + 1, 2))
-    // CAMBIO: Llamar directamente a manejarError (que ya no usa fallosEjercicioActual)
-    await manejarError(opElegido)
+
+    const nuevoRow: TrainingRow = {
+      nivel: nivelActual,
+      aciertos,
+      errores: nuevosErrores,
+      total_respuestas: nuevasRespuestas,
+      resultado: decision,
+    }
+    await appendTrainingExample(nuevoRow, setDecisionTree)
+
+    nextWithDelay(1000, nuevoNivel)
   }
-}
+
+  // -------- verificar --------
+  const verificar = async (opElegido: Comparador) => {
+    if (!pregunta) return
+    const correcto: Comparador =
+      pregunta.a > pregunta.b ? '>' : pregunta.a < pregunta.b ? '<' : '='
+
+    if (opElegido === correcto) {
+      await registrarRespuesta(true, opElegido)
+      const nuevosAciertos = aciertos + 1
+      const nuevasRespuestas = respuestasEnNivel + 1
+
+      setAciertos(nuevosAciertos)
+      setErrores(0)
+      setRespuestasEnNivel(nuevasRespuestas)
+      toast.success('🎉 ¡Correcto!')
+      confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } })
+
+      let nuevoNivel = nivelActual
+      let decision: Resultado = "mantiene"
+
+      if (nuevasRespuestas >= MIN_RESPUESTAS_PARA_EVALUAR) {
+        const totalRespuestas = nuevosAciertos + errores
+        const porcentajeAciertos = nuevosAciertos / totalRespuestas
+
+        if (decisionTree) {
+          decision = decisionTree.predict({
+            nivel: nivelActual,
+            aciertos: nuevosAciertos,
+            errores: errores,
+            total_respuestas: totalRespuestas,
+          }) as Resultado
+
+          console.log(`[DT] 🔮 Predicción acierto: ${decision} | Nivel ${nivelActual} | Aciertos=${nuevosAciertos} | Errores=${errores} | Total=${totalRespuestas}`)
+
+          if (decision === 'sube' && nivelActual < 3 && porcentajeAciertos >= 0.8) {
+            nuevoNivel = (nivelActual + 1) as Nivel
+            await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+            toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
+            setNivelActual(nuevoNivel)
+            setAciertos(0)
+            setErrores(0)
+            setRespuestasEnNivel(0)
+            nextWithDelay(900, nuevoNivel)
+          }
+        }
+      }
+
+      const nuevoRow: TrainingRow = {
+        nivel: nivelActual,
+        aciertos: nuevosAciertos,
+        errores,
+        total_respuestas: nuevasRespuestas,
+        resultado: decision,
+      }
+      await appendTrainingExample(nuevoRow, setDecisionTree)
+
+      nextWithDelay(900, nuevoNivel)
+    } else {
+      toast.error('Casi… Primero mira la cantidad de cifras.')
+      if (guidedMode) setHintIndex((i) => Math.min(i + 1, 2))
+      await manejarError(opElegido)
+    }
+  }
+
   const hints = buildHints(pregunta)
   const coachMsg =
     fallosEjercicioActual === 0
