@@ -19,23 +19,19 @@ export default function SignInPage() {
 
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setStudentError('')
-    setStudentMessage('')
+    setTeacherError('')
 
-    const { data: student, error: studentError } = await supabase
-      .from('students')
-      .select('*')
-      .eq('username', username.trim().toLowerCase())
-      .single()
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-    if (studentError || !student) {
-      setStudentError('Usuario no encontrado 😞')
-      return
+    if (error) {
+      setTeacherError('Credenciales incorrectas')
+      console.log(error)
+    } else {
+      router.push('/dashboard/student/play')
     }
-
-    setStudentMessage(`Bienvenido, ${student.username} 👋`)
-    localStorage.setItem('student', JSON.stringify(student))
-    router.push('/dashboard/student/play')
   }
 
   const handleTeacherLogin = async (e: React.FormEvent) => {
@@ -82,12 +78,24 @@ export default function SignInPage() {
           {tab === 'student' ? (
             <form onSubmit={handleStudentLogin} className="space-y-4">
               <div className="flex items-center border rounded-lg overflow-hidden bg-input focus-within:ring-2 ring-ring">
-                <User className="mx-3 text-muted-foreground" size={18} />
+                <UserCircle className="mx-3 text-muted-foreground" size={18} />
                 <input
-                  type="text"
-                  placeholder="Nombre de usuario"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  type="email"
+                  placeholder="Correo electrónico"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.form?.requestSubmit()}
+                  className="w-full py-2 px-1 outline-none bg-transparent"
+                  required
+                />
+              </div>
+               <div className="flex items-center border rounded-lg overflow-hidden bg-input focus-within:ring-2 ring-ring">
+                <Lock className="mx-3 text-muted-foreground" size={18} />
+                <input
+                  type="password"
+                  placeholder="Contraseña"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.form?.requestSubmit()}
                   className="w-full py-2 px-1 outline-none bg-transparent"
                   required
@@ -101,6 +109,7 @@ export default function SignInPage() {
               >
                 Entrar
               </button>
+            
             </form>
           ) : (
             <form onSubmit={handleTeacherLogin} className="space-y-4">

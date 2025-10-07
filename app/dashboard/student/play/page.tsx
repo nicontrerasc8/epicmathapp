@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
-import { useStudent } from '@/lib/hooks/useStudent'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
@@ -20,19 +19,52 @@ type TemaStats = {
 }
 
 export default function PlayPage() {
-  const { student, loading } = useStudent(true)
   const supabase = createClient()
 
+  const [student, setStudent] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
   const [temas, setTemas] = useState<Tema[]>([])
   const [stats, setStats] = useState<Record<string, TemaStats>>({})
   const [loadingTemas, setLoadingTemas] = useState(true)
   const [grado, setGrado] = useState<number | null>(null)
 
   useEffect(() => {
+    const fetchStudent = async () => {
+      // 1️⃣ Obtener usuario logueado desde Supabase Auth
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError || !userData.user) {
+        console.error('Usuario no autenticado', userError)
+        setLoading(false)
+        return
+      }
+
+      const userId = userData.user.id
+
+      // 2️⃣ Buscar en tabla students según el auth UID
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', userId) // ⚠️ cambia a tu columna real si es "id_auth" o "supabase_uid"
+        .single()
+
+      if (studentError || !studentData) {
+        console.error('No se encontró el estudiante vinculado a este usuario.', studentError)
+        setLoading(false)
+        return
+      }
+
+      setStudent(studentData)
+      setLoading(false)
+    }
+
+    fetchStudent()
+  }, [supabase])
+
+  useEffect(() => {
     const fetchTemasAndStats = async () => {
       if (!student?.school_id || !student?.classroom_id) return
 
-      // 1) Periodo actual
+      // 1️⃣ Periodo actual
       const { data: periodos } = await supabase
         .from('periodo')
         .select('id')
@@ -42,7 +74,7 @@ export default function PlayPage() {
       const periodoId = periodos?.[0]?.id
       if (!periodoId) return
 
-      // 2) Grado del salón
+      // 2️⃣ Grado del salón
       const { data: classroom, error: classroomError } = await supabase
         .from('classrooms')
         .select('grade')
@@ -55,7 +87,7 @@ export default function PlayPage() {
       }
       setGrado(classroom.grade)
 
-      // 3) Temas para school + grado + periodo
+      // 3️⃣ Temas
       const { data: temasData, error: temasError } = await supabase
         .from('tema_periodo')
         .select('id, tema')
@@ -72,7 +104,7 @@ export default function PlayPage() {
       const temasList = (temasData ?? []) as Tema[]
       setTemas(temasList)
 
-      // 4) Historial por tema para el alumno (intentos + último + correctos)
+      // 4️⃣ Historial del estudiante
       const temaIds = temasList.map(t => t.id)
       if (temaIds.length === 0) {
         setStats({})
@@ -80,7 +112,6 @@ export default function PlayPage() {
         return
       }
 
-      // Respuestas del alumno por esos temas
       const { data: resp } = await supabase
         .from('student_responses')
         .select('tema_periodo_id, es_correcto, created_at')
@@ -88,7 +119,6 @@ export default function PlayPage() {
         .in('tema_periodo_id', temaIds)
         .order('created_at', { ascending: false })
 
-      // Nivel actual por tema (si existe)
       const { data: per } = await supabase
         .from('student_periodo')
         .select('tema_periodo_id, nivel')
@@ -108,11 +138,9 @@ export default function PlayPage() {
         agg[k].total += 1
         if ((r as any).es_correcto) agg[k].correctos += 1
         else agg[k].incorrectos += 1
-        // primer loop viene en orden desc → el primero es el último intento
         if (!agg[k].ultimo) agg[k].ultimo = (r as any).created_at
       })
 
-      // completa niveles en temas sin respuestas
       temaIds.forEach(id => {
         if (!agg[id]) agg[id] = { total: 0, correctos: 0, incorrectos: 0, ultimo: null, nivel: nivelMap.get(id) ?? null }
       })
@@ -121,8 +149,8 @@ export default function PlayPage() {
       setLoadingTemas(false)
     }
 
-    fetchTemasAndStats()
-  }, [student]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (student) fetchTemasAndStats()
+  }, [student])
 
   const fmtFecha = (iso?: string | null) => {
     if (!iso) return '—'
@@ -141,6 +169,14 @@ export default function PlayPage() {
     )
   }
 
+  if (!student) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-destructive">
+        <div className="text-xl font-semibold">No se encontró información del estudiante 😞</div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground p-6 flex flex-col items-center">
       <motion.div
@@ -155,11 +191,11 @@ export default function PlayPage() {
         {/* Resumen del estudiante */}
         <div className="mb-10 text-center relative z-10">
           <h1 className="text-4xl font-extrabold text-primary mb-3 drop-shadow-md">
-            ¡Hola, <span className="text-secondary">{student?.nombres ? student.nombres.split(' ')[0] : student?.username}</span>!
+            ¡Hola, <span className="text-secondary">{student?.nombres?.split(' ')[0] || student?.username}</span>!
           </h1>
         </div>
 
-        {/* Temas disponibles con historial corto por tarjeta */}
+        {/* Temas */}
         <div className="relative z-10">
           <h2 className="text-3xl font-bold text-center text-primary mb-6 flex items-center justify-center gap-3">
             <span role="img" aria-label="joystick">🎮</span> Elige un tema para jugar <span role="img" aria-label="star">✨</span>

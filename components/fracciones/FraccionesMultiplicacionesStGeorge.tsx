@@ -17,6 +17,8 @@ import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
 const supabase = createClient()
 const temaPeriodoId = '4f098735-8cea-416a-be52-12e91adbba23'
 
+
+
 // ====== Tipos/constantes para el modelo ======
 type Nivel = 1 | 2 | 3
 type Tiempo = 'rapido' | 'moderado' | 'lento'
@@ -31,7 +33,14 @@ type Sample = {
   pistas_usadas: number
   racha: number
   mejora: Mejora
-  tipo_problema: 'fracciones'
+  tipo_problema: 'fracciones' | 'sumas' // Asegúrate de que esté definido correctamente
+  intentos_por_pregunta: number
+  variabilidad_tiempo: 'consistente' | 'variable'
+  patron_errores: 'sistematico' | 'aleatorio'
+  sesiones_completadas: number
+  tiempo_primera_respuesta: Tiempo
+  uso_recursos_extra: boolean
+  consistencia_semanal: 'alta' | 'media' | 'baja'
 }
 
 type TrainingRow = Sample & { resultado: Resultado }
@@ -39,13 +48,20 @@ type TrainingRow = Sample & { resultado: Resultado }
 const CLASS_NAME = 'resultado'
 const FEATURES = [
   'nivel',
-  'aciertos',
+  'aciertos', 
   'errores',
   'tiempo_promedio',
   'pistas_usadas',
   'racha',
   'mejora',
   'tipo_problema',
+  'intentos_por_pregunta',
+  'variabilidad_tiempo',
+  'patron_errores',
+  'sesiones_completadas',
+  'tiempo_primera_respuesta',
+  'uso_recursos_extra',
+  'consistencia_semanal'
 ] as const
 
 interface Pregunta {
@@ -110,29 +126,130 @@ async function cargarModelo(setDecisionTree: (dt: any) => void) {
 }
 
 // ---------- Generación de pregunta ----------
+
+  // ---------- Generación de pregunta (avanzada y variable) ----------
+const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b))
+const mcm = (a: number, b: number): number => Math.abs((a * b) / gcd(a, b))
+const randInt = (min: number, max: number) =>
+  Math.floor(Math.random() * (max - min + 1)) + min
+
 const generarPregunta = (nivel: Nivel): Pregunta => {
-  let rango: number[] = []
-  if (nivel === 1) rango = Array.from({ length: 8 }, (_, i) => i + 2) // 2-9
-  if (nivel === 2) rango = Array.from({ length: 40 }, (_, i) => i + 10) // 10-49
-  if (nivel === 3) rango = Array.from({ length: 50 }, (_, i) => i + 50) // 50-99
+  let denominador1 = 0
+  let denominador2 = 0
+  let a = 0
+  let b = 0
 
-  const denominador1 = rango[Math.floor(Math.random() * rango.length)]
-  let denominador2: number
-  do {
-    denominador2 = rango[Math.floor(Math.random() * rango.length)]
-  } while (denominador2 === denominador1)
+  const sumWithLcm = (A: number, B: number, d1: number, d2: number) => {
+    const L = mcm(d1, d2)
+    return A * (L / d1) + B * (L / d2)
+  }
 
-  const a = Math.floor(Math.random() * denominador1) + 1
-  const b = Math.floor(Math.random() * denominador2) + 1
+  if (nivel === 1) {
+    // Nivel 1: fracciones simples, homogéneas o múltiplos pequeños
+    const tipo = Math.random()
 
+    if (tipo < 0.6) {
+      denominador1 = randInt(2, 9)
+      denominador2 = denominador1 // mismos denominadores
+    } else {
+      denominador1 = randInt(2, 6)
+      denominador2 = denominador1 * (Math.random() < 0.5 ? 2 : 3)
+      if (denominador2 > 12) denominador2 = denominador1 * 2
+    }
+
+    a = randInt(1, Math.floor(denominador1 * 0.5))
+    b = randInt(1, Math.floor(denominador2 * 0.5))
+
+    // 60% <1, 30% ≈1, 10% >1
+    const L = mcm(denominador1, denominador2)
+    let total = sumWithLcm(a, b, denominador1, denominador2)
+    if (total >= L && Math.random() < 0.6) {
+      while (total >= L) {
+        a = randInt(1, denominador1 - 1)
+        b = randInt(1, denominador2 - 1)
+        total = sumWithLcm(a, b, denominador1, denominador2)
+      }
+    }
+  } 
+  
+  else if (nivel === 2) {
+    // Nivel 2: denominadores medianos (6–14), diferentes, con o sin múltiplos
+    let ok = false
+    for (let i = 0; i < 60 && !ok; i++) {
+      const d1 = randInt(5, 14)
+      const d2 = randInt(5, 14)
+      const g = gcd(d1, d2)
+      const sonMultiplos = d1 % d2 === 0 || d2 % d1 === 0
+      if (d1 !== d2 && (g > 1 || sonMultiplos)) {
+        denominador1 = d1
+        denominador2 = d2
+        ok = true
+      }
+    }
+    if (!ok) {
+      denominador1 = 8
+      denominador2 = 12
+    }
+
+    // Numeradores medianos
+    a = randInt(1, denominador1)
+    b = randInt(1, denominador2)
+
+    // 50% de las veces, fracción impropia
+    if (Math.random() < 0.5) {
+      a = randInt(Math.ceil(denominador1 * 0.6), denominador1)
+      b = randInt(Math.ceil(denominador2 * 0.6), denominador2)
+    }
+  } 
+  
+  else {
+    // Nivel 3: denominadores grandes (10–25), mezcla de coprimos e impropias
+    let ok = false
+    for (let i = 0; i < 100 && !ok; i++) {
+      const d1 = randInt(10, 25)
+      const d2 = randInt(10, 25)
+      if (d1 === d2) continue
+      const g = gcd(d1, d2)
+      const L = mcm(d1, d2)
+      if (L <= 300 && (Math.random() < 0.75 ? g === 1 : g > 1)) {
+        denominador1 = d1
+        denominador2 = d2
+        ok = true
+      }
+    }
+    if (!ok) {
+      denominador1 = 11
+      denominador2 = 19
+    }
+
+    // Numeradores altos (50%–120%)
+    a = randInt(Math.ceil(denominador1 * 0.5), Math.ceil(denominador1 * 1.2))
+    b = randInt(Math.ceil(denominador2 * 0.5), Math.ceil(denominador2 * 1.2))
+
+    // Ajustar proporciones para evitar explosiones visuales
+    if (a / denominador1 > 1.5) a = denominador1
+    if (b / denominador2 > 1.5) b = denominador2
+  }
+
+  // Contextos variados y gamificados 🎯
   const contextos = [
-    `María tiene ${a}/${denominador1} de una torta y come ${b}/${denominador2} de esa porción. ¿Qué fracción del total comió?`,
-    `Pedro pinta ${a}/${denominador1} de una pared y su amigo pinta ${b}/${denominador2} de lo que pintó Pedro. ¿Qué fracción de la pared pintó el amigo?`,
-    `Ana bebe ${a}/${denominador1} de un jugo y su hermano bebe ${b}/${denominador2} de lo que bebió Ana. ¿Qué fracción del jugo bebió el hermano?`,
-    `Carlos tiene ${a}/${denominador1} de una colección y vende ${b}/${denominador2} de su parte. ¿Qué fracción de la colección vendió?`,
+    `🍰 María tiene ${a}/${denominador1} de una torta y comparte ${b}/${denominador2} de su parte. ¿Qué fracción entregó?`,
+    `⚽ Martín entrena ${a}/${denominador1} del tiempo planeado y luego ${b}/${denominador2} más. ¿Qué fracción cumplió?`,
+    `🎨 Ana pintó ${a}/${denominador1} del mural y después ${b}/${denominador2} más. ¿Cuánto pintó en total?`,
+    `📘 Carlos leyó ${a}/${denominador1} de su libro y ${b}/${denominador2} del siguiente. ¿Qué parte ha leído en total?`,
+    `🧩 Lucía armó ${a}/${denominador1} de un rompecabezas y ${b}/${denominador2} de otro. ¿Qué fracción completó?`,
+    `🧃 Pedro bebió ${a}/${denominador1} del jugo y ${b}/${denominador2} más. ¿Qué parte bebió del total?`,
   ]
 
-  return { a, b, operador: '×', denominador1, denominador2, contexto: contextos[Math.floor(Math.random() * contextos.length)] }
+  return {
+    a,
+    b,
+    operador: '×', // multiplicación
+    denominador1,
+    denominador2,
+    contexto: contextos[Math.floor(Math.random() * contextos.length)],
+  }
+
 }
 
 // ---------- UI: fracción bonita ----------
@@ -156,6 +273,9 @@ function FractionPretty({
   )
 }
 
+// Función para generar datos más realistas
+
+
 // ---------- Pistas ----------
 const buildHints = (p: Pregunta) => ([
   { title: 'Pista 1 — ¿Cómo multiplico fracciones?', text: 'Multiplica numeradores entre sí y denominadores entre sí. ¡No simplifiques en este juego!' },
@@ -173,69 +293,78 @@ function splitData<T>(data: T[], testRatio = 0.2) {
   }
 }
 
-function evaluarPrecision(data: TrainingRow[]) {
-  if (!data || data.length < 10) return null
-  const { train, test } = splitData(data, 0.2)
-  const dt = new DecisionTree(train, CLASS_NAME, FEATURES as unknown as string[])
-  let correctos = 0
-  for (const row of test) {
-    const pred = dt.predict(row)
-    if (pred === row.resultado) correctos++
+
+// ======================
+// Confusion Matrix + Metrics
+// ======================
+function confusionMatrixMulticlase(testData: TrainingRow[], dt: any) {
+  const labels: Resultado[] = ['sube', 'mantiene', 'baja'];
+  const matrix: Record<Resultado, Record<Resultado, number>> = {
+    sube: { sube: 0, mantiene: 0, baja: 0 },
+    mantiene: { sube: 0, mantiene: 0, baja: 0 },
+    baja: { sube: 0, mantiene: 0, baja: 0 },
+  };
+
+  for (const row of testData) {
+    const real = row.resultado;
+    const pred = dt.predict(row) as Resultado;
+    matrix[real][pred] += 1;
   }
-  return correctos / test.length
+
+  return matrix;
 }
 
-// ===== Upsert + reentrenar + logs de precisión =====
-async function appendTrainingExample(
-  example: TrainingRow,
-  setDecisionTree: (dt: any) => void
-) {
-  console.log('[DT] ➕ Añadiendo ejemplo real:', example)
+function calcularMetricasMulticlase(matrix: Record<Resultado, Record<Resultado, number>>) {
+  const labels: Resultado[] = ['sube', 'mantiene', 'baja'];
+  
+  let totalCorrect = 0;
+  let totalSamples = 0;
+  
+  const metrics: Record<Resultado, { precision: number; recall: number; f1: number }> = {
+    sube: { precision: 0, recall: 0, f1: 0 },
+    mantiene: { precision: 0, recall: 0, f1: 0 },
+    baja: { precision: 0, recall: 0, f1: 0 },
+  };
 
-  const { data, error } = await supabase
-    .from('decision_trees')
-    .select('modelo')
-    .eq('tema', temaPeriodoId)
-    .single()
+  // Calcular total de muestras y aciertos
+  labels.forEach(label => {
+    labels.forEach(predLabel => {
+      const count = matrix[label][predLabel];
+      totalSamples += count;
+      if (label === predLabel) {
+        totalCorrect += count;
+      }
+    });
+  });
 
-  let trainingData: TrainingRow[] = []
-  let className = CLASS_NAME
-  let features: string[] = FEATURES as unknown as string[]
+  // Calcular métricas por clase
+  labels.forEach(label => {
+    const TP = matrix[label][label];
+    
+    // False Positives: suma de la columna (predicciones de esta clase) menos TP
+    const FP = labels.reduce((sum, realLabel) => 
+      sum + (realLabel !== label ? matrix[realLabel][label] : 0), 0
+    );
+    
+    // False Negatives: suma de la fila (casos reales de esta clase) menos TP
+    const FN = labels.reduce((sum, predLabel) => 
+      sum + (predLabel !== label ? matrix[label][predLabel] : 0), 0
+    );
 
-  if (!error && data?.modelo) {
-    trainingData = (data.modelo.trainingData as TrainingRow[]) ?? []
-    className = data.modelo.className ?? className
-    features = data.modelo.features ?? features
-  }
+    // Calcular métricas con protección contra división por cero
+    const precision = (TP + FP) > 0 ? TP / (TP + FP) : 0;
+    const recall = (TP + FN) > 0 ? TP / (TP + FN) : 0;
+    const f1 = (precision + recall) > 0 ? (2 * precision * recall) / (precision + recall) : 0;
 
-  trainingData.push(example)
+    metrics[label] = { precision, recall, f1 };
+  });
 
-  const modelo = { trainingData, className, features }
-  const { error: upErr } = await supabase
-    .from('decision_trees')
-    .upsert({ tema: temaPeriodoId, modelo }, { onConflict: 'tema' })
-    .select()
+  // Accuracy global
+  const accuracy = totalSamples > 0 ? totalCorrect / totalSamples : 0;
 
-  if (upErr) {
-    console.error('[DT] ❌ Error guardando ejemplo en Supabase:', upErr)
-    return
-  }
-
-  try {
-    const dt = new DecisionTree(trainingData, className, features)
-    setDecisionTree(dt)
-    const acc = evaluarPrecision(trainingData)
-    if (acc !== null) {
-      const pct = (acc * 100).toFixed(1)
-      console.log(`[DT] 📊 Precisión actual: ${pct}%  | Ejemplos: ${trainingData.length}`)
-      toast.success(`📊 Precisión del modelo: ${pct}%`)
-    } else {
-      console.log('[DT] (Precisión) Aún no hay suficientes ejemplos.')
-    }
-  } catch (e) {
-    console.error('[DT] Error reentrenando árbol en memoria:', e)
-  }
+  return { accuracy, metrics, totalSamples, totalCorrect };
 }
+
 
 export function FraccionesMultiplicacionStGeorgeGame() {
   const [nivelActual, setNivelActual] = useState<Nivel>(1)
@@ -272,117 +401,236 @@ export function FraccionesMultiplicacionStGeorgeGame() {
   const { elapsedSeconds, start, reset } = useQuestionTimer()
   const finalNumeradorRef = useRef<HTMLInputElement>(null)
   const finalDenominadorRef = useRef<HTMLInputElement>(null)
-  const { student } = useStudent()
+ 
   const initRef = useRef(false)
+  const [respuestasEnNivel, setRespuestasEnNivel] = useState(0)
+  const [student, setStudent] = useState<any>(null)
 
-  useEffect(() => {
-    if (!student?.id) return
-    if (initRef.current) return
-    initRef.current = true
+useEffect(() => {
+  const supabase = createClient()
 
-    ;(async () => {
+  const syncStudentFromAuth = async () => {
+  const { data } = await supabase.auth.getUser()
+  const user = data?.user
+  if (!user) return
+
+  // Guardamos el user en estado (por si lo necesitas después)
+  setStudent(user)
+
+  // 🔥 Buscar el registro del estudiante vinculado al auth.user.id
+  const { data: studentData, error: studentError } = await supabase
+    .from('students')
+    .select('*')
+    .eq('id', user.id) // <-- cambio clave aquí
+    .maybeSingle()
+
+  if (studentError) {
+    console.error('❌ Error obteniendo student:', studentError)
+    return
+  }
+
+  if (studentData) {
+    setStudent(studentData)
+    console.log('✅ Student sincronizado desde Supabase Auth:', studentData)
+  } else {
+    console.warn('⚠️ No se encontró registro en students para este user.id')
+  }
+}
+
+
+  syncStudentFromAuth()
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    if (session?.user) {
+      setStudent(session.user)
+      syncStudentFromAuth()
+    } else {
+      setStudent(null)
+    }
+  })
+
+  return () => subscription.unsubscribe()
+}, [])
+useEffect(() => {
+  if (!student?.id) return
+  if (initRef.current) return
+  initRef.current = true
+
+  ;(async () => {
+    try {
+      // 🔹 Obtener nivel actual del alumno
       const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
       const nivelInicial = (nivelBD ?? 1) as Nivel
       setNivelActual(nivelInicial)
-      setPregunta(generarPregunta(nivelInicial))
-      setHintIndex(0)
-      start()
+
+      // 🔹 Cargar modelo del árbol
       await cargarModelo(setDecisionTree)
-    })()
-  }, [student])
+
+      // 🔹 Generar la primera pregunta
+      const q = generarPregunta(nivelInicial)
+      setPregunta(q)
+
+      // 🔹 Iniciar el temporizador
+      reset()
+      start()
+
+      console.log('✅ Juego inicializado | Nivel:', nivelInicial)
+    } catch (err) {
+      console.error('❌ Error al inicializar el juego:', err)
+    }
+  })()
+}, [student])
+
+
+
+
+  // Añadir ejemplos al modelo en la base de datos
+// Añadir ejemplos al modelo en la base de datos
+async function appendTrainingExampleFast(example: any) {
+  try {
+    const { error } = await supabase
+      .from('decision_training_samples')
+      .insert([
+        {
+          tema_periodo_id: temaPeriodoId,
+          sample: example,
+        },
+      ])
+    if (error) throw error
+    console.log('✅ Ejemplo guardado en decision_training_samples')
+  } catch (err) {
+    console.error('❌ Error al guardar ejemplo de entrenamiento:', err)
+  }
+}
+
+
+
+
+  // Función para simular 5000 estudiantes
 
   if (!pregunta) return null
 
-  // -------- Registro de intento (sin cambiar tipos)
-  const registrarRespuesta = async (es_correcto: boolean) => {
-    if (!student?.id || !temaPeriodoId || !pregunta) return
-    const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
-    const nuevaRacha = es_correcto ? racha + 1 : 0
-    const tendencia: Mejora = getTendencia([...historial, es_correcto])
+const registrarRespuesta = async (es_correcto: boolean) => {
+  if (!student?.id || !temaPeriodoId || !pregunta) return
 
-    await insertStudentResponse({
-      student_id: student.id,
-      tema_periodo_id: temaPeriodoId,
-      nivel: nivelActual,
-      es_correcto,
-      ejercicio_data: {
-        a: pregunta.a, b: pregunta.b, operador: pregunta.operador,
-        denominador1: pregunta.denominador1, denominador2: pregunta.denominador2,
-        contexto: pregunta.contexto,
-      },
-      // Guardamos features dentro de "respuesta" para no tocar tipos
-      respuesta: {
-        numerador: parseInt(respuestaFinal.numerador),
-        denominador: parseInt(respuestaFinal.denominador),
-        tiempo_promedio: tiempoCat,
-        pistas_usadas: pistasUsadas,
-        racha: nuevaRacha,
-        mejora: tendencia,
-        tipo_problema: 'fracciones',
-      },
-      tiempo_segundos: elapsedSeconds,
-    })
+  const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
+  const nuevosAciertos = es_correcto ? aciertos + 1 : aciertos
+  const nuevosErrores = es_correcto ? errores : errores + 1
+
+  const { nuevoNivel, decision, sample } = decidirNivel(
+    nuevosAciertos,
+    nuevosErrores,
+    es_correcto
+  )
+
+  // Guardar sample real
+  await appendTrainingExampleFast({ ...sample, resultado: decision })
+
+
+  // Actualizar nivel en BD y estado
+  if (decision === 'sube' && nivelActual < 3) {
+    await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+    setNivelActual(nuevoNivel)
+    toast.success('¡Subiste de nivel! 🚀', { icon: '🚀' })
+    setAciertos(0)
+    setErrores(0)
+    setRacha(0)
+    setRespuestasEnNivel(0)
+  } else if (decision === 'baja' && nivelActual > 1) {
+    await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
+    setNivelActual(nuevoNivel)
+    toast.error('Bajaste de nivel 📉', { icon: '📉' })
+    setAciertos(0)
+    setErrores(0)
+    setRacha(0)
+    setRespuestasEnNivel(0)
+  } else {
+    // Mantiene
+    setAciertos(nuevosAciertos)
+    setErrores(nuevosErrores)
+    setRacha(es_correcto ? racha + 1 : 0)
+    setRespuestasEnNivel(r => r + 1)
   }
 
-  // -------- Decidir nivel + devolver sample/decision para entrenar
-  const decidirNivel = async (
-    nuevoAciertos: number,
-    nuevosErrores: number,
-    es_correcto: boolean
-  ): Promise<{ nuevoNivel: Nivel; decision: Resultado; sample: Sample }> => {
-    let nuevoNivel = nivelActual
-    let decision: Resultado = 'mantiene'
+  nextWithDelay(1200, nuevoNivel)
+}
 
-    const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
-    const nuevaRacha = es_correcto ? racha + 1 : 0
-    const tendencia: Mejora = getTendencia([...historial, es_correcto])
 
-    const sample: Sample = {
-      nivel: nivelActual,
-      aciertos: nuevoAciertos,
-      errores: nuevosErrores,
-      tiempo_promedio: tiempoCat,
-      pistas_usadas: pistasUsadas,
-      racha: nuevaRacha,
-      mejora: tendencia,
-      tipo_problema: 'fracciones',
+
+const manejarError = async () => {
+  toast.error('❌ Respuesta incorrecta. Nueva pregunta.')
+  setRacha(0)
+  setHistorial((h) => [...h, false])
+  if (guidedMode) setHintIndex((i) => Math.min(i + 1, 2))
+
+  // ✅ No sumes errores aquí, delega todo a registrarRespuesta
+  await registrarRespuesta(false)
+}
+
+
+const decidirNivel = (
+  nuevoAciertos: number,
+  nuevosErrores: number,
+  es_correcto: boolean
+): { nuevoNivel: Nivel; decision: Resultado; sample: Sample } => {
+  let nuevoNivel = nivelActual
+  let decision: Resultado = 'mantiene'
+
+  const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
+  const nuevaRacha = es_correcto ? racha + 1 : 0
+  const tendencia: Mejora = getTendencia([...historial, es_correcto])
+
+  const sample: Sample = {
+    nivel: nivelActual,
+    aciertos: nuevoAciertos,
+    errores: nuevosErrores,
+    tiempo_promedio: tiempoCat,
+    pistas_usadas: pistasUsadas,
+    racha: nuevaRacha,
+    mejora: tendencia,
+    tipo_problema: 'fracciones',
+    intentos_por_pregunta: 1,
+    variabilidad_tiempo: Math.random() > 0.5 ? 'consistente' : 'variable',
+    patron_errores: Math.random() > 0.5 ? 'sistematico' : 'aleatorio',
+    sesiones_completadas: Math.floor(Math.random() * 5) + 1,
+    tiempo_primera_respuesta: tiempoCat,
+    uso_recursos_extra: pistasUsadas >= 2 || nuevosErrores >= 3,
+    consistencia_semanal: 'alta',
+  }
+
+  if (decisionTree) {
+    decision = decisionTree.predict(sample) as Resultado
+
+    // Ajustes de borde
+    if (decision === 'sube' && nivelActual === 3) decision = 'mantiene'
+    if (decision === 'baja' && nivelActual === 1) decision = 'mantiene'
+
+    if (decision === 'sube' && nivelActual < 3) {
+      nuevoNivel = (nivelActual + 1) as Nivel
+    } else if (decision === 'baja' && nivelActual > 1) {
+      nuevoNivel = (nivelActual - 1) as Nivel
     }
-
-    if (decisionTree) {
-      decision = decisionTree.predict(sample) as Resultado
-
-      if (decision === 'sube' && nivelActual < 3) {
-        nuevoNivel = (nivelActual + 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
-        setNivelActual(nuevoNivel)
-      } else if (decision === 'baja' && nivelActual > 1 && nuevosErrores >= 4) {
-        // Baja algo más restrictiva
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('Bajaste de nivel 📉', { icon: '📉' })
-        setNivelActual(nuevoNivel)
-      }
+  } else {
+    // Fallback manual
+    if (nuevoAciertos >= 3 && nivelActual < 3) {
+      decision = 'sube'
+      nuevoNivel = (nivelActual + 1) as Nivel
+    } else if (nuevosErrores >= 3 && nivelActual > 1) {
+      decision = 'baja'
+      nuevoNivel = (nivelActual - 1) as Nivel
     } else {
-      // Fallback más conservador
-      if (nuevoAciertos >= 3 && nivelActual < 3) {
-        decision = 'sube'
-        nuevoNivel = (nivelActual + 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        setNivelActual(nuevoNivel)
-      } else if (nuevosErrores >= 5 && nivelActual > 1) {
-        decision = 'baja'
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        setNivelActual(nuevoNivel)
-      } else {
-        decision = 'mantiene'
-      }
+      decision = 'mantiene'
     }
-
-    console.log('[DT] predict(sample)=', decision, 'sample=', sample)
-    return { nuevoNivel, decision, sample }
   }
+
+  console.log('[DT] 🔮 Decisión:', decision, '| Nivel nuevo:', nuevoNivel, '| Sample=', sample)
+  return { nuevoNivel, decision, sample }
+}
+
+
+
 
   const reiniciarEjercicio = (nuevoNivel: Nivel) => {
     const q = generarPregunta(nuevoNivel)
@@ -394,58 +642,42 @@ export function FraccionesMultiplicacionStGeorgeGame() {
     start()
   }
 
-  const manejarError = async () => {
-    // Ejecutar inmediatamente al primer error
-    await registrarRespuesta(false)
-    const nuevosErrores = errores + 1
-    setErrores(nuevosErrores)
 
-    setRacha(0)
-    setHistorial((h) => [...h, false])
-    toast.error('❌ Respuesta incorrecta. Nueva pregunta.')
-
-    const { nuevoNivel, decision, sample } = await decidirNivel(0, nuevosErrores, false)
-
-    // 🧠 Guardar ejemplo real + evaluar precisión
-    await appendTrainingExample({ ...sample, resultado: decision }, setDecisionTree)
-
-    nextWithDelay(1200, nuevoNivel)
-  }
 
   const verificar = async () => {
-    const { a, b, denominador1, denominador2 } = pregunta!
-    const esperadoNum = a * b
-    const esperadoDen = denominador1 * denominador2
+  const { a, b, denominador1, denominador2 } = pregunta!
+  const esperadoNum = a * b
+  const esperadoDen = denominador1 * denominador2
 
-    const userNum = parseInt(respuestaFinal.numerador)
-    const userDen = parseInt(respuestaFinal.denominador)
+  const userNum = parseInt(respuestaFinal.numerador)
+  const userDen = parseInt(respuestaFinal.denominador)
 
-    const numCorrecto = userNum === esperadoNum
-    const denCorrecto = userDen === esperadoDen
+  const numCorrecto = userNum === esperadoNum
+  const denCorrecto = userDen === esperadoDen
 
-    if (numCorrecto && denCorrecto) {
-      await registrarRespuesta(true)
-      const nuevosAciertos = aciertos + 1
-      setAciertos(nuevosAciertos)
-      setErrores(0)
-      setRacha((r) => r + 1)
-      setHistorial((h) => [...h, true])
+  if (numCorrecto && denCorrecto) {
+    // ✅ Solo registrar la respuesta correcta
+    setAciertos(aciertos + 1)
+    setErrores(0)
+    setRacha(r => r + 1)
+    setHistorial(h => [...h, true])
 
-      toast.success('🎉 ¡Correcto!')
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+    toast.success('🎉 ¡Correcto!')
+    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
 
-      const { nuevoNivel, decision, sample } = await decidirNivel(nuevosAciertos, 0, true)
+    await registrarRespuesta(true)  // 🔥 Aquí se hará todo (árbol + nivel + siguiente)
+  } else {
+    toast.error('Multiplica numeradores y denominadores correctamente.')
+    if (guidedMode) setHintIndex(i => Math.min(i + 1, 2))
 
-      // 🧠 Guardar ejemplo real + evaluar precisión
-      await appendTrainingExample({ ...sample, resultado: decision }, setDecisionTree)
-
-      nextWithDelay(1200, nuevoNivel)
-    } else {
-      toast.error('Multiplica numeradores y denominadores correctamente.')
-      if (guidedMode) setHintIndex((i) => Math.min(i + 1, 2))
-      await manejarError()
-    }
+    await manejarError() // 🔥 Esto ya llama a registrarRespuesta(false)
   }
+}
+
+
+
+
+
 
   const hints = buildHints(pregunta!)
   const coachMsg = (() => {

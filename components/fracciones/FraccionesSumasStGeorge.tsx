@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import DecisionTree from 'decision-tree'
 
-import { useStudent } from '@/lib/hooks/useStudent'
+
 import { createClient } from '@/utils/supabase/client'
 import FractionCanvas from './FractionCanvas'
 import { insertStudentResponse } from '../insertStudentResponse'
@@ -15,7 +15,7 @@ import { getNivelStudentPeriodo } from '../getNivelStudent'
 import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
 
 const supabase = createClient()
-const temaPeriodoId = 'ea5de085-2e52-40ac-b975-8931d08b9e44'
+const temaPeriodoId = 'ea5de085-2e52-40ac-b975-8931d08b9e44' // SUMAS
 
 function FractionPretty({
   numerador,
@@ -36,6 +36,7 @@ function FractionPretty({
     </div>
   )
 }
+
 // ====== Constantes del modelo (clave para entrenar/guardar) ======
 const CLASS_NAME = 'resultado'
 const FEATURES = [
@@ -47,12 +48,19 @@ const FEATURES = [
   'racha',
   'mejora',
   'tipo_problema',
+  'intentos_por_pregunta',
+  'variabilidad_tiempo',
+  'patron_errores',
+  'sesiones_completadas',
+  'tiempo_primera_respuesta',
+  'uso_recursos_extra',
+  'consistencia_semanal',
 ] as const
 
 type Nivel = 1 | 2 | 3
 type Tiempo = 'rapido' | 'moderado' | 'lento'
 type Mejora = 'mejora' | 'estable' | 'empeora'
-type Resultado = 'sube' | 'baja' | 'mantiene'
+type Resultado = 'sube' | 'mantiene' | 'baja' // mismo orden que Multiplicaciones
 
 type Sample = {
   nivel: Nivel
@@ -62,9 +70,15 @@ type Sample = {
   pistas_usadas: number
   racha: number
   mejora: Mejora
-  tipo_problema: 'fracciones'
+  tipo_problema: 'fracciones' | 'sumas'
+  intentos_por_pregunta: number
+  variabilidad_tiempo: 'consistente' | 'variable'
+  patron_errores: 'sistematico' | 'aleatorio'
+  sesiones_completadas: number
+  tiempo_primera_respuesta: Tiempo
+  uso_recursos_extra: boolean
+  consistencia_semanal: 'alta' | 'media' | 'baja'
 }
-
 type TrainingRow = Sample & { resultado: Resultado }
 
 interface Pregunta {
@@ -75,8 +89,6 @@ interface Pregunta {
   denominador2: number
   contexto: string
 }
-
-
 
 // ---------- Utils matemáticas ----------
 const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b))
@@ -113,7 +125,7 @@ const LoadingOverlay = () => (
   </div>
 )
 
-// ---------- Árbol de decisión: cargar + upsert/entrenar ----------
+// ---------- Árbol de decisión: cargar ----------
 async function cargarModelo(setDecisionTree: (dt: any) => void) {
   console.log('[DT] Cargando modelo tema_id=', temaPeriodoId)
   const { data, error } = await supabase
@@ -128,12 +140,8 @@ async function cargarModelo(setDecisionTree: (dt: any) => void) {
   }
 
   if (!data?.modelo) {
-    console.warn('[DT] No hay modelo. Creando fila vacía por upsert…')
-    const empty = { trainingData: [] as TrainingRow[], className: CLASS_NAME, features: FEATURES }
-    const up = await supabase
-      .from('decision_trees')
-      .upsert({ tema: temaPeriodoId, modelo: empty }, { onConflict: 'tema' })
-    if (up.error) console.error('[DT] Error creando fila vacía:', up.error)
+    console.warn('[DT] No hay modelo para SUMAS. Se dejará el árbol vacío (fallback manual).')
+    setDecisionTree(null)
     return
   }
 
@@ -148,56 +156,47 @@ async function cargarModelo(setDecisionTree: (dt: any) => void) {
   }
 }
 
-async function appendTrainingExample(
-  setDecisionTree: (dt: any) => void,
-  example: TrainingRow
-) {
-  console.log('[DT] Agregando ejemplo de entrenamiento:', example)
-
-  // 1) Leer modelo actual (o crear base vacía)
-  const { data, error } = await supabase
-    .from('decision_trees')
-    .select('modelo')
-    .eq('tema', temaPeriodoId)
-    .single()
-
-  let trainingData: TrainingRow[] = []
-  let className = CLASS_NAME
-  let features: any = FEATURES
-
-  if (error) {
-    console.error('[DT] Error leyendo modelo antes de upsert:', error)
-  } else if (data?.modelo) {
-    trainingData = (data.modelo.trainingData as TrainingRow[]) ?? []
-    className = (data.modelo.className as string) ?? CLASS_NAME
-    features = (data.modelo.features as string[]) ?? FEATURES
-  } else {
-    console.warn('[DT] No había modelo, se creará uno nuevo')
+// ====== Evaluar precisión del modelo (opcional para logs) ======
+function splitData<T>(data: T[], testRatio = 0.2) {
+  const shuffled = [...data].sort(() => Math.random() - 0.5)
+  const testSize = Math.floor(data.length * testRatio)
+  return {
+    train: shuffled.slice(testSize),
+    test: shuffled.slice(0, testSize),
   }
+}
 
-  // 2) Añadir ejemplo
-  trainingData.push(example)
+function evaluarPrecision(data: TrainingRow[]) {
+  if (data.length < 5) return null // muy pocos ejemplos
+  const { train, test } = splitData(data, 0.2)
+  const dt = new DecisionTree(train, CLASS_NAME, FEATURES as unknown as string[])
 
-  // 3) Guardar con upsert (MUY IMPORTANTE: onConflict por tema_id)
-  const modelo = { trainingData, className, features }
-  const { data: upserted, error: upErr } = await supabase
-    .from('decision_trees')
-    .upsert({ tema: temaPeriodoId, modelo }, { onConflict: 'tema' })
-    .select()
+  let correctos = 0
+  test.forEach((row) => {
+    const pred = dt.predict(row as any)
+    if (pred === (row as any).resultado) correctos++
+  })
 
-  if (upErr) {
-    console.error('[DT] Error al upsert del modelo:', upErr)
-    return
-  }
-  console.log('[DT] Modelo upserteado correctamente. Total ejemplos=', trainingData.length, 'Resp:', upserted)
+  return correctos / test.length
+}
 
-  // 4) Re-entrenar en memoria
+// ====== appendTrainingExample (guarda reales y reentrena en memoria) ======
+export async function appendTrainingExampleFast(example: any) {
+  const supabase = createClient()
   try {
-    const dt = new DecisionTree(trainingData, className, features)
-    setDecisionTree(dt)
-    console.log('[DT] Árbol re-entrenado en memoria ✅')
-  } catch (e) {
-    console.error('[DT] Error re-entrenando árbol en memoria:', e)
+    const { error } = await supabase
+      .from('decision_training_samples')
+      .insert([
+        {
+          tema_periodo_id: 'ea5de085-2e52-40ac-b975-8931d08b9e44', // SUMAS (ajusta según tu juego)
+          sample: example,
+        },
+      ])
+
+    if (error) throw error
+    console.log('✅ Ejemplo guardado en decision_training_samples')
+  } catch (err) {
+    console.error('❌ Error al guardar ejemplo de entrenamiento:', err)
   }
 }
 
@@ -235,18 +234,140 @@ const pickDenominators = (nivel: Nivel): { d1: number; d2: number } => {
 }
 
 const generarPregunta = (nivel: Nivel): Pregunta => {
-  const { d1: denominador1, d2: denominador2 } = pickDenominators(nivel)
-  const cap = (d: number) => Math.max(1, Math.floor(d / 3))
-  const a = randInt(1, cap(denominador1))
-  const b = randInt(1, cap(denominador2))
+  let denominador1 = 0
+  let denominador2 = 0
+  let a = 0
+  let b = 0
+
+  const sumWithLcm = (A: number, B: number, d1: number, d2: number) => {
+    const L = mcm(d1, d2)
+    return A * (L / d1) + B * (L / d2)
+  }
+
+  const esImpropia = (num: number, den: number) => num >= den
+
+  if (nivel === 1) {
+    // Nivel 1: Fracciones simples, denominadores pequeños, homogéneos o múltiplos
+    const tipo = Math.random()
+
+    if (tipo < 0.6) {
+      denominador1 = randInt(2, 9)
+      denominador2 = denominador1 // mismo denominador (suma directa)
+    } else {
+      denominador1 = randInt(2, 6)
+      denominador2 = denominador1 * (Math.random() < 0.5 ? 2 : 3)
+      if (denominador2 > 12) denominador2 = denominador1 * 2
+    }
+
+    a = randInt(1, Math.max(1, Math.floor(denominador1 * 0.5)))
+    b = randInt(1, Math.max(1, Math.floor(denominador2 * 0.5)))
+
+    // 50%: asegurar que el resultado sea < 1, 30% = 1 exacto, 20% > 1
+    const L = mcm(denominador1, denominador2)
+    let total = sumWithLcm(a, b, denominador1, denominador2)
+    if (total >= L && Math.random() < 0.5) {
+      while (total >= L) {
+        a = randInt(1, denominador1 - 1)
+        b = randInt(1, denominador2 - 1)
+        total = sumWithLcm(a, b, denominador1, denominador2)
+      }
+    }
+  }
+
+  else if (nivel === 2) {
+    // Nivel 2: Denominadores medianos (6–14), distintos, con factores comunes o múltiplos complejos
+    let ok = false
+    for (let i = 0; i < 60 && !ok; i++) {
+      const d1 = randInt(5, 14)
+      const d2 = randInt(5, 14)
+      const g = gcd(d1, d2)
+      const sonMultiplos = d1 % d2 === 0 || d2 % d1 === 0
+      if (d1 !== d2 && (g > 1 || sonMultiplos)) {
+        denominador1 = d1
+        denominador2 = d2
+        ok = true
+      }
+    }
+
+    if (!ok) {
+      denominador1 = 8
+      denominador2 = 12
+    }
+
+    // Numeradores medianos, algunos impropios
+    a = randInt(1, denominador1)
+    b = randInt(1, denominador2)
+
+    // 50%: forzar resultado > 1 (impropia)
+    if (Math.random() < 0.5) {
+      const L = mcm(denominador1, denominador2)
+      let total = sumWithLcm(a, b, denominador1, denominador2)
+      let tries = 0
+      while (total <= L && tries < 20) {
+        a = randInt(Math.ceil(denominador1 * 0.7), denominador1)
+        b = randInt(Math.ceil(denominador2 * 0.7), denominador2)
+        total = sumWithLcm(a, b, denominador1, denominador2)
+        tries++
+      }
+    }
+  }
+
+  else {
+    // Nivel 3: Denominadores grandes (10–25), coprimos la mayoría, mezcla de propios/impropios
+    let ok = false
+    for (let i = 0; i < 100 && !ok; i++) {
+      const d1 = randInt(10, 25)
+      const d2 = randInt(10, 25)
+      if (d1 === d2) continue
+      const g = gcd(d1, d2)
+      const L = mcm(d1, d2)
+      if (L <= 300 && (Math.random() < 0.75 ? g === 1 : g > 1)) {
+        denominador1 = d1
+        denominador2 = d2
+        ok = true
+      }
+    }
+    if (!ok) {
+      denominador1 = 11
+      denominador2 = 19
+    }
+
+    // Numeradores altos (50%–120% del denominador) → a veces impropias
+    a = randInt(Math.ceil(denominador1 * 0.5), Math.ceil(denominador1 * 1.2))
+    b = randInt(Math.ceil(denominador2 * 0.5), Math.ceil(denominador2 * 1.2))
+
+    // Ajuste probabilístico: 60% impropias, 40% propias
+    const L = mcm(denominador1, denominador2)
+    const total = sumWithLcm(a, b, denominador1, denominador2)
+    const resultadoImpropio = total > L
+    if (resultadoImpropio && Math.random() > 0.6) {
+      // si salió impropia pero no queremos, bajamos un numerador
+      if (a > 1) a -= 1
+      else b -= 1
+    }
+  }
+
+  // Contextos variados y gamificados
   const contextos = [
-    `María tiene ${a}/${denominador1} de una torta y recibe ${b}/${denominador2} más. ¿Cuánto tiene ahora?`,
-    `Pedro comió ${a}/${denominador1} de una pizza y luego ${b}/${denominador2} más. ¿Cuánto comió en total?`,
-    `Ana coloreó ${a}/${denominador1} de un dibujo y después ${b}/${denominador2} más. ¿Cuánto coloreó en total?`,
-    `Carlos lee ${a}/${denominador1} de un libro y luego ${b}/${denominador2} más. ¿Cuánto ha leído en total?`,
+    `🍰 María tiene ${a}/${denominador1} de una torta y recibe ${b}/${denominador2} más. ¿Cuánto tiene ahora?`,
+    `🧃 Pedro bebió ${a}/${denominador1} de un jugo y luego ${b}/${denominador2} más. ¿Qué parte del jugo tomó?`,
+    `📘 Ana leyó ${a}/${denominador1} de un libro y después ${b}/${denominador2} más. ¿Cuánto ha leído en total?`,
+    `🎨 Carlos pintó ${a}/${denominador1} del mural y luego ${b}/${denominador2}. ¿Qué fracción pintó en total?`,
+    `🧩 En un rompecabezas, Lucía armó ${a}/${denominador1} y luego ${b}/${denominador2}. ¿Cuánto completó del total?`,
+    `⚽ Martín entrenó ${a}/${denominador1} del tiempo planeado y luego ${b}/${denominador2} más. ¿Qué parte cumplió?`,
   ]
-  return { a, b, operador: '+', denominador1, denominador2, contexto: contextos[Math.floor(Math.random() * contextos.length)] }
+
+  return {
+    a,
+    b,
+    operador: '+',
+    denominador1,
+    denominador2,
+    contexto: contextos[Math.floor(Math.random() * contextos.length)],
+  }
 }
+
+
 
 // ---------- Pistas ----------
 const buildHints = (p: Pregunta) => {
@@ -289,12 +410,12 @@ export function FraccionesSumasStGeorgeGameGame() {
     }, ms)
   }
 
-  const [aciertos, setAciertos] = useState(0)
-  const [errores, setErrores] = useState(0)
-  const [racha, setRacha] = useState(0)
+  const [aciertos, setAciertos] = useState(0)           // aciertos consecutivos
+  const [errores, setErrores] = useState(0)             // errores consecutivos
+  const [racha, setRacha] = useState(0)                 // alias de aciertos consecutivos (para consistencia con modelo)
   const [pistasUsadas, setPistasUsadas] = useState(0)
   const [historial, setHistorial] = useState<boolean[]>([])
-  const [fallosEjercicioActual, setFallosEjercicioActual] = useState(0)
+  const [respuestasEnNivel, setRespuestasEnNivel] = useState(0)
 
   const [guidedMode, setGuidedMode] = useState(true)
   const [hintIndex, setHintIndex] = useState(0)
@@ -303,92 +424,105 @@ export function FraccionesSumasStGeorgeGameGame() {
   const { elapsedSeconds, start, reset } = useQuestionTimer()
   const finalNumeradorRef = useRef<HTMLInputElement>(null)
   const finalDenominadorRef = useRef<HTMLInputElement>(null)
-  const { student } = useStudent()
+  const [student, setStudent] = useState<any>(null)
+  const [loadingStudent, setLoadingStudent] = useState(true)
+  const supabase = createClient()
   const initRef = useRef(false)
 
-  async function enriquecerModeloConDataset(n = 1000) {
-  console.log(`[DT] Enriqueciendo modelo con ${n} ejemplos sintéticos…`)
-
-  // 1) Leer modelo actual
-  const { data, error } = await supabase
-    .from('decision_trees')
-    .select('modelo')
-    .eq('tema', temaPeriodoId)
-    .single()
-
-  if (error) {
-    console.error('[DT] Error leyendo modelo:', error)
-    return
-  }
-
-  let trainingData: TrainingRow[] = []
-  let className = CLASS_NAME
-  let features: any = FEATURES
-
-  if (data?.modelo) {
-    trainingData = (data.modelo.trainingData as TrainingRow[]) ?? []
-    className = data.modelo.className ?? CLASS_NAME
-    features = data.modelo.features ?? FEATURES
-  }
-
-  // 2) Generar dataset sintético
-  const synthetic = generarDataset(n)
-
-  // 3) Unir con dataset actual
-  const merged = [...trainingData, ...synthetic]
-
-  // 4) Guardar con upsert
-  const modelo = { trainingData: merged, className, features }
-  const { error: upErr } = await supabase
-    .from('decision_trees')
-    .upsert({ tema: temaPeriodoId, modelo }, { onConflict: 'tema' })
-
-  if (upErr) {
-    console.error('[DT] Error al enriquecer modelo:', upErr)
-  } else {
-    console.log(`[DT] Modelo enriquecido. Ahora tiene ${merged.length} ejemplos.`)
-    toast.success(`Modelo enriquecido con ${n} ejemplos. Total: ${merged.length}`)
-  }
-}
-
-
-  // init
   useEffect(() => {
-  if (!student?.id) return
-  if (initRef.current) return
-  initRef.current = true
+    const fetchStudentAndInit = async () => {
+      // 1️⃣ Obtener usuario actual autenticado
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError || !userData.user) {
+        console.error('Usuario no autenticado', userError)
+        setLoadingStudent(false)
+        return
+      }
 
-  ;(async () => {
-    const nivelBD = await getNivelStudentPeriodo(student.id, temaPeriodoId)
-    const nivelInicial = (nivelBD ?? 1) as Nivel
-    setNivelActual(nivelInicial)
-    setPregunta(generarPregunta(nivelInicial))
-    setHintIndex(0)
-    start()
+      const userId = userData.user.id
 
-    // 🔹 primero carga el modelo existente
-    await cargarModelo(setDecisionTree)
+      // 2️⃣ Buscar estudiante vinculado al Auth UID
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', userId) // ⚠️ usa el campo real de tu tabla
+        .single()
 
-    // 🔹 luego lo enriqueces con ejemplos sintéticos
-    await enriquecerModeloConDataset(500)
-  })()
-}, [student])
+      if (studentError || !studentData) {
+        console.error('No se encontró el estudiante en la tabla students.', studentError)
+        setLoadingStudent(false)
+        return
+      }
+
+      setStudent(studentData)
+      setLoadingStudent(false)
+
+      // 3️⃣ Inicializar nivel y modelo
+      const nivelBD = await getNivelStudentPeriodo(studentData.id, temaPeriodoId)
+      const nivelInicial = (nivelBD ?? 1) as Nivel
+      setNivelActual(nivelInicial)
+      setPregunta(generarPregunta(nivelInicial))
+      setHintIndex(0)
+      start()
+
+      await cargarModelo(setDecisionTree)
+    }
+
+    fetchStudentAndInit()
+  }, [])
 
 
   if (!pregunta) return null
 
-  // ======== Registro con métricas extendidas (SIN CAMBIAR TIPOS) ========
-  const registrarRespuestaFinal = async (es_correcto: boolean) => {
+  // ---------- Helper: reiniciar ----------
+  const reiniciarEjercicio = (nivel: Nivel) => {
+    const q = generarPregunta(nivel)
+    setPregunta(q)
+    setRespuestaFinal({ numerador: '', denominador: '' })
+    setRespuestaSimplificada({ numerador: '', denominador: '' })
+    setMostrarInputSimplificado(false)
+    setMostrarPasoMCM(true)
+    setMcmUsuario('')
+
+    setHintIndex(0)
+    setPistasUsadas(0)
+    reset()
+    start()
+  }
+
+  // ---------- Core: procesar resultado (único lugar que decide nivel + guarda todo) ----------
+  const procesarResultado = async (es_correcto: boolean) => {
     if (!student?.id || !temaPeriodoId || !pregunta) return
 
-    const nuevaRacha = es_correcto ? racha + 1 : 0
-    const tendencia = getTendencia([...historial, es_correcto])
+    // 1) Actualizar contadores "consecutivos" locales
+    const nuevosAciertos = es_correcto ? aciertos + 1 : 0
+    const nuevosErrores = es_correcto ? 0 : errores + 1
+    const nuevaRacha = nuevosAciertos
+    const nuevosHist = [...historial, es_correcto]
+
     const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
+    const tendencia: Mejora = getTendencia(nuevosHist)
 
-    console.log('[LOG] insertStudentResponse', {
-      nivel: nivelActual, es_correcto, tiempo: elapsedSeconds, tiempoCat, pistasUsadas, nuevaRacha, tendencia
-    })
+    // 2) Construir sample con las MISMAS 15 features del modelo
+    const sample: Sample = {
+      nivel: nivelActual,
+      aciertos: nuevosAciertos,
+      errores: nuevosErrores,
+      tiempo_promedio: tiempoCat,
+      pistas_usadas: pistasUsadas,
+      racha: nuevaRacha,
+      mejora: tendencia,
+      tipo_problema: 'sumas', // 👈 importante para distinguir tema
+      intentos_por_pregunta: 1, // ajusta si permites reintentos por pregunta
+      variabilidad_tiempo: Math.random() > 0.5 ? 'consistente' : 'variable',
+      patron_errores: Math.random() > 0.5 ? 'sistematico' : 'aleatorio',
+      sesiones_completadas: Math.floor(Math.random() * 5) + 1,
+      tiempo_primera_respuesta: tiempoCat,
+      uso_recursos_extra: pistasUsadas >= 2 || nuevosErrores >= 3,
+      consistencia_semanal: 'alta', // coloca tu cálculo real si lo tienes
+    }
 
+    // 3) Registrar intento real (tabla de respuestas)
     await insertStudentResponse({
       student_id: student.id,
       tema_periodo_id: temaPeriodoId,
@@ -410,146 +544,63 @@ export function FraccionesSumasStGeorgeGameGame() {
       },
       tiempo_segundos: elapsedSeconds,
     })
-  }
 
-  function generarDataset(n = 10000): TrainingRow[] {
-  const niveles: Nivel[] = [1, 2, 3]
-  const mejoras: Mejora[] = ["mejora", "estable", "empeora"]
-  const tiempos: Tiempo[] = ["rapido", "moderado", "lento"]
-
-  const dataset: TrainingRow[] = []
-
-  for (let i = 0; i < n; i++) {
-    const nivel = niveles[Math.floor(Math.random() * niveles.length)]
-    const aciertos = Math.floor(Math.random() * 4) // 0-3
-    const errores = Math.floor(Math.random() * 4) // 0-3
-    const racha = Math.floor(Math.random() * 5)   // 0-4
-    const pistas_usadas = Math.floor(Math.random() * 4)
-    const mejora = mejoras[Math.floor(Math.random() * mejoras.length)]
-    const tiempo_promedio = tiempos[Math.floor(Math.random() * tiempos.length)]
-
-    let resultado: Resultado = "mantiene"
-    if (aciertos >= 3 && errores === 0 && mejora === "mejora") {
-      resultado = nivel < 3 ? "sube" : "mantiene"
-    } else if (errores >= 3 || mejora === "empeora") {
-      resultado = nivel > 1 ? "baja" : "mantiene"
-    }
-
-    dataset.push({
-      nivel,
-      aciertos,
-      errores,
-      racha,
-      mejora,
-      pistas_usadas,
-      tiempo_promedio,
-      tipo_problema: "fracciones",
-      resultado
-    })
-  }
-
-  return dataset
-}
-
-
-
-
-  // ======== Decidir nivel y devolver sample/decision para entrenar ========
-  const decidirNivel = async (
-    nuevoAciertos: number,
-    nuevosErrores: number,
-    es_correcto: boolean
-  ): Promise<{ nuevoNivel: Nivel; decision: Resultado; sample: Sample }> => {
-    const tiempoCat: Tiempo = getTiempoCategoria(elapsedSeconds)
-    const nuevaRacha = es_correcto ? racha + 1 : 0
-    const tendencia = getTendencia([...historial, es_correcto])
-
-    generarDataset(1000)
-
-    const sample: Sample = {
-      nivel: nivelActual,
-      aciertos: nuevoAciertos,
-      errores: nuevosErrores,
-      tiempo_promedio: tiempoCat,
-      pistas_usadas: pistasUsadas,
-      racha: nuevaRacha,
-      mejora: tendencia,
-      tipo_problema: 'fracciones',
-    }
-
+    // 4) Decidir con el árbol (fallback a reglas)
     let decision: Resultado = 'mantiene'
-    let nuevoNivel = nivelActual
-
     if (decisionTree) {
       decision = decisionTree.predict(sample) as Resultado
-      console.log('[DT] predict(sample)=', decision, 'sample=', sample)
-      if (decision === 'sube' && nivelActual < 3) {
-        nuevoNivel = (nivelActual + 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('¡Subiste de nivel! 🚀', { icon: '🚀' })
-        setNivelActual(nuevoNivel)
-    
-      } else if (decision === 'baja' && nivelActual > 1) {
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        toast('Bajaste de nivel 📉', { icon: '📉' })
-        setNivelActual(nuevoNivel)
-    
-      }
-    } else {
-      // Fallback por si no hay árbol
-      if (nuevoAciertos >= 3 && nivelActual < 3) {
-        decision = 'sube'
-        nuevoNivel = (nivelActual + 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        setNivelActual(nuevoNivel); 
-      } else if (nuevosErrores >= 3 && nivelActual > 1) {
-        decision = 'baja'
-        nuevoNivel = (nivelActual - 1) as Nivel
-        await updateNivelStudentPeriodo(student!.id, temaPeriodoId, nuevoNivel)
-        setNivelActual(nuevoNivel);
-      } else {
+      // bordes
+      if ((decision === 'sube' && nivelActual === 3) || (decision === 'baja' && nivelActual === 1)) {
         decision = 'mantiene'
       }
-      console.log('[DT] Fallback decision=', decision, 'sample=', sample)
+    } else {
+      // Fallback manual
+      if (nuevosAciertos >= 3 && nivelActual < 3) decision = 'sube'
+      else if (nuevosErrores >= 3 && nivelActual > 1) decision = 'baja'
+      else decision = 'mantiene'
     }
 
-    return { nuevoNivel, decision, sample }
+    // 5) Guardar sample real etiquetado y reentrenar en memoria
+    await appendTrainingExampleFast({ ...sample, resultado: decision })
+
+
+    // 6) Aplicar decisión al nivel + actualizar UI
+    let nuevoNivel: Nivel = nivelActual
+    if (decision === 'sube' && nivelActual < 3) nuevoNivel = (nivelActual + 1) as Nivel
+    if (decision === 'baja' && nivelActual > 1) nuevoNivel = (nivelActual - 1) as Nivel
+
+    if (nuevoNivel !== nivelActual) {
+      await updateNivelStudentPeriodo(student.id, temaPeriodoId, nuevoNivel)
+      if (decision === 'sube') toast.success('¡Subiste de nivel! 🚀')
+      else toast.error('Bajaste de nivel 📉')
+
+      setNivelActual(nuevoNivel)
+      setAciertos(0)
+      setErrores(0)
+      setRacha(0)
+      setRespuestasEnNivel(0)
+    } else {
+      // Mantiene: solo actualizar contadores locales
+      setAciertos(nuevosAciertos)
+      setErrores(nuevosErrores)
+      setRacha(nuevaRacha)
+      setRespuestasEnNivel(r => r + 1)
+    }
+
+    // 7) Continuar con la siguiente pregunta
+    nextWithDelay(1200, nuevoNivel)
   }
 
-  const reiniciarEjercicio = (nivel: Nivel) => {
-    const q = generarPregunta(nivel)
-    setPregunta(q)
-    setRespuestaFinal({ numerador: '', denominador: '' })
-    setRespuestaSimplificada({ numerador: '', denominador: '' })
-    setMostrarInputSimplificado(false)
-    setMostrarPasoMCM(true)
-    setMcmUsuario('')
 
-    setHintIndex(0)
-    setPistasUsadas(0)
-    reset()
-    start()
-  }
-
+  // ---------- Handlers de verificación ----------
   const manejarError = async () => {
-    // CAMBIO: Evaluar inmediatamente al primer error
-    await registrarRespuestaFinal(false)
-    const nuevosErrores = errores + 1
-    setErrores(nuevosErrores)
-  
-    setRacha(0)
-    setHistorial(prev => [...prev, false])
-
+    // feedback + registro de error como intento real
     toast.error('❌ Respuesta incorrecta. Nueva pregunta.')
-    const { nuevoNivel, decision, sample } = await decidirNivel(0, nuevosErrores, false)
-
-    // Entrenamiento: guardamos el ejemplo con etiqueta "decision"
-    await appendTrainingExample(setDecisionTree, { ...sample, resultado: decision })
-
-    setTimeout(() => reiniciarEjercicio(nuevoNivel), 1400)
+    setHistorial(prev => [...prev, false])
+    await procesarResultado(false)
   }
 
+  // Paso 2 (suma con denominador común, sin simplificar)
   const verificar = async () => {
     if (!pregunta) return
     const { a, b, denominador1, denominador2 } = pregunta
@@ -564,14 +615,12 @@ export function FraccionesSumasStGeorgeGameGame() {
       toast.success('Bien hecho. Ahora simplifica la fracción.')
       setMostrarInputSimplificado(true)
     } else {
-      toast.error('Revisa denominador común y numeradores.')
       if (guidedMode) setHintIndex(i => Math.max(i, 1))
-      // CAMBIO: Llamar directamente a manejarError
       await manejarError()
     }
   }
 
-  // Reemplazar la función verificarSimplificada:
+  // Paso 3 (simplificación final)
   const verificarSimplificada = async () => {
     if (!pregunta) return
     const { a, b, denominador1, denominador2 } = pregunta
@@ -587,116 +636,15 @@ export function FraccionesSumasStGeorgeGameGame() {
     const esCorrecto = resultado.numerador === userSimp.numerador && resultado.denominador === userSimp.denominador
 
     if (esCorrecto) {
-      await registrarRespuestaFinal(true)
-      const nuevosAciertos = aciertos + 1
-      setAciertos(nuevosAciertos)
-      setErrores(0)
-      setRacha(r => r + 1)
       setHistorial(prev => [...prev, true])
-
       toast.success('🎉 ¡Muy bien! Fracción simplificada correcta.')
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
-
-      const { nuevoNivel, decision, sample } = await decidirNivel(nuevosAciertos, 0, true)
-
-      // Entrenamiento: guardamos el ejemplo con etiqueta "decision"
-      await appendTrainingExample(setDecisionTree, { ...sample, resultado: decision })
-
-      nextWithDelay(1600, nuevoNivel)
+      await procesarResultado(true)
     } else {
-      toast.error('⚠️ Aún puedes simplificar mejor.')
       if (guidedMode) setHintIndex(3)
-      // CAMBIO: Llamar directamente a manejarError
       await manejarError()
     }
   }
-
-  // ====== Evaluar precisión del modelo ======
-function splitData<T>(data: T[], testRatio = 0.2) {
-  const shuffled = [...data].sort(() => Math.random() - 0.5)
-  const testSize = Math.floor(data.length * testRatio)
-  return {
-    train: shuffled.slice(testSize),
-    test: shuffled.slice(0, testSize),
-  }
-}
-
-function evaluarPrecision(data: TrainingRow[]) {
-  if (data.length < 5) return null // muy pocos ejemplos
-  const { train, test } = splitData(data, 0.2)
-  const dt = new DecisionTree(train, CLASS_NAME, FEATURES)
-
-  let correctos = 0
-  test.forEach((row) => {
-    const pred = dt.predict(row)
-    if (pred === row.resultado) correctos++
-  })
-
-  return correctos / test.length
-}
-
-// ====== Modificado appendTrainingExample con evaluación ======
-async function appendTrainingExample(
-  setDecisionTree: (dt: any) => void,
-  example: TrainingRow
-) {
-  console.log('[DT] Agregando ejemplo de entrenamiento:', example)
-
-  // 1) Leer modelo actual (o crear base vacía)
-  const { data, error } = await supabase
-    .from('decision_trees')
-    .select('modelo')
-    .eq('tema', temaPeriodoId)
-    .single()
-
-  let trainingData: TrainingRow[] = []
-  let className = CLASS_NAME
-  let features: any = FEATURES
-
-  if (!error && data?.modelo) {
-    trainingData = (data.modelo.trainingData as TrainingRow[]) ?? []
-    className = (data.modelo.className as string) ?? CLASS_NAME
-    features = (data.modelo.features as string[]) ?? FEATURES
-  }
-
-  // 2) Añadir ejemplo
-  trainingData.push(example)
-
-  // 3) Guardar con upsert
-  const modelo = { trainingData, className, features }
-  const { data: upserted, error: upErr } = await supabase
-    .from('decision_trees')
-    .upsert({ tema: temaPeriodoId, modelo }, { onConflict: 'tema' })
-    .select()
-
-  if (upErr) {
-    console.error('[DT] Error al upsert del modelo:', upErr)
-    return
-  }
-  console.log('[DT] Modelo actualizado. Total ejemplos=', trainingData.length)
-
-  // 4) Re-entrenar en memoria
-  try {
-    const dt = new DecisionTree(trainingData, className, features)
-    setDecisionTree(dt)
-    console.log('[DT] Árbol re-entrenado en memoria ✅')
-
-    // 5) 🔍 Evaluar precisión (modo prueba)
-    const acc = evaluarPrecision(trainingData)
-    if (acc !== null) {
-      const porcentaje = (acc * 100).toFixed(1)
-      console.log(`[DT] Precisión del modelo: ${porcentaje}%`)
-      toast.success(`📊 Precisión actual: ${porcentaje}%`)
-    } else {
-      console.log('[DT] No hay suficientes ejemplos para evaluar precisión')
-    }
-  } catch (e) {
-    console.error('[DT] Error re-entrenando árbol en memoria:', e)
-  }
-}
-
-
- 
 
   const hints = buildHints(pregunta)
 
@@ -706,7 +654,7 @@ async function appendTrainingExample(
       <div className="mx-auto bg-card w-full flex flex-col items-center shadow-md p-6 rounded-lg space-y-6">
         <div className="w-full flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            ✅ Aciertos: <b>{aciertos}</b> | ❌ Errores: <b>{errores}</b> | 🔁 Racha: <b>{racha}</b> | 💡 Pistas: <b>{pistasUsadas}</b>
+            ✅ Aciertos seguidos: <b>{racha}</b> | ❌ Errores seguidos: <b>{errores}</b> | 💡 Pistas: <b>{pistasUsadas}</b> | 📊 Resp. nivel: <b>{respuestasEnNivel}</b>
           </div>
           <button
             onClick={() => setShowGuidePanel(v => !v)}
@@ -715,6 +663,9 @@ async function appendTrainingExample(
             {showGuidePanel ? 'Ocultar guía' : 'Mostrar guía'}
           </button>
         </div>
+
+        <h2 className="text-2xl font-bold text-primary">Nivel {nivelActual}</h2>
+
         <AnimatePresence initial={false}>
           {guidedMode && showGuidePanel && (
             <motion.div
@@ -742,7 +693,6 @@ async function appendTrainingExample(
           )}
         </AnimatePresence>
 
-        <h2 className="text-2xl font-bold text-primary">Nivel {nivelActual}</h2>
         <p className="text-lg text-center text-foreground">{pregunta.contexto}</p>
 
         <div className="w-full grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-6">
@@ -788,9 +738,7 @@ async function appendTrainingExample(
                   setMostrarPasoMCM(false)
                   toast.success('Correcto. Ahora resuelve la suma.')
                 } else {
-                  toast.error('Ese no es el MCM.')
                   if (guidedMode) setHintIndex(0)
-                  // CAMBIO: Llamar directamente a manejarError
                   await manejarError()
                 }
               })}
@@ -824,6 +772,7 @@ async function appendTrainingExample(
                 className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
               />
             </div>
+            <div className="w-full flex justify-center">
             <button
               onClick={() => withLock(verificar)}
               disabled={isSubmitting}
@@ -831,6 +780,7 @@ async function appendTrainingExample(
             >
               {isSubmitting ? 'Verificando…' : 'Verificar respuesta'}
             </button>
+            </div>
           </>
         )}
 
@@ -856,18 +806,18 @@ async function appendTrainingExample(
                 className="w-24 text-center p-2 text-xl bg-white text-foreground border border-border rounded"
               />
             </div>
-            <button
-              onClick={() => withLock(verificarSimplificada)}
-              disabled={isSubmitting}
-              className="w-full max-w-sm bg-accent text-accent-foreground font-bold py-2 rounded-lg transition"
-            >
-              {isSubmitting ? 'Verificando…' : 'Verificar simplificación'}
-            </button>
+            <div className="w-full flex justify-center">
+              <button
+                onClick={() => withLock(verificarSimplificada)}
+                disabled={isSubmitting}
+                className="bg-accent text-accent-foreground font-bold py-2 px-4 rounded-lg transition"
+              >
+                {isSubmitting ? 'Verificando…' : 'Verificar simplificación'}
+              </button>
+            </div>
+
           </div>
         )}
-
-        {/* Pistas */}
-
       </div>
     </>
   )
