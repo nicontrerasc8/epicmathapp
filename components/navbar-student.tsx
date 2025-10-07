@@ -121,22 +121,7 @@ export default function NavbarStudent() {
     return (
       <div className="flex items-center gap-3">
         {/* Teacher Welcome */}
-        <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-secondary/10 to-accent/10 rounded-full border border-secondary/20">
-          <div className="w-8 h-8 bg-gradient-to-br from-secondary to-accent rounded-full flex items-center justify-center">
-            <User className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-sm font-medium text-foreground">
-            ¡Hola, <span className="text-white font-semibold">{authUser.email?.split('@')[0]}</span>!
-          </span>
-        </div>
-
-        {/* Mobile Teacher Welcome */}
-        <div className="sm:hidden flex items-center gap-2 px-3 py-1.5 bg-secondary/10 rounded-full">
-          <User className="w-4 h-4 text-secondary" />
-          <span className="text-sm font-medium text-secondary truncate max-w-20">
-            {authUser.email?.split('@')[0]}
-          </span>
-        </div>
+       
 
         {/* Dashboard Link */}
         <Link

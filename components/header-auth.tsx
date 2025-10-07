@@ -15,10 +15,7 @@ export default async function AuthButton() {
   if (!hasEnvVars) {
     return (
       <div className="flex gap-4 items-center">
-        <Badge
-       
-          className="font-normal pointer-events-none"
-        >
+        <Badge className="font-normal pointer-events-none">
           Por favor actualiza el archivo .env.local
         </Badge>
         <div className="flex gap-2">
@@ -36,16 +33,47 @@ export default async function AuthButton() {
     );
   }
 
-  return user ? (
-    <div className="flex items-center gap-4">
-      <span className="text-sm font-semibold">¡Hola, {user.email}!</span>
-      <form action={signOutAction}>
-        <Button type="submit" variant="destructive" size="sm">
-          Cerrar sesión
-        </Button>
-      </form>
-    </div>
-  ) : (
+  if (user) {
+    // --- Obtener datos del estudiante o profesor ---
+    let nombre = "";
+
+    // Buscar en tabla students
+    const { data: student } = await supabase
+      .from("students")
+      .select("nombres")
+      .eq("id", user.id)
+      .single();
+
+    // Si no existe en students, buscar en teachers
+    if (student) {
+      nombre = student.nombres?.split(" ")[0] || "";
+    } else {
+      const { data: teacher } = await supabase
+        .from("teachers")
+        .select("full_name")
+        .eq("id", user.id)
+        .single();
+
+      if (teacher) {
+        nombre = teacher.full_name?.split(" ")[0] || "";
+      }
+    }
+
+    return (
+      <div className="flex items-center gap-4">
+        <span className="text-sm font-semibold">
+          ¡Hola, {nombre || user.email}!
+        </span>
+        <form action={signOutAction}>
+          <Button type="submit" variant="destructive" size="sm">
+            Cerrar sesión
+          </Button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
     <div className="flex gap-2">
       <Button asChild size="sm" variant="secondary">
         <Link href="/sign-in">Iniciar sesión</Link>
