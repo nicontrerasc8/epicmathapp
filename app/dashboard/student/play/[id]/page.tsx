@@ -13,6 +13,7 @@ import { ReglaDeTresGame } from '@/components/fracciones/ReglaTres'
 import { MagnitudesInversasGame } from '@/components/fracciones/MagnitudesInversas'
 import SumasRestasPrimeroGame from '@/components/fracciones/SumasYRestasInmaculado'
 import CompararNumerosPrimeroGame from '@/components/fracciones/MayorYMenor'
+import { EcuacionesParametrosGame } from '@/components/fracciones/EcuacionesParametrosGame'
 
 interface Tema {
   id: string
@@ -29,6 +30,7 @@ const gameComponents: Record<string, React.ComponentType> = {
   '08655b7e-e653-4dc4-8018-773c8061fd83': MagnitudesInversasGame,
   '37d918d2-7ab9-4b9b-b1c2-eb2712568135': SumasRestasPrimeroGame,
   '138ef06e-1933-4628-810e-03f352b1beb6': CompararNumerosPrimeroGame,
+  '4a389b1d-22c6-4a1a-b786-ae4ccaa7899f': EcuacionesParametrosGame
   // Agrega más aquí cuando tengas más juegos
 }
 
