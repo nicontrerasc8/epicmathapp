@@ -10,7 +10,7 @@ export default function SignInPage() {
   const supabase = createClient()
 
   const [tab, setTab] = useState<'student' | 'teacher'>('student')
-  const [username, setUsername] = useState('')
+
   const [studentError, setStudentError] = useState('')
   const [studentMessage, setStudentMessage] = useState('')
   const [email, setEmail] = useState('')
