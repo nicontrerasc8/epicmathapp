@@ -3,15 +3,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { UserCircle, Lock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Mail, Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
 
 export default function SignInPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const [tab, setTab] = useState<'student' | 'teacher'>('student')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -20,104 +22,119 @@ export default function SignInPage() {
     setError('')
     setLoading(true)
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    // 1) Auth
+    const { data: sign, error: signErr } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
-    if (error || !data.user) {
+    if (signErr || !sign.user) {
       setError('Credenciales incorrectas o usuario no encontrado.')
       setLoading(false)
       return
     }
 
-    const userId = data.user.id
+    // 2) Asegurar que la sesión esté lista antes de consultar tablas (evita el "tengo que refrescar")
+    await supabase.auth.getSession()
 
-    // Verificar rol real
-    const { data: student } = await supabase
-      .from('students')
-      .select('id, nombres')
-      .eq('id', userId)
-      .single()
-
-    const { data: teacher } = await supabase
-      .from('teachers')
-      .select('id, nombres')
-      .eq('id', userId)
-      .single()
+    // 3) Consultar roles en paralelo
+    const userId = sign.user.id
+    const [teacherRes, studentRes] = await Promise.all([
+      supabase.from('teachers').select('id').eq('id', userId).maybeSingle(),
+      supabase.from('students').select('id, nombres, username').eq('id', userId).maybeSingle(),
+    ])
 
     setLoading(false)
 
-    if (student) {
-      localStorage.setItem('student', JSON.stringify(student))
-      router.push('/dashboard/student/play')
-    } else if (teacher) {
+    // 4) Router por rol
+    if (teacherRes.data) {
       router.push('/dashboard/teacher')
-    } else {
-      setError('Tu cuenta no tiene un rol asignado. Contacta al administrador.')
+      return
     }
+    if (studentRes.data) {
+      // opcional: guardar para navbar u otros
+      try {
+        localStorage.setItem('student', JSON.stringify(studentRes.data))
+      } catch {}
+      router.push('/dashboard/student/play')
+      return
+    }
+
+    setError('Tu cuenta no tiene rol asignado. Contacta al administrador.')
   }
 
   return (
-    <div className="flex items-center mx-auto justify-center bg-background text-foreground px-4 ">
-      <div className="w-full max-w-md">
-        <div className="flex gap-4 mb-8 justify-center">
-          {['student', 'teacher'].map((role) => (
-            <button
-              key={role}
-              onClick={() => setTab(role as 'student' | 'teacher')}
-              className={`px-4 py-2 rounded-full text-sm font-semibold border transition-all duration-200 ${
-                tab === role
-                  ? 'bg-primary text-white border-primary shadow-md'
-                  : 'bg-muted text-foreground border-border hover:bg-accent hover:text-accent-foreground'
-              }`}
-            >
-              {role === 'student' ? 'Estudiante' : 'Profesor'}
-            </button>
-          ))}
-        </div>
+    <div className="flex items-center justify-center px-6 w-full">
+      <div className="relative w-full max-w-md">
+        {/* blobs de fondo */}
+        <div className="pointer-events-none absolute -top-20 -left-24 h-40 w-40 rounded-full bg-primary/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -right-24 h-40 w-40 rounded-full bg-secondary/20 blur-3xl" />
 
-        <div className="bg-card p-8 rounded-2xl shadow-lg border border-border space-y-5 animate-in fade-in zoom-in">
-          <h1 className="text-2xl font-bold text-center">
-            Ingreso {tab === 'student' ? 'Estudiante' : 'Profesor'}
-          </h1>
+        <div className="relative rounded-2xl border border-border bg-card/80 backdrop-blur p-7 md:p-8 shadow-lg">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+              Inicia sesión en <span className="text-primary">Appruebo</span>
+            </h1>
+         
+          </div>
 
+          {/* Form */}
           <form onSubmit={handleLogin} className="space-y-4">
-            <div className="flex items-center border rounded-lg overflow-hidden bg-input focus-within:ring-2 ring-ring">
-              <UserCircle className="mx-3 text-muted-foreground" size={18} />
+            <div className="flex items-center gap-2 rounded-lg border bg-input px-3 py-2 focus-within:ring-2 ring-ring">
+              <Mail className="h-4 w-4 text-muted-foreground" />
               <input
                 type="email"
                 placeholder="Correo electrónico"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full py-2 px-1 outline-none bg-transparent"
+                className="w-full bg-transparent outline-none text-sm"
+                autoComplete="email"
                 required
               />
             </div>
 
-            <div className="flex items-center border rounded-lg overflow-hidden bg-input focus-within:ring-2 ring-ring">
-              <Lock className="mx-3 text-muted-foreground" size={18} />
+            <div className="flex items-center gap-2 rounded-lg border bg-input px-3 py-2 focus-within:ring-2 ring-ring">
+              <Lock className="h-4 w-4 text-muted-foreground" />
               <input
-                type="password"
+                type={showPwd ? 'text' : 'password'}
                 placeholder="Contraseña"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full py-2 px-1 outline-none bg-transparent"
+                className="w-full bg-transparent outline-none text-sm"
+                autoComplete="current-password"
                 required
               />
+              <button
+                type="button"
+                onClick={() => setShowPwd((s) => !s)}
+                className="text-muted-foreground hover:text-foreground transition"
+                aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
 
-            {error && <p className="text-destructive text-sm text-center">{error}</p>}
+            {error && (
+              <div className="flex items-center gap-2 text-destructive text-sm justify-center">
+                <AlertCircle className="h-4 w-4" />
+                <span>{error}</span>
+              </div>
+            )}
 
-            <button
+            <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary hover:bg-primary/90 text-white py-2 rounded-lg font-medium transition duration-200 disabled:opacity-50"
+              className="w-full h-11 text-base font-semibold"
             >
-              {loading ? 'Ingresando...' : 'Entrar'}
-            </button>
+              {loading ? 'Ingresando…' : 'Entrar'}
+            </Button>
+
+          
           </form>
         </div>
+
+    
       </div>
     </div>
   )
