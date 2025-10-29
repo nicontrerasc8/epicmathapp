@@ -5,62 +5,87 @@ import { Button } from '@/components/ui/button'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { User, LogOut, BookOpen, GraduationCap, ChevronDown } from 'lucide-react'
+import { User, LogOut, BookOpen, GraduationCap, Info, Sparkles } from 'lucide-react'
 
-// Actualizado useStudent hook integrado directamente
-function useStudent(redirectIfNotFound = false) {
-  const [student, setStudent] = useState<any>(null)
+export default function NavbarUser() {
+  const [userData, setUserData] = useState<any>(null)
+  const [role, setRole] = useState<'student' | 'teacher' | null>(null)
   const [loading, setLoading] = useState(true)
-  const router = useRouter()
-  const pathname = usePathname()
-
-  useEffect(() => {
-    const stored = localStorage.getItem('student')
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        setStudent(parsed)
-      } catch (err) {
-        console.error('Error parsing student from localStorage', err)
-        localStorage.removeItem('student')
-      }
-    } else if (redirectIfNotFound) {
-      // Redirect logic here
-    }
-    setLoading(false)
-  }, [redirectIfNotFound, router, pathname])
-
-  const logout = () => {
-    localStorage.removeItem('student')
-    setStudent(null)
-    router.push('/sign-in')
-  }
-
-  return { student, loading, logout }
-}
-
-export default function NavbarStudent() {
-  const { student, logout, loading } = useStudent(true)
-  const [authUser, setAuthUser] = useState<any>(null)
-  const [authLoading, setAuthLoading] = useState(true)
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
 
+  // =============================
+  // Obtener datos del usuario y rol
+  // =============================
   useEffect(() => {
-    const checkAuth = async () => {
+    const fetchUserRole = async () => {
+      setLoading(true)
+
       const {
         data: { user },
       } = await supabase.auth.getUser()
-      setAuthUser(user || null)
-      setAuthLoading(false)
+
+      if (!user) {
+        setUserData(null)
+        setRole(null)
+        setLoading(false)
+        return
+      }
+
+      // Primero buscamos si es estudiante
+      const { data: student } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (student) {
+        setUserData(student)
+        setRole('student')
+        localStorage.setItem('student', JSON.stringify(student))
+        setLoading(false)
+        return
+      }
+
+      // Si no es estudiante, probamos si es teacher
+      const { data: teacher } = await supabase
+        .from('teachers')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (teacher) {
+        setUserData(teacher)
+        setRole('teacher')
+        setLoading(false)
+        return
+      }
+
+      // Si no es ninguno
+      setUserData(user)
+      setRole(null)
+      setLoading(false)
     }
 
-    checkAuth()
+    fetchUserRole()
   }, [pathname])
 
-  if (loading || authLoading) {
+  // =============================
+  // Cerrar sesión
+  // =============================
+  const logout = async () => {
+    await supabase.auth.signOut()
+    localStorage.removeItem('student')
+    setUserData(null)
+    setRole(null)
+    router.push('/sign-in')
+  }
+
+  // =============================
+  // Loading Skeleton
+  // =============================
+  if (loading) {
     return (
       <div className="flex items-center gap-4">
         <div className="h-8 w-32 bg-muted animate-pulse rounded-md"></div>
@@ -69,30 +94,24 @@ export default function NavbarStudent() {
     )
   }
 
-  if (student) {
+  // =============================
+  // Navbar para ESTUDIANTE
+  // =============================
+  if (role === 'student' && userData) {
+    const name = userData.nombres?.split(' ')[0] || userData.username
     return (
       <div className="flex items-center gap-3">
-        {/* Welcome Message */}
+        {/* Mensaje de bienvenida */}
         <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-full border border-primary/20">
           <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
             <GraduationCap className="w-4 h-4 text-white" />
           </div>
           <span className="text-sm font-medium text-foreground">
-            ¡Hola, <span className="font-semibold text-white">{student.nombres ? student.nombres.split(' ')[0] : student.username}</span>!
+            ¡Hola, <span className="font-semibold">{name}</span>!
           </span>
         </div>
 
-        {/* Mobile Welcome */}
-        <div className="sm:hidden flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full">
-          <GraduationCap className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium text-primary truncate max-w-20">
-            {student.nombres ? student.nombres.split(' ')[0] : student.username}
-          </span>
-        </div>
-
-
-
-        {/* Dashboard Link */}
+        {/* Dashboard */}
         <Link
           href="/dashboard/student/play"
           className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white hover:bg-accent/20 rounded-lg border border-border hover:border-accent transition-all duration-200 group"
@@ -103,7 +122,7 @@ export default function NavbarStudent() {
           </span>
         </Link>
 
-        {/* Logout Button */}
+        {/* Logout */}
         <Button
           onClick={logout}
           variant="outline"
@@ -117,13 +136,22 @@ export default function NavbarStudent() {
     )
   }
 
-  if (authUser) {
+  // =============================
+  // Navbar para PROFESOR
+  // =============================
+  if (role === 'teacher' && userData) {
+    const name = userData.nombres?.split(' ')[0] || 'Profesor'
     return (
       <div className="flex items-center gap-3">
-        {/* Teacher Welcome */}
-       
+        <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-full border border-primary/20">
+          <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-sm font-medium text-foreground">
+            Bienvenido, <span className="font-semibold text-white">{name}</span>
+          </span>
+        </div>
 
-        {/* Dashboard Link */}
         <Link
           href="/dashboard/teacher"
           className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white hover:bg-accent/20 rounded-lg border border-border hover:border-accent transition-all duration-200 group"
@@ -134,12 +162,8 @@ export default function NavbarStudent() {
           </span>
         </Link>
 
-        {/* Logout Button */}
         <Button
-          onClick={async () => {
-            await supabase.auth.signOut()
-            router.push('/sign-in')
-          }}
+          onClick={logout}
           variant="outline"
           size="sm"
           className="flex items-center gap-2 bg-red hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all duration-200"
@@ -151,6 +175,9 @@ export default function NavbarStudent() {
     )
   }
 
+  // =============================
+  // Navbar sin sesión
+  // =============================
   return (
     <div className="flex items-center gap-3">
       <Link
@@ -160,7 +187,6 @@ export default function NavbarStudent() {
         <User className="w-4 h-4" />
         Iniciar sesión
       </Link>
-
     </div>
   )
 }

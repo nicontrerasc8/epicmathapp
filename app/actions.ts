@@ -5,6 +5,9 @@ import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+/* ===========================
+   REGISTRO (SIGN UP)
+=========================== */
 export const signUpAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
   const password = formData.get("password")?.toString();
@@ -12,11 +15,7 @@ export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
 
   if (!email || !password) {
-    return encodedRedirect(
-      "error",
-      "/sign-up",
-      "Email and password are required",
-    );
+    return encodedRedirect("error", "/sign-up", "Email and password are required");
   }
 
   const { error } = await supabase.auth.signUp({
@@ -30,32 +29,68 @@ export const signUpAction = async (formData: FormData) => {
   if (error) {
     console.error(error.code + " " + error.message);
     return encodedRedirect("error", "/sign-up", error.message);
-  } else {
-    return encodedRedirect(
-      "success",
-      "/sign-up",
-      "Thanks for signing up! Please check your email for a verification link.",
-    );
   }
+
+  return encodedRedirect(
+    "success",
+    "/sign-up",
+    "Thanks for signing up! Please check your email for a verification link."
+  );
 };
 
+/* ===========================
+   INICIO DE SESIÓN (SIGN IN)
+=========================== */
 export const signInAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
-
+    console.error(error.message);
+    return encodedRedirect("error", "/sign-in", "Credenciales incorrectas o usuario no encontrado.");
   }
 
-  return redirect("/dashboard/teacher");
+  const user = data.user;
+  if (!user) return redirect("/sign-in");
+
+  // Buscar rol en la BD
+  const { data: teacher } = await supabase
+    .from("teachers")
+    .select("id")
+    .eq("id", user.id)
+    .single();
+
+  if (teacher) {
+    return redirect("/dashboard/teacher");
+  }
+
+  const { data: student } = await supabase
+    .from("students")
+    .select("id")
+    .eq("id", user.id)
+    .single();
+
+  if (student) {
+    return redirect("/dashboard/student");
+  }
+
+  // Si no tiene rol definido
+  return encodedRedirect(
+    "error",
+    "/sign-in",
+    "Tu cuenta no tiene un rol asignado (profesor o estudiante). Contacta al administrador."
+  );
 };
 
+/* ===========================
+   OLVIDÉ MI CONTRASEÑA
+=========================== */
 export const forgotPasswordAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
   const supabase = await createClient();
@@ -72,11 +107,7 @@ export const forgotPasswordAction = async (formData: FormData) => {
 
   if (error) {
     console.error(error.message);
-    return encodedRedirect(
-      "error",
-      "/forgot-password",
-      "Could not reset password",
-    );
+    return encodedRedirect("error", "/forgot-password", "Could not reset password");
   }
 
   if (callbackUrl) {
@@ -86,47 +117,38 @@ export const forgotPasswordAction = async (formData: FormData) => {
   return encodedRedirect(
     "success",
     "/forgot-password",
-    "Check your email for a link to reset your password.",
+    "Check your email for a link to reset your password."
   );
 };
 
+/* ===========================
+   RESETEAR CONTRASEÑA
+=========================== */
 export const resetPasswordAction = async (formData: FormData) => {
   const supabase = await createClient();
-
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
 
   if (!password || !confirmPassword) {
-    encodedRedirect(
-      "error",
-      "/protected/reset-password",
-      "Password and confirm password are required",
-    );
+    return encodedRedirect("error", "/protected/reset-password", "Password and confirm password are required");
   }
 
   if (password !== confirmPassword) {
-    encodedRedirect(
-      "error",
-      "/protected/reset-password",
-      "Passwords do not match",
-    );
+    return encodedRedirect("error", "/protected/reset-password", "Passwords do not match");
   }
 
-  const { error } = await supabase.auth.updateUser({
-    password: password,
-  });
+  const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
-    encodedRedirect(
-      "error",
-      "/protected/reset-password",
-      "Password update failed",
-    );
+    return encodedRedirect("error", "/protected/reset-password", "Password update failed");
   }
 
-  encodedRedirect("success", "/protected/reset-password", "Password updated");
+  return encodedRedirect("success", "/protected/reset-password", "Password updated");
 };
 
+/* ===========================
+   CERRAR SESIÓN
+=========================== */
 export const signOutAction = async () => {
   const supabase = await createClient();
   await supabase.auth.signOut();

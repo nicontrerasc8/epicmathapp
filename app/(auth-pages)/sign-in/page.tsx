@@ -3,51 +3,58 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { User, Lock, UserCircle } from 'lucide-react'
+import { UserCircle, Lock } from 'lucide-react'
 
 export default function SignInPage() {
   const router = useRouter()
   const supabase = createClient()
 
   const [tab, setTab] = useState<'student' | 'teacher'>('student')
-
-  const [studentError, setStudentError] = useState('')
-  const [studentMessage, setStudentMessage] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [teacherError, setTeacherError] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleStudentLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setTeacherError('')
+    setError('')
+    setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
-    if (error) {
-      setTeacherError('Credenciales incorrectas')
-      console.log(error)
-    } else {
-      router.push('/dashboard/student/play')
+    if (error || !data.user) {
+      setError('Credenciales incorrectas o usuario no encontrado.')
+      setLoading(false)
+      return
     }
-  }
 
-  const handleTeacherLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setTeacherError('')
+    const userId = data.user.id
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    // Verificar rol real
+    const { data: student } = await supabase
+      .from('students')
+      .select('id, nombres')
+      .eq('id', userId)
+      .single()
 
-    if (error) {
-      setTeacherError('Credenciales incorrectas')
-      console.log(error)
-    } else {
+    const { data: teacher } = await supabase
+      .from('teachers')
+      .select('id, nombres')
+      .eq('id', userId)
+      .single()
+
+    setLoading(false)
+
+    if (student) {
+      localStorage.setItem('student', JSON.stringify(student))
+      router.push('/dashboard/student/play')
+    } else if (teacher) {
       router.push('/dashboard/teacher')
+    } else {
+      setError('Tu cuenta no tiene un rol asignado. Contacta al administrador.')
     }
   }
 
@@ -75,77 +82,41 @@ export default function SignInPage() {
             Ingreso {tab === 'student' ? 'Estudiante' : 'Profesor'}
           </h1>
 
-          {tab === 'student' ? (
-            <form onSubmit={handleStudentLogin} className="space-y-4">
-              <div className="flex items-center border rounded-lg overflow-hidden bg-input focus-within:ring-2 ring-ring">
-                <UserCircle className="mx-3 text-muted-foreground" size={18} />
-                <input
-                  type="email"
-                  placeholder="Correo electrónico"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.form?.requestSubmit()}
-                  className="w-full py-2 px-1 outline-none bg-transparent"
-                  required
-                />
-              </div>
-               <div className="flex items-center border rounded-lg overflow-hidden bg-input focus-within:ring-2 ring-ring">
-                <Lock className="mx-3 text-muted-foreground" size={18} />
-                <input
-                  type="password"
-                  placeholder="Contraseña"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.form?.requestSubmit()}
-                  className="w-full py-2 px-1 outline-none bg-transparent"
-                  required
-                />
-              </div>
-              {studentError && <p className="text-destructive text-sm text-center">{studentError}</p>}
-              {studentMessage && <p className="text-green-600 text-sm text-center">{studentMessage}</p>}
-              <button
-                type="submit"
-                className="w-full bg-primary hover:bg-primary/90 text-white py-2 rounded-lg font-medium transition duration-200"
-              >
-                Entrar
-              </button>
-            
-            </form>
-          ) : (
-            <form onSubmit={handleTeacherLogin} className="space-y-4">
-              <div className="flex items-center border rounded-lg overflow-hidden bg-input focus-within:ring-2 ring-ring">
-                <UserCircle className="mx-3 text-muted-foreground" size={18} />
-                <input
-                  type="email"
-                  placeholder="Correo electrónico"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.form?.requestSubmit()}
-                  className="w-full py-2 px-1 outline-none bg-transparent"
-                  required
-                />
-              </div>
-              <div className="flex items-center border rounded-lg overflow-hidden bg-input focus-within:ring-2 ring-ring">
-                <Lock className="mx-3 text-muted-foreground" size={18} />
-                <input
-                  type="password"
-                  placeholder="Contraseña"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.form?.requestSubmit()}
-                  className="w-full py-2 px-1 outline-none bg-transparent"
-                  required
-                />
-              </div>
-              {teacherError && <p className="text-destructive text-sm text-center">{teacherError}</p>}
-              <button
-                type="submit"
-                className="w-full bg-primary hover:bg-primary/90 text-white py-2 rounded-lg font-medium transition duration-200"
-              >
-                Entrar
-              </button>
-            </form>
-          )}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="flex items-center border rounded-lg overflow-hidden bg-input focus-within:ring-2 ring-ring">
+              <UserCircle className="mx-3 text-muted-foreground" size={18} />
+              <input
+                type="email"
+                placeholder="Correo electrónico"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full py-2 px-1 outline-none bg-transparent"
+                required
+              />
+            </div>
+
+            <div className="flex items-center border rounded-lg overflow-hidden bg-input focus-within:ring-2 ring-ring">
+              <Lock className="mx-3 text-muted-foreground" size={18} />
+              <input
+                type="password"
+                placeholder="Contraseña"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full py-2 px-1 outline-none bg-transparent"
+                required
+              />
+            </div>
+
+            {error && <p className="text-destructive text-sm text-center">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary/90 text-white py-2 rounded-lg font-medium transition duration-200 disabled:opacity-50"
+            >
+              {loading ? 'Ingresando...' : 'Entrar'}
+            </button>
+          </form>
         </div>
       </div>
     </div>
