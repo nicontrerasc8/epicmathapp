@@ -148,7 +148,7 @@ export default function NavbarUser() {
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <span className="text-sm font-medium text-foreground">
-            Bienvenido, <span className="font-semibold text-white">{name}</span>
+            Bienvenido, {name}
           </span>
         </div>
 

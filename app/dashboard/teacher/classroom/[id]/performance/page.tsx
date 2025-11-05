@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import Link from 'next/link'
+
 import { createClient } from '@/utils/supabase/client'
 import * as XLSX from 'xlsx'
+import { motion, AnimatePresence } from 'framer-motion'
 
 type AnyRec = Record<string, any>
 
@@ -13,15 +14,25 @@ export default function PerformancePage() {
   const params = useParams() as any
   const classroomId = params?.id as string
 
-  // IMPORTANT: tipa los estados como any[]
   const [students, setStudents] = useState<any[]>([])
   const [periodos, setPeriodos] = useState<any[]>([])
-  const [respAgg, setRespAgg] = useState<any[]>([])
+  const [responses, setResponses] = useState<any[]>([])
   const [loading, setLoading] = useState<boolean>(true)
-  const [showGraphs, setShowGraphs] = useState<boolean>(true)
+  const [activeView, setActiveView] = useState<'overview' | 'students' | 'analytics'>('overview')
+  
+  // 🎮 GAMIFICACIÓN
+  const [achievements, setAchievements] = useState<string[]>([])
+  const [newAchievement, setNewAchievement] = useState<string | null>(null)
 
-  // filtros
-  const [q, setQ] = useState<string>('')
+  // 🚨 ALERTAS
+  const [studentsAtRisk, setStudentsAtRisk] = useState<any[]>([])
+
+  // 📊 MÉTRICAS AVANZADAS
+  const [avgResponseTime, setAvgResponseTime] = useState(0)
+  const [completionRate, setCompletionRate] = useState(0)
+
+  // Filtros
+  const [searchQuery, setSearchQuery] = useState<string>('')
   const [temaFilter, setTemaFilter] = useState<string>('__ALL__')
   const [nivelFilter, setNivelFilter] = useState<string | '__ALL__'>('__ALL__')
 
@@ -31,6 +42,7 @@ export default function PerformancePage() {
     const fetchAll = async () => {
       setLoading(true)
 
+      // Estudiantes
       const { data: st, error: e1 } = await supabase
         .from('students')
         .select('id, nombres')
@@ -41,7 +53,7 @@ export default function PerformancePage() {
         console.error('Error students', e1)
         setStudents([])
         setPeriodos([])
-        setRespAgg([])
+        setResponses([])
         setLoading(false)
         return
       }
@@ -51,16 +63,21 @@ export default function PerformancePage() {
 
       if (ids.length === 0) {
         setPeriodos([])
-        setRespAgg([])
+        setResponses([])
         setLoading(false)
         return
       }
 
+      // Periodos (niveles por tema)
       const { data: perRaw, error: e2 } = await supabase
         .from('student_periodo')
         .select(`
           student_id,
           nivel,
+          theta,
+          aciertos,
+          errores,
+          streak,
           tema_periodo:tema_periodo_id ( tema )
         `)
         .in('student_id', ids)
@@ -73,32 +90,34 @@ export default function PerformancePage() {
         return {
           student_id: r.student_id,
           nivel: r.nivel,
+          theta: r.theta ?? 0,
+          aciertos: r.aciertos ?? 0,
+          errores: r.errores ?? 0,
+          streak: r.streak ?? 0,
           tema_periodo: tp ? { tema: tp.tema ?? 'Desconocido' } : null,
         }
       }) as any[]
       setPeriodos(per)
 
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-
+      // Respuestas completas (con JSON de progreso)
       const { data: resp, error: e3 } = await supabase
         .from('student_responses')
-        .select('student_id, es_correcto, created_at')
+        .select('student_id, respuesta, tiempo_segundos, accion, created_at')
         .in('student_id', ids)
-        .gte('created_at', sevenDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
 
       if (e3) console.error('Error student_responses', e3)
+      setResponses(resp || [])
 
-      const map = new Map<string, any>()
-      ;(resp ?? []).forEach((r: AnyRec) => {
-        const curr = map.get(r.student_id) ?? { student_id: r.student_id, correctos: 0, incorrectos: 0, ultimo: null }
-        if (r.es_correcto) curr.correctos++
-        else curr.incorrectos++
-        if (!curr.ultimo || new Date(r.created_at) > new Date(curr.ultimo)) curr.ultimo = r.created_at
-        map.set(r.student_id, curr)
-      })
+      // Calcular métricas avanzadas
+      if (resp && resp.length > 0) {
+        const avgTime = resp.reduce((sum, r) => sum + (r.tiempo_segundos || 0), 0) / resp.length
+        setAvgResponseTime(avgTime)
 
-      setRespAgg(Array.from(map.values()) as any[])
+        const completed = resp.filter(r => r.accion === 1 || r.accion === 2).length
+        setCompletionRate((completed / resp.length) * 100)
+      }
+
       setLoading(false)
     }
 
@@ -112,36 +131,144 @@ export default function PerformancePage() {
 
     return () => {
       supabase.removeChannel(ch)
-    } 
+    }
   }, [classroomId])
 
-  const getNivelColor = (nivel: any) =>
-    nivel === 3 ? 'bg-green-100 text-green-800 border-green-200'
-      : nivel === 2 ? 'bg-accent text-accent-foreground border-accent/30'
-      : nivel === 1 ? 'bg-orange-100 text-orange-800 border-orange-200'
-      : 'bg-muted text-muted-foreground border-muted'
-
-  const getNivelEmoji = (nivel: any) => (nivel === 3 ? '🌟' : nivel === 2 ? '⭐' : nivel === 1 ? '💪' : '❓')
-  const getNivelLabel = (nivel: any) => (nivel === 3 ? 'Avanzado' : nivel === 2 ? 'Intermedio' : nivel === 1 ? 'Básico' : 'N/A')
-
+  // Procesar datos de estudiantes
   const studentTemaMap = useMemo(() => {
     const map = new Map<string, any[]>()
     periodos.forEach((p: AnyRec) => {
       const arr = map.get(p.student_id) ?? []
-      arr.push({ tema: p.tema_periodo?.tema ?? 'Desconocido', nivel: p.nivel })
+      arr.push({ 
+        tema: p.tema_periodo?.tema ?? 'Desconocido', 
+        nivel: p.nivel,
+        theta: p.theta,
+        aciertos: p.aciertos,
+        errores: p.errores,
+        streak: p.streak
+      })
       map.set(p.student_id, arr)
     })
     return map
   }, [periodos])
 
+  const studentResponseMap = useMemo(() => {
+    const map = new Map<string, any[]>()
+    responses.forEach((r: AnyRec) => {
+      const arr = map.get(r.student_id) ?? []
+      arr.push(r)
+      map.set(r.student_id, arr)
+    })
+    return map
+  }, [responses])
+
   const studentsFull = useMemo(() => {
     return students.map((s: AnyRec) => {
       const temas = studentTemaMap.get(s.id) ?? []
-      const agg = respAgg.find((r: AnyRec) => r.student_id === s.id) ?? { correctos: 0, incorrectos: 0, ultimo: null }
-      const nivelProm = temas.length ? (temas.reduce((a: number, t: AnyRec) => a + (t.nivel || 0), 0) / temas.length) : 0
-      return { ...s, temas, ...agg, nivelProm }
+      const studentResponses = studentResponseMap.get(s.id) ?? []
+
+      // Calcular métricas por estudiante
+      const totalExercises = studentResponses.length
+      const correctExercises = studentResponses.filter(r => {
+        const data = r.respuesta
+        return data?.resultado?.es_correcto === true
+      }).length
+      
+      const incorrectExercises = totalExercises - correctExercises
+      const successRate = totalExercises > 0 ? (correctExercises / totalExercises) * 100 : 0
+
+      const nivelProm = temas.length 
+        ? (temas.reduce((a: number, t: AnyRec) => a + (t.nivel || 0), 0) / temas.length) 
+        : 0
+
+      const thetaProm = temas.length 
+        ? (temas.reduce((a: number, t: AnyRec) => a + (t.theta || 0), 0) / temas.length) 
+        : 0
+
+      const lastResponse = studentResponses[0]?.created_at || null
+
+      const avgAttempts = studentResponses.length > 0
+        ? studentResponses.reduce((sum, r) => {
+            const intentos = r.respuesta?.progreso?.intentos_realizados || 1
+            return sum + intentos
+          }, 0) / studentResponses.length
+        : 0
+
+      const avgTime = studentResponses.length > 0
+        ? studentResponses.reduce((sum, r) => sum + (r.tiempo_segundos || 0), 0) / studentResponses.length
+        : 0
+
+      return { 
+        ...s, 
+        temas,
+        totalExercises,
+        correctExercises,
+        incorrectExercises,
+        successRate,
+        nivelProm,
+        thetaProm,
+        lastResponse,
+        avgAttempts,
+        avgTime
+      }
     })
-  }, [students, studentTemaMap, respAgg])
+  }, [students, studentTemaMap, studentResponseMap])
+
+  // 🚨 ANÁLISIS PREDICTIVO
+  useEffect(() => {
+    const atRisk = studentsFull.filter((s: AnyRec) => {
+      const lowSuccess = s.totalExercises > 5 && s.successRate < 50
+      const lowLevel = s.nivelProm < 1.5
+      const inactive = !s.lastResponse || (new Date().getTime() - new Date(s.lastResponse).getTime()) > 7 * 24 * 60 * 60 * 1000
+      const highAttempts = s.avgAttempts > 2.5
+      
+      return lowSuccess || lowLevel || inactive || highAttempts
+    }).map((s: AnyRec) => {
+      const reasons = []
+      if (s.totalExercises > 5 && s.successRate < 50) reasons.push('Tasa de éxito baja')
+      if (s.nivelProm < 1.5) reasons.push('Nivel promedio bajo')
+      if (!s.lastResponse || (new Date().getTime() - new Date(s.lastResponse).getTime()) > 7 * 24 * 60 * 60 * 1000) {
+        reasons.push('Inactividad prolongada')
+      }
+      if (s.avgAttempts > 2.5) reasons.push('Demasiados intentos por ejercicio')
+      
+      return { ...s, riskReasons: reasons }
+    })
+
+    setStudentsAtRisk(atRisk)
+  }, [studentsFull])
+
+  // 🎮 SISTEMA DE LOGROS
+  useEffect(() => {
+    const newAchievements = []
+    const totalStudents = studentsFull.length
+    const advanced = studentsFull.filter(s => s.nivelProm >= 2.5).length
+    const totalExercises = responses.length
+    const avgSuccess = studentsFull.reduce((sum, s) => sum + s.successRate, 0) / Math.max(1, totalStudents)
+
+    if (advanced >= totalStudents * 0.5 && totalStudents > 0) {
+      newAchievements.push('🏆 ¡Maestro del Progreso! +50% en nivel avanzado')
+    }
+    if (totalStudents >= 20) {
+      newAchievements.push('👥 ¡Aula Completa! 20+ estudiantes activos')
+    }
+    if (totalExercises >= 500) {
+      newAchievements.push('⚡ ¡Ultra Productivo! 500+ ejercicios completados')
+    }
+    if (avgSuccess >= 75) {
+      newAchievements.push('🎯 ¡Excelencia Académica! 75%+ de éxito promedio')
+    }
+
+    // Mostrar notificación de nuevo logro
+    newAchievements.forEach(ach => {
+      if (!achievements.includes(ach)) {
+        setNewAchievement(ach)
+        setTimeout(() => setNewAchievement(null), 5000)
+      }
+    })
+
+    setAchievements(newAchievements)
+  }, [studentsFull, responses])
 
   const temasUnicos = useMemo(() => {
     const set = new Set<string>()
@@ -153,51 +280,89 @@ export default function PerformancePage() {
     const stats: AnyRec = {}
     periodos.forEach((p: AnyRec) => {
       const tema = p.tema_periodo?.tema ?? 'Desconocido'
-      if (!stats[tema]) stats[tema] = { n1: 0, n2: 0, n3: 0, total: 0 }
+      if (!stats[tema]) stats[tema] = { n1: 0, n2: 0, n3: 0, total: 0, totalTheta: 0, totalAciertos: 0, totalErrores: 0 }
       if (p.nivel === 1) stats[tema].n1++
       if (p.nivel === 2) stats[tema].n2++
       if (p.nivel === 3) stats[tema].n3++
       stats[tema].total++
+      stats[tema].totalTheta += p.theta || 0
+      stats[tema].totalAciertos += p.aciertos || 0
+      stats[tema].totalErrores += p.errores || 0
     })
     return stats
   }, [periodos])
 
   const filteredStudents = useMemo(() => {
-    const ql = q.trim().toLowerCase()
+    const ql = searchQuery.trim().toLowerCase()
     return studentsFull.filter((s: AnyRec) => {
       const matchQ = ql.length === 0 || (s.nombres ?? '').toLowerCase().includes(ql)
       const matchTema = temaFilter === '__ALL__' || s.temas.some((t: AnyRec) => t.tema === temaFilter)
       const matchNivel = nivelFilter === '__ALL__' || s.temas.some((t: AnyRec) => String(t.nivel) === String(nivelFilter))
       return matchQ && matchTema && matchNivel
     })
-  }, [studentsFull, q, temaFilter, nivelFilter])
+  }, [studentsFull, searchQuery, temaFilter, nivelFilter])
 
-  // ---------- Exportar a Excel (.xlsx) ----------
+  // 💡 RECOMENDACIONES
+  const getRecommendations = (student: AnyRec) => {
+    const recommendations = []
+    
+    if (student.nivelProm < 1.5) {
+      const weakTopics = student.temas.filter((t: AnyRec) => t.nivel === 1).map((t: AnyRec) => t.tema)
+      if (weakTopics.length > 0) {
+        recommendations.push(`📚 Reforzar: ${weakTopics.slice(0, 2).join(', ')}`)
+      }
+    }
+    
+    if (!student.lastResponse || (new Date().getTime() - new Date(student.lastResponse).getTime()) > 7 * 24 * 60 * 60 * 1000) {
+      recommendations.push('📧 Enviar recordatorio de actividad')
+    }
+    
+    if (student.avgAttempts > 2.5) {
+      recommendations.push('🎯 Revisar dificultad de ejercicios')
+    }
+
+    if (student.successRate < 50 && student.totalExercises > 5) {
+      recommendations.push('👨‍🏫 Programar sesión de apoyo individual')
+    }
+
+    if (student.thetaProm < -0.5) {
+      recommendations.push('💪 Asignar ejercicios de nivel básico')
+    }
+
+    return recommendations
+  }
+
+  // 📊 EXPORTAR A EXCEL
   const exportExcel = () => {
     const rows = studentsFull.flatMap((s: AnyRec) =>
-      (s.temas.length ? s.temas : [{ tema: '', nivel: '' }]).map((t: AnyRec) => ({
+      (s.temas.length ? s.temas : [{ tema: '', nivel: '', theta: 0, aciertos: 0, errores: 0 }]).map((t: AnyRec) => ({
         alumno: s.nombres,
         tema: t.tema,
         nivel: t.nivel,
-        correctos_7d: s.correctos || 0,
-        incorrectos_7d: s.incorrectos || 0,
-        ultimo_intento: s.ultimo ? new Date(s.ultimo).toLocaleString() : '',
+        theta: Number(t.theta || 0).toFixed(2),
+        aciertos: t.aciertos || 0,
+        errores: t.errores || 0,
+        racha: t.streak || 0,
+        ejercicios_totales: s.totalExercises,
+        ejercicios_correctos: s.correctExercises,
+        tasa_exito: `${s.successRate.toFixed(1)}%`,
         nivel_promedio: Number(s.nivelProm || 0).toFixed(2),
+        intentos_promedio: s.avgAttempts.toFixed(1),
+        tiempo_promedio_seg: s.avgTime.toFixed(1),
+        ultimo_intento: s.lastResponse ? new Date(s.lastResponse).toLocaleString() : 'N/A',
+        estado_riesgo: studentsAtRisk.some(sr => sr.id === s.id) ? 'EN RIESGO' : 'OK'
       }))
     )
 
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Rendimiento')
+    XLSX.utils.book_append_sheet(wb, ws, 'Rendimiento Completo')
 
-    const header = Object.keys(rows[0] || { a: '' })
-    ws['!cols'] = header.map(() => ({ wch: 18 }))
+    ws['!cols'] = Object.keys(rows[0] || {}).map(() => ({ wch: 18 }))
 
-    // ✅ descarga sin file-saver
     try {
-      XLSX.writeFile(wb, 'performance.xlsx')
+      XLSX.writeFile(wb, `performance_${new Date().toISOString().split('T')[0]}.xlsx`)
     } catch {
-      // Fallback manual
       const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
       const blob = new Blob([buf], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -205,7 +370,7 @@ export default function PerformancePage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = 'performance.xlsx'
+      a.download = `performance_${new Date().toISOString().split('T')[0]}.xlsx`
       a.click()
       URL.revokeObjectURL(url)
     }
@@ -213,11 +378,15 @@ export default function PerformancePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 p-6">
-        <div className="max-w-6xl mx-auto flex items-center justify-center min-h-[60vh]">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-r-transparent mb-4" />
-            <p className="text-lg font-medium text-muted-foreground">Cargando rendimientos...</p>
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              className="inline-block w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full mb-4"
+            />
+            <p className="text-lg font-semibold text-gray-700">Cargando datos...</p>
           </div>
         </div>
       </div>
@@ -225,196 +394,817 @@ export default function PerformancePage() {
   }
 
   const topicsKeys = Object.keys(topicStats)
+  const totalExercises = responses.length
+  const avgSuccessRate = studentsFull.reduce((sum, s) => sum + s.successRate, 0) / Math.max(1, studentsFull.length)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* header + toolbar */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div className="inline-flex items-center gap-3 bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg border border-white/20">
-            <div className="text-4xl">📊</div>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                Rendimiento Estudiantil
-              </h1>
-              <p className="text-muted-foreground mt-1">Dashboard de progreso académico</p>
+        {/* 🎮 NOTIFICACIÓN DE LOGRO */}
+        <AnimatePresence>
+          {newAchievement && (
+            <motion.div
+              initial={{ opacity: 0, y: -50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -50, scale: 0.9 }}
+              className="fixed top-6 right-6 z-50 max-w-md"
+            >
+              <div className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white px-6 py-4 rounded-2xl shadow-2xl border-2 border-white">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">🎉</div>
+                  <div>
+                    <div className="font-bold text-sm opacity-90">¡Nuevo Logro!</div>
+                    <div className="font-black text-lg">{newAchievement}</div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* HEADER */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-3xl shadow-lg">
+                  📊
+                </div>
+                <div>
+                  <h1 className="text-4xl font-black bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                    Dashboard Docente
+                  </h1>
+                  <p className="text-gray-600 font-medium">Análisis integral de rendimiento estudiantil</p>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveView('overview')}
+                  className={`px-6 py-3 rounded-xl font-semibold transition shadow-lg ${
+                    activeView === 'overview'
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  📈 Vista General
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveView('students')}
+                  className={`px-6 py-3 rounded-xl font-semibold transition shadow-lg ${
+                    activeView === 'students'
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  👥 Estudiantes
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveView('analytics')}
+                  className={`px-6 py-3 rounded-xl font-semibold transition shadow-lg ${
+                    activeView === 'analytics'
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  🔬 Análisis
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={exportExcel}
+                  className="px-6 py-3 rounded-xl font-semibold bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg"
+                >
+                  ⬇️ Exportar Excel
+                </motion.button>
+              </div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => setShowGraphs(true)} className={`px-4 py-2 rounded-xl border ${showGraphs ? 'bg-primary text-white' : 'bg-white/80 text-foreground hover:bg-white'} transition`}>📈 Estadísticas por Tema</button>
-            <button onClick={() => setShowGraphs(false)} className={`px-4 py-2 rounded-xl border ${!showGraphs ? 'bg-primary text-white' : 'bg-white/80 text-foreground hover:bg-white'} transition`}>👥 Vista por Estudiante</button>
-            <button onClick={exportExcel} className="px-4 py-2 rounded-xl border bg-accent text-accent-foreground hover:brightness-105 transition">⬇️ Exportar Excel</button>
-          </div>
-        </div>
+        </motion.div>
 
-        {!showGraphs && (
-          <div className="mb-6 grid gap-3 md:grid-cols-3">
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar estudiante..." className="w-full px-4 py-3 rounded-xl bg-white border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-            <select value={temaFilter} onChange={e => setTemaFilter(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white border border-border focus:outline-none focus:ring-2 focus:ring-ring">
-              {temasUnicos.map(t => <option key={t} value={t}>{t === '__ALL__' ? 'Todos los temas' : t}</option>)}
-            </select>
-            <select value={String(nivelFilter)} onChange={e => setNivelFilter(e.target.value === '__ALL__' ? '__ALL__' : e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white border border-border focus:outline-none focus:ring-2 focus:ring-ring">
-              <option value="__ALL__">Todos los niveles</option>
-              <option value="1">Nivel 1 - Básico</option>
-              <option value="2">Nivel 2 - Intermedio</option>
-              <option value="3">Nivel 3 - Avanzado</option>
-            </select>
-          </div>
-        )}
-          {students.length > 0 && (
-          <div className="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <KPI icon="👥" label="Estudiantes" value={students.length} />
-            <KPI icon="📚" label="Temas únicos" value={topicsKeys.length} />
-            <KPI
-              icon="⭐"
-              label="Nivel promedio (global)"
-              value={
-                topicsKeys.length
-                  ? (
-                      topicsKeys.reduce((acc: number, k: string) => {
-                        const s: AnyRec = (topicStats as AnyRec)[k]
-                        return acc + (s.n1 * 1 + s.n2 * 2 + s.n3 * 3) / s.total
-                      }, 0) / topicsKeys.length
-                    ).toFixed(1)
-                  : '0'
-              }
-            />
-            <KPI icon="⚡" label="Intentos 7 días" value={respAgg.reduce((a: number, r: AnyRec) => a + (r.correctos || 0) + (r.incorrectos || 0), 0)} />
-          </div>
+        {/* 🎮 LOGROS DESBLOQUEADOS */}
+        {achievements.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-3xl p-6 border-2 border-yellow-300 shadow-xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="text-4xl">🏆</div>
+                <h3 className="text-2xl font-black text-gray-800">Logros Desbloqueados</h3>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {achievements.map((ach, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.1 }}
+                    className="bg-white p-4 rounded-2xl border-2 border-yellow-400 shadow-md"
+                  >
+                    <div className="text-sm font-bold text-gray-800">{ach}</div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
         )}
 
-        {/* contenido */}
-        {students.length === 0 ? (
-          <EmptyState title="No se encontraron estudiantes" icon="🔍" subtitle="Parece que no hay datos disponibles para este aula." />
-        ) : showGraphs ? (
-          topicsKeys.length === 0 ? (
-            <EmptyState title="No hay temas registrados" icon="📚" subtitle="Los estudiantes aún no han completado ningún tema." />
-          ) : (
-            <div className="space-y-6">
+        {/* 🚨 ALERTAS DE RIESGO */}
+        {studentsAtRisk.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-3xl p-6 border-2 border-red-300 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="text-4xl">🚨</div>
+                  <h3 className="text-2xl font-black text-gray-800">
+                    Estudiantes en Riesgo ({studentsAtRisk.length})
+                  </h3>
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {studentsAtRisk.slice(0, 6).map((s: AnyRec) => (
+                  <motion.div
+                    key={s.id}
+                    whileHover={{ scale: 1.02 }}
+                    className="bg-white p-5 rounded-2xl border-2 border-red-200 shadow-lg"
+                  >
+                    
+                    <div className="space-y-2 mb-3">
+                      {s.riskReasons.map((reason: string, i: number) => (
+                        <div key={i} className="text-sm text-red-600 flex items-center gap-2">
+                          <span>⚠️</span>
+                          <span>{reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pt-3 border-t border-red-100 space-y-1">
+                      {getRecommendations(s).slice(0, 2).map((rec, i) => (
+                        <div key={i} className="text-xs text-gray-600 flex items-start gap-1">
+                          <span className="mt-0.5">→</span>
+                          <span>{rec}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* KPIS PRINCIPALES */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4"
+        >
+          <KPICard
+            icon="👥"
+            label="Estudiantes"
+            value={students.length}
+            gradient="from-blue-500 to-cyan-600"
+          />
+          <KPICard
+            icon="📚"
+            label="Temas"
+            value={topicsKeys.length}
+            gradient="from-purple-500 to-pink-600"
+          />
+          <KPICard
+            icon="✅"
+            label="Ejercicios"
+            value={totalExercises}
+            gradient="from-green-500 to-emerald-600"
+          />
+          <KPICard
+            icon="🎯"
+            label="Éxito Promedio"
+            value={`${avgSuccessRate.toFixed(1)}%`}
+            gradient="from-orange-500 to-red-600"
+          />
+          <KPICard
+            icon="⏱️"
+            label="Tiempo Promedio"
+            value={`${avgResponseTime.toFixed(1)}s`}
+            gradient="from-indigo-500 to-purple-600"
+          />
+        </motion.div>
+
+        {/* CONTENIDO PRINCIPAL */}
+        <AnimatePresence mode="wait">
+          {activeView === 'overview' && (
+            <motion.div
+              key="overview"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="space-y-6"
+            >
               {topicsKeys.map((tema: string) => {
-                const s: AnyRec = (topicStats as AnyRec)[tema]
+                const s: AnyRec = topicStats[tema]
                 const p1 = Math.round((s.n1 / s.total) * 100)
                 const p2 = Math.round((s.n2 / s.total) * 100)
                 const p3 = Math.round((s.n3 / s.total) * 100)
                 const prom = ((s.n1 * 1 + s.n2 * 2 + s.n3 * 3) / s.total).toFixed(1)
+                const thetaProm = (s.totalTheta / s.total).toFixed(2)
+                const tasaExito = s.totalAciertos + s.totalErrores > 0 
+                  ? ((s.totalAciertos / (s.totalAciertos + s.totalErrores)) * 100).toFixed(1)
+                  : '0'
+                const hasGap = p1 > 50
+
                 return (
-                  <div key={tema} className="bg-white/80 rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition">
-                    <div className="flex items-center gap-4 mb-6">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary text-white grid place-items-center text-xl">📖</div>
-                      <div className="flex-1">
-                        <h3 className="text-xl font-bold text-foreground">{tema}</h3>
-                        <p className="text-muted-foreground">{s.total} {s.total === 1 ? 'estudiante' : 'estudiantes'} evaluados</p>
+                  <motion.div
+                    key={tema}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileHover={{ y: -4 }}
+                    className={`bg-white/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border ${
+                      hasGap ? 'border-orange-300 ring-4 ring-orange-200' : 'border-white/50'
+                    }`}>
+                    <div className="flex items-center gap-6 mb-8">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-3xl shadow-lg">
+                        📖
                       </div>
-                      <div className="text-right">
-                        <div className="text-xs text-muted-foreground">Nivel promedio</div>
-                        <div className="text-2xl font-semibold text-primary">{prom}</div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-3xl font-black text-gray-800">{tema}</h3>
+                          {hasGap && (
+                            <span className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm rounded-full font-bold shadow-md">
+                              ⚠️ Atención requerida
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-gray-600 font-medium">
+                          {s.total} {s.total === 1 ? 'estudiante' : 'estudiantes'} • Nivel promedio: {prom} 
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm text-gray-500 font-semibold mb-1">Tasa de éxito</div>
+                        <div className="text-4xl font-black bg-gradient-to-r from-green-500 to-emerald-600 bg-clip-text text-transparent">
+                          {tasaExito}%
+                        </div>
                       </div>
                     </div>
-                    <BarRow label="Nivel 3 - Avanzado" emoji="🌟" color="from-green-400 to-green-600" bg="bg-green-50 border-green-200" value={p3} count={s.n3} />
-                    <BarRow label="Nivel 2 - Intermedio" emoji="⭐" color="from-yellow-400 to-yellow-600" bg="bg-yellow-50 border-yellow-200" value={p2} count={s.n2} />
-                    <BarRow label="Nivel 1 - Básico" emoji="💪" color="from-orange-400 to-orange-600" bg="bg-orange-50 border-orange-200" value={p1} count={s.n1} />
-                  </div>
+
+                    {hasGap && (
+                      <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200">
+                        <div className="font-bold text-orange-800 mb-3 flex items-center gap-2">
+                          <span className="text-xl">💡</span>
+                          <span>Recomendaciones Pedagógicas:</span>
+                        </div>
+                        <ul className="space-y-2 ml-6">
+                          <li className="text-sm text-orange-700">• Revisar material didáctico de "{tema}"</li>
+                          <li className="text-sm text-orange-700">• Asignar ejercicios de refuerzo para nivel básico</li>
+                          <li className="text-sm text-orange-700">• Considerar una sesión de repaso grupal</li>
+                          <li className="text-sm text-orange-700">• Evaluar metodología de enseñanza actual</li>
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      <ProgressBar
+                        label="Nivel 3 - Avanzado"
+                        emoji="🌟"
+                        percentage={p3}
+                        count={s.n3}
+                        gradient="from-green-400 to-emerald-600"
+                        bgColor="bg-green-50"
+                        borderColor="border-green-200"
+                      />
+                      <ProgressBar
+                        label="Nivel 2 - Intermedio"
+                        emoji="⭐"
+                        percentage={p2}
+                        count={s.n2}
+                        gradient="from-yellow-400 to-orange-500"
+                        bgColor="bg-yellow-50"
+                        borderColor="border-yellow-200"
+                      />
+                      <ProgressBar
+                        label="Nivel 1 - Básico"
+                        emoji="💪"
+                        percentage={p1}
+                        count={s.n1}
+                        gradient="from-orange-400 to-red-500"
+                        bgColor="bg-orange-50"
+                        borderColor="border-orange-200"
+                      />
+                    </div>
+
+                    <div className="mt-6 pt-6 border-t border-gray-200 grid grid-cols-3 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-black text-indigo-600">{s.totalAciertos}</div>
+                        <div className="text-xs text-gray-500 font-semibold">Aciertos totales</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-black text-red-600">{s.totalErrores}</div>
+                        <div className="text-xs text-gray-500 font-semibold">Errores totales</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-black text-purple-600">{(s.totalAciertos + s.totalErrores)}</div>
+                        <div className="text-xs text-gray-500 font-semibold">Total intentos</div>
+                      </div>
+                    </div>
+                  </motion.div>
                 )
               })}
-            </div>
-          )
-        ) : (
-          <div className="grid gap-6">
-            {filteredStudents.map((s: AnyRec) => (
-              <div key={s.id} className="relative overflow-hidden rounded-2xl bg-white/80 border border-white/20 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition">
-                <div className="relative p-6">
-                  <div className="flex items-center gap-4 mb-5">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary text-white grid place-items-center text-xl font-bold">
-                      {(s.nombres || '?').charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1">
-                      <h2 className="text-2xl font-bold">{s.nombres}</h2>
-                      <div className="text-sm text-muted-foreground flex gap-3 flex-wrap">
-                        <span>Temas: <b>{s.temas.length}</b></span>
-                        <span>Promedio: <b className="text-primary">{Number(s.nivelProm || 0).toFixed(1)}</b></span>
-                        <span>7d ✅ <b className="text-green-600">{s.correctos || 0}</b> / ❌ <b className="text-red-600">{s.incorrectos || 0}</b></span>
-                        {s.ultimo && <span>Último: {new Date(s.ultimo).toLocaleDateString()}</span>}
-                      </div>
-                    </div>
-                    <Link href={`/dashboard/teacher/classroom/${classroomId}/performance/${s.id}`} className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary/90">
-                      Ver detalle →
-                    </Link>
-                  </div>
+            </motion.div>
+          )}
 
-                  {s.temas.length ? (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {s.temas.sort((a: AnyRec, b: AnyRec) => String(a.tema).localeCompare(String(b.tema))).map((t: AnyRec, i: number) => (
-                        <button
-                          key={i}
-                          onClick={() => { setTemaFilter(t.tema); setShowGraphs(false) }}
-                          className="text-left p-4 rounded-xl border-2 bg-white/60 hover:bg-white transition"
-                          title="Filtrar por este tema"
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-semibold text-sm">{t.tema}</span>
-                            <span className="text-lg">{getNivelEmoji(t.nivel)}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium border ${getNivelColor(t.nivel)}`}>
-                              Nivel {t.nivel}
-                            </span>
-                            <span className="text-xs text-muted-foreground">{getNivelLabel(t.nivel)}</span>
-                          </div>
-                        </button>
+          {activeView === 'students' && (
+            <motion.div
+              key="students"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+            >
+              {/* FILTROS */}
+              <div className="mb-6 bg-white/90 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-white/50">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">🔍 Buscar estudiante</label>
+                    <input
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Nombre del estudiante..."
+                      className="w-full px-4 py-3 rounded-xl bg-white border-2 border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">📚 Filtrar por tema</label>
+                    <select
+                      value={temaFilter}
+                      onChange={e => setTemaFilter(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-white border-2 border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition"
+                    >
+                      {temasUnicos.map(t => (
+                        <option key={t} value={t}>
+                          {t === '__ALL__' ? 'Todos los temas' : t}
+                        </option>
                       ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-muted-foreground">Aún no hay temas registrados</div>
-                  )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">⭐ Filtrar por nivel</label>
+                    <select
+                      value={String(nivelFilter)}
+                      onChange={e => setNivelFilter(e.target.value === '__ALL__' ? '__ALL__' : e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-white border-2 border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition"
+                    >
+                      <option value="__ALL__">Todos los niveles</option>
+                      <option value="1">Nivel 1 - Básico</option>
+                      <option value="2">Nivel 2 - Intermedio</option>
+                      <option value="3">Nivel 3 - Avanzado</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
 
-      
+              {/* LISTA DE ESTUDIANTES */}
+              <div className="space-y-6">
+                {filteredStudents.map((s: AnyRec) => {
+                  const isAtRisk = studentsAtRisk.some(sr => sr.id === s.id)
+                  const recommendations = getRecommendations(s)
+
+                  return (
+                    <motion.div
+                      key={s.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      whileHover={{ y: -4 }}
+                      className={`relative bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border-2 overflow-hidden ${
+                        isAtRisk
+                          ? 'border-red-300 ring-4 ring-red-200'
+                          : 'border-white/50'
+                      }`}
+                    >
+                      {isAtRisk && (
+                        <div className="absolute top-6 right-6 z-10">
+                          <motion.div
+                            animate={{ scale: [1, 1.1, 1] }}
+                            transition={{ duration: 1, repeat: Infinity }}
+                            className="bg-gradient-to-r from-red-500 to-pink-600 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg flex items-center gap-2"
+                          >
+                            <span>🚨</span>
+                            <span>Requiere atención</span>
+                          </motion.div>
+                        </div>
+                      )}
+
+                      <div className="p-8">
+                        <div className="flex items-center gap-6 mb-6">
+                          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white flex items-center justify-center text-4xl font-black shadow-xl">
+                            {(s.nombres || '?').charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1">
+                            <h2 className="text-3xl font-black text-gray-800 mb-2">{s.nombres}</h2>
+                            <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                              <span className="flex items-center gap-1">
+                                <span className="font-bold">📚</span> {s.temas.length} temas
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="font-bold">⭐</span> Nivel: {Number(s.nivelProm || 0).toFixed(1)}
+                              </span>
+                        
+                              <span className="flex items-center gap-1">
+                                <span className="font-bold">✅</span> {s.correctExercises} correctos
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="font-bold">❌</span> {s.incorrectExercises} incorrectos
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="font-bold">📊</span> Éxito: {s.successRate.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        
+                        </div>
+
+                        {/* MÉTRICAS ADICIONALES */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                          <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-4 border-2 border-blue-200">
+                            <div className="text-xs text-blue-600 font-bold mb-1">Ejercicios totales</div>
+                            <div className="text-2xl font-black text-blue-700">{s.totalExercises}</div>
+                          </div>
+                          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-4 border-2 border-purple-200">
+                            <div className="text-xs text-purple-600 font-bold mb-1">Intentos promedio</div>
+                            <div className="text-2xl font-black text-purple-700">{s.avgAttempts.toFixed(1)}</div>
+                          </div>
+                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-4 border-2 border-green-200">
+                            <div className="text-xs text-green-600 font-bold mb-1">Tiempo promedio</div>
+                            <div className="text-2xl font-black text-green-700">{s.avgTime.toFixed(1)}s</div>
+                          </div>
+                          <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-4 border-2 border-orange-200">
+                            <div className="text-xs text-orange-600 font-bold mb-1">Último intento</div>
+                            <div className="text-sm font-black text-orange-700">
+                              {s.lastResponse ? new Date(s.lastResponse).toLocaleDateString() : 'N/A'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* RECOMENDACIONES */}
+                        {recommendations.length > 0 && (
+                          <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200">
+                            <div className="font-bold text-blue-800 mb-3 flex items-center gap-2">
+                              <span className="text-xl">💡</span>
+                              <span>Acciones Recomendadas:</span>
+                            </div>
+                            <div className="space-y-2">
+                              {recommendations.map((rec, i) => (
+                                <div key={i} className="text-sm text-blue-700 flex items-start gap-2">
+                                  <span className="mt-0.5 font-bold">→</span>
+                                  <span>{rec}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* TEMAS DEL ESTUDIANTE */}
+                        {s.temas.length > 0 ? (
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {s.temas
+                              .sort((a: AnyRec, b: AnyRec) => String(a.tema).localeCompare(String(b.tema)))
+                              .map((t: AnyRec, i: number) => (
+                                <motion.button
+                                  key={i}
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => {
+                                    setTemaFilter(t.tema)
+                                    setActiveView('overview')
+                                  }}
+                                  className="text-left p-5 rounded-2xl bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 hover:border-indigo-300 hover:shadow-xl transition"
+                                >
+                                  <div className="flex items-center justify-between mb-3">
+                                    <span className="font-bold text-gray-800 text-sm">{t.tema}</span>
+                                    <span className="text-2xl">{getNivelEmoji(t.nivel)}</span>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-bold border-2 ${getNivelColor(t.nivel)}`}>
+                                      Nivel {t.nivel}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div>
+                                        <span className="text-gray-500">Theta:</span>
+                                        <span className="ml-1 font-bold text-gray-800">{Number(t.theta || 0).toFixed(2)}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500">Racha:</span>
+                                        <span className="ml-1 font-bold text-gray-800">{t.streak || 0}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </motion.button>
+                              ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            <div className="text-4xl mb-2">📭</div>
+                            <div className="font-semibold">Sin temas registrados aún</div>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )
+                })}
+
+                {filteredStudents.length === 0 && (
+                  <div className="text-center py-16 bg-white/90 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50">
+                    <div className="text-6xl mb-4">🔍</div>
+                    <h3 className="text-2xl font-black text-gray-800 mb-2">No se encontraron estudiantes</h3>
+                    <p className="text-gray-600">Intenta ajustar los filtros de búsqueda</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {activeView === 'analytics' && (
+            <motion.div
+              key="analytics"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="space-y-6"
+            >
+              {/* ANÁLISIS GLOBAL */}
+              <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50">
+                <h3 className="text-3xl font-black text-gray-800 mb-6 flex items-center gap-3">
+                  <span>🔬</span>
+                  <span>Análisis Profundo de Rendimiento</span>
+                </h3>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Distribución de niveles global */}
+                  <div className="p-6 rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200">
+                    <div className="font-bold text-purple-800 mb-4 text-lg">📊 Distribución de Niveles (Global)</div>
+                    <div className="space-y-3">
+                      {[1, 2, 3].map(nivel => {
+                        const count = periodos.filter(p => p.nivel === nivel).length
+                        const percentage = periodos.length > 0 ? (count / periodos.length) * 100 : 0
+                        return (
+                          <div key={nivel}>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm font-semibold text-gray-700">
+                                {getNivelEmoji(nivel)} Nivel {nivel}
+                              </span>
+                              <span className="text-sm font-bold text-purple-700">
+                                {count} ({percentage.toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-purple-100 rounded-full h-3 overflow-hidden border border-purple-300">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${percentage}%` }}
+                                transition={{ duration: 0.8, ease: 'easeOut' }}
+                                className={`h-full bg-gradient-to-r ${
+                                  nivel === 3
+                                    ? 'from-green-400 to-emerald-600'
+                                    : nivel === 2
+                                    ? 'from-yellow-400 to-orange-500'
+                                    : 'from-orange-400 to-red-500'
+                                }`}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Distribución de Theta */}
+                  <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200">
+                    <div className="font-bold text-blue-800 mb-4 text-lg">🎯 Distribución de Habilidad (Theta)</div>
+                    <div className="space-y-3">
+                      {[
+                        { label: 'Theta < -0.5', range: [-Infinity, -0.5], color: 'from-red-400 to-orange-500' },
+                        { label: '-0.5 ≤ Theta < 0.5', range: [-0.5, 0.5], color: 'from-yellow-400 to-orange-500' },
+                        { label: 'Theta ≥ 0.5', range: [0.5, Infinity], color: 'from-green-400 to-emerald-600' },
+                      ].map(({ label, range, color }) => {
+                        const count = periodos.filter(p => p.theta >= range[0] && p.theta < range[1]).length
+                        const percentage = periodos.length > 0 ? (count / periodos.length) * 100 : 0
+                        return (
+                          <div key={label}>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm font-semibold text-gray-700">{label}</span>
+                              <span className="text-sm font-bold text-blue-700">
+                                {count} ({percentage.toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-blue-100 rounded-full h-3 overflow-hidden border border-blue-300">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${percentage}%` }}
+                                transition={{ duration: 0.8, ease: 'easeOut' }}
+                                className={`h-full bg-gradient-to-r ${color}`}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Tasa de éxito por tema */}
+                  <div className="p-6 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200">
+                    <div className="font-bold text-green-800 mb-4 text-lg">✅ Tasa de Éxito por Tema</div>
+                    <div className="space-y-3 max-h-64 overflow-y-auto">
+                      {Object.entries(topicStats)
+                        .sort((a: any, b: any) => {
+                          const rateA = a[1].totalAciertos / (a[1].totalAciertos + a[1].totalErrores || 1)
+                          const rateB = b[1].totalAciertos / (b[1].totalAciertos + b[1].totalErrores || 1)
+                          return rateB - rateA
+                        })
+                        .map(([tema, stats]: any) => {
+                          const rate = stats.totalAciertos + stats.totalErrores > 0
+                            ? (stats.totalAciertos / (stats.totalAciertos + stats.totalErrores)) * 100
+                            : 0
+                          return (
+                            <div key={tema}>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-sm font-semibold text-gray-700 truncate">{tema}</span>
+                                <span className="text-sm font-bold text-green-700">{rate.toFixed(1)}%</span>
+                              </div>
+                              <div className="w-full bg-green-100 rounded-full h-3 overflow-hidden border border-green-300">
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${rate}%` }}
+                                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                                  className={`h-full bg-gradient-to-r ${
+                                    rate >= 75 ? 'from-green-400 to-emerald-600' :
+                                    rate >= 50 ? 'from-yellow-400 to-orange-500' :
+                                    'from-orange-400 to-red-500'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  </div>
+
+                  {/* Tendencias de tiempo */}
+                  <div className="p-6 rounded-2xl bg-gradient-to-br from-orange-50 to-red-50 border-2 border-orange-200">
+                    <div className="font-bold text-orange-800 mb-4 text-lg">⏱️ Análisis de Tiempos</div>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="text-sm text-gray-600 mb-1">Tiempo promedio por ejercicio</div>
+                        <div className="text-3xl font-black text-orange-700">{avgResponseTime.toFixed(1)}s</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600 mb-1">Tasa de completación</div>
+                        <div className="text-3xl font-black text-orange-700">{completionRate.toFixed(1)}%</div>
+                      </div>
+                      <div className="pt-4 border-t border-orange-200">
+                        <div className="text-xs text-gray-600 mb-2">Estudiantes por velocidad:</div>
+                        <div className="space-y-1">
+                          {[
+                            { label: 'Rápidos (< 30s)', count: studentsFull.filter(s => s.avgTime < 30).length },
+                            { label: 'Moderados (30-60s)', count: studentsFull.filter(s => s.avgTime >= 30 && s.avgTime < 60).length },
+                            { label: 'Lentos (> 60s)', count: studentsFull.filter(s => s.avgTime >= 60).length },
+                          ].map(({ label, count }) => (
+                            <div key={label} className="flex justify-between text-sm">
+                              <span className="text-gray-700">{label}</span>
+                              <span className="font-bold text-orange-700">{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TOP PERFORMERS */}
+              <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50">
+                <h3 className="text-3xl font-black text-gray-800 mb-6 flex items-center gap-3">
+                  <span>🏆</span>
+                  <span>Top Estudiantes</span>
+                </h3>
+                <div className="grid gap-4 md:grid-cols-3">
+                  {studentsFull
+                    .sort((a, b) => b.successRate - a.successRate)
+                    .slice(0, 9)
+                    .map((s: AnyRec, index) => (
+                      <motion.div
+                        key={s.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="p-5 rounded-2xl bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-300 hover:shadow-xl transition"
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="text-3xl font-black text-yellow-600">#{index + 1}</div>
+                          <div className="flex-1">
+                            <div className="font-bold text-gray-800 text-sm truncate">{s.nombres}</div>
+                            <div className="text-xs text-gray-600">{s.successRate.toFixed(1)}% éxito</div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-white rounded-lg p-2 text-center">
+                            <div className="font-bold text-green-600">{s.correctExercises}</div>
+                            <div className="text-gray-500">Correctos</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 text-center">
+                            <div className="font-bold text-indigo-600">{s.nivelProm.toFixed(1)}</div>
+                            <div className="text-gray-500">Nivel</div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )
 }
 
-/* ---------- Subcomponentes ---------- */
+/* ---------- COMPONENTES ---------- */
 
-function EmptyState({ title, subtitle, icon }: AnyRec) {
+function KPICard({ icon, label, value, gradient }: any) {
   return (
-    <div className="text-center py-12">
-      <div className="text-6xl mb-3">{icon}</div>
-      <h3 className="text-xl font-semibold text-foreground mb-1">{title}</h3>
-      <p className="text-muted-foreground">{subtitle}</p>
-    </div>
+    <motion.div
+      whileHover={{ scale: 1.05, y: -4 }}
+      className="bg-white/90 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/50"
+    >
+      <div className="text-center">
+        <div className="text-4xl mb-3">{icon}</div>
+        <div className={`text-4xl font-black bg-gradient-to-r ${gradient} bg-clip-text text-transparent mb-2`}>
+          {value}
+        </div>
+        <div className="text-sm text-gray-600 font-semibold">{label}</div>
+      </div>
+      </motion.div>
   )
 }
 
-function KPI({ icon, label, value }: AnyRec) {
+function ProgressBar({ label, emoji, percentage, count, gradient, bgColor, borderColor }: any) {
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 text-center">
-      <div className="text-2xl mb-2">{icon}</div>
-      <div className="text-2xl font-bold text-primary">{value}</div>
-      <div className="text-sm text-muted-foreground">{label}</div>
-    </div>
-  )
-}
-
-function BarRow({ label, emoji, value, count, color, bg }: AnyRec) {
-  return (
-    <div className="space-y-2 mb-3">
+    <div className="space-y-2">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <span className="text-lg">{emoji}</span>
-          <span className="font-medium text-foreground">{label}</span>
+          <span className="text-xl">{emoji}</span>
+          <span className="font-bold text-gray-800">{label}</span>
         </div>
-        <span className="text-sm font-bold text-foreground">
-          {count} ({value}%)
+        <span className="text-sm font-black text-gray-800">
+          {count} ({percentage}%)
         </span>
       </div>
-      <div className={`w-full ${bg} rounded-full h-4 overflow-hidden border`}>
-        <div className={`h-full bg-gradient-to-r ${color} transition-all duration-700 ease-out rounded-full`} style={{ width: `${value}%` }} />
+      <div className={`w-full ${bgColor} rounded-full h-4 overflow-hidden border-2 ${borderColor}`}>
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${percentage}%` }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          className={`h-full bg-gradient-to-r ${gradient} relative overflow-hidden`}
+        >
+          {/* Efecto shimmer */}
+          <motion.div
+            animate={{
+              x: ['-100%', '100%'],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: 'linear',
+            }}
+            className="absolute inset-0 w-1/2 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+          />
+        </motion.div>
       </div>
     </div>
   )
+}
+
+function getNivelEmoji(nivel: any) {
+  return nivel === 3 ? '🌟' : nivel === 2 ? '⭐' : nivel === 1 ? '💪' : '❓'
+}
+
+function getNivelColor(nivel: any) {
+  return nivel === 3
+    ? 'bg-green-100 text-green-800 border-green-300'
+    : nivel === 2
+    ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
+    : nivel === 1
+    ? 'bg-orange-100 text-orange-800 border-orange-300'
+    : 'bg-gray-100 text-gray-800 border-gray-300'
 }

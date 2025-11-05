@@ -149,6 +149,7 @@ export default function TemaPlayPage() {
 
   const [tema, setTema] = useState<any>(null)
   const [reglas, setReglas] = useState<any[]>([])
+  const [currentExerciseAttempts, setCurrentExerciseAttempts] = useState<any[]>([])
   const [ej, setEj] = useState<any>(null)
 
   const [nivel, setNivel] = useState(1)
@@ -167,6 +168,37 @@ export default function TemaPlayPage() {
   const [startAt, setStartAt] = useState<number>(Date.now()) // inicio del ítem (ms)
 
   const inputRef = useRef<HTMLInputElement | null>(null)
+  // Función para obtener el ID del usuario (estudiante)
+async function getUserId() {
+  const { data: userRes } = await supabase.auth.getUser()
+  return userRes?.user?.id
+}
+
+
+
+// Función para guardar cada intento en la tabla 'student_attempt'
+async function logAttempt({
+  correct, variantId, respuesta, correctValue, nivel, attemptIndex, timeSec, isTrueSuccess
+}: {
+  correct: boolean, variantId?: string, respuesta?: number, correctValue?: number,
+  nivel: number, attemptIndex: number, timeSec: number, isTrueSuccess: boolean
+}) {
+  const userId = await getUserId()
+  if (!userId || !id) return
+  await supabase.from('student_attempt').insert({
+    student_id: userId,
+    tema_periodo_id: id,
+    nivel,
+    variant_id: variantId || null,
+    correct,
+    respuesta: isFinite(Number(respuesta)) ? Number(respuesta) : null,
+    correct_value: isFinite(Number(correctValue)) ? Number(correctValue) : null,
+    attempt_index: attemptIndex,
+    elapsed_seconds: Math.min(999, Math.max(0, Math.round(timeSec))),
+    true_success: isTrueSuccess
+  })
+}
+
 
   // Carga inicial
   useEffect(() => {
@@ -325,169 +357,251 @@ export default function TemaPlayPage() {
   }, [ej])
 
   /************ Persistencia ************/
-  async function saveProgress({ nivel, theta, aciertos, errores, streak }: {
-    nivel: number, theta: number, aciertos: number, errores: number, streak: number
-  }) {
-    if (!userId || !id) return
-    await supabase.from('student_periodo').upsert({
-      student_id: userId,
-      tema_periodo_id: id,
+ // Guardar el progreso en la tabla `student_responses`
+async function saveResponse({
+  student_id, tema_periodo_id, nivel, es_correcto, tiempo_segundos, ejercicio_data, respuesta, accion
+}: {
+  student_id: string, tema_periodo_id: string, nivel: number, es_correcto: boolean, tiempo_segundos: number, ejercicio_data: any, respuesta: any, accion: number
+}) {
+  try {
+    // Crear el objeto JSON con toda la información relevante
+    const responseJson = {
+      student_id,
+      tema_periodo_id,
       nivel,
-      theta,
-      aciertos,
-      errores,
-      streak,
-      last_seen: new Date().toISOString()
-    }, { onConflict: 'student_id,tema_periodo_id' })
-  }
+      es_correcto,
+      tiempo_segundos,
+      ejercicio_data,
+      respuesta,
+      accion
+    }
 
-  async function logAttempt({ correct, variantId, respuesta, correctValue, nivel, attemptIndex, timeSec, isTrueSuccess }: {
-    correct: boolean, variantId?: string, respuesta?: number, correctValue?: number,
-    nivel: number, attemptIndex: number, timeSec: number, isTrueSuccess: boolean
-  }) {
-    if (!userId || !id) return
-    await supabase.from('student_attempt').insert({
-      student_id: userId,
-      tema_periodo_id: id,
-      nivel,
-      variant_id: variantId || null,
-      correct,
-      respuesta: isFinite(Number(respuesta)) ? Number(respuesta) : null,
-      correct_value: isFinite(Number(correctValue)) ? Number(correctValue) : null,
-      attempt_index: attemptIndex,
-      elapsed_seconds: Math.min(999, Math.max(0, Math.round(timeSec))),
-      true_success: isTrueSuccess
+    // Insertar los datos en la tabla student_responses como un solo objeto JSON
+    await supabase.from('student_responses').insert({
+      student_id,
+      tema_periodo_id,
+      respuesta: responseJson,  // Guardamos todo en un solo campo JSON
+      tiempo_segundos,
+      accion
     })
+
+    // Puedes agregar un toast de éxito si lo necesitas
+    toast.success('Respuesta guardada correctamente')
+  } catch (error) {
+    toast.error('Error guardando el intento de respuesta')
+    console.error(error)
   }
+}
+
+async function saveExerciseCompletion({
+  student_id,
+  tema_periodo_id,
+  nivel,
+  es_correcto,
+  tiempo_total_segundos,
+  intentos_realizados,
+  ejercicio_data,
+  respuesta_final,
+  theta_inicial,
+  theta_final
+}: {
+  student_id: string
+  tema_periodo_id: string
+  nivel: number
+  es_correcto: boolean
+  tiempo_total_segundos: number
+  intentos_realizados: number
+  ejercicio_data: any
+  respuesta_final: any
+  theta_inicial: number
+  theta_final: number
+}) {
+  try {
+    const progresoJson = {
+      student_id,
+      tema_periodo_id,
+      nivel,
+      ejercicio: {
+        nombre: ejercicio_data.nombre,
+        variante_id: ejercicio_data.variant_id,
+        dificultad: ejercicio_data.dificultad,
+        pregunta: ejercicio_data.pregunta,
+        unidades: ejercicio_data.unidades,
+        respuesta_correcta: ejercicio_data.respuesta_correcta
+      },
+      progreso: {
+        intentos_realizados,
+        intentos_maximos: ejercicio_data.intentos_maximos,
+        tiempo_total_segundos,
+        tiempo_promedio_por_intento: tiempo_total_segundos / intentos_realizados,
+        historial_intentos: currentExerciseAttempts
+      },
+      resultado: {
+        es_correcto,
+        respuesta_final: respuesta_final.valor,
+        diferencia: Math.abs(respuesta_final.valor - ejercicio_data.respuesta_correcta),
+        tipo_finalizacion: es_correcto ? 'acierto' : 'agotado'
+      },
+      adaptativo: {
+        theta_inicial,
+        theta_final,
+        cambio_theta: theta_final - theta_inicial
+      },
+      timestamp: new Date().toISOString()
+    }
+
+    await supabase.from('student_responses').insert({
+      student_id,
+      tema_periodo_id,
+      respuesta: progresoJson,
+      tiempo_segundos: tiempo_total_segundos,
+      accion: es_correcto ? 1 : 2 // 1=acierto, 2=agotado
+    })
+
+    // Limpiar el historial de intentos para el siguiente ejercicio
+    setCurrentExerciseAttempts([])
+    
+  } catch (error) {
+    console.error('Error guardando progreso:', error)
+    toast.error('Error guardando el progreso')
+  }
+}
+
 
   // Verificar
-  async function verificar() {
-    if (!ej) return
-    const val = Number(String(respuesta).replace(',', '.'))
-    if (Number.isNaN(val)) {
-      toast.error('Ingresa un número válido')
-      return
-    }
+ // Verificar la respuesta y guardar en la tabla `student_responses`
+async function verificar() {
+  if (!ej) return
 
-    const attemptIndex = attempt // 0-based antes de verificar
-    const ok = withinTol(val, ej.correct, tol)
-    const timeSec = Math.max(0.1, (Date.now() - startAt) / 1000)
-
-    const diff = getVariantDifficulty(ej.variant, nivel)
-    const quality = qualityFromAttempt(ok, attemptIndex)
-    const { nextTheta, p } = updateThetaSmart({
-      theta: ability,
-      diff,
-      quality,
-      timeSec,
-      targetSec: pva?.target_time_sec ?? 40
-    })
-
-    // --- REGLAS DOCENTES / PVA ---
-    // Acierto real: intento 0 o 1
-    const isTrueSuccess = ok && attemptIndex <= 1
-    // Fallo revelado: se acaban intentos (luego de este chequeo)
-    const willExhaust = !ok && (attemptIndex + 1) >= maxAtt
-
-    // 1) Contadores visibles coherentes
-    let newAciertos = aciertos
-    let newErrores = errores
-    let newStreak = streak
-    let newNivel = nivel
-    let nextRevealStreak = revealStreak
-
-    if (isTrueSuccess) {
-      newAciertos += 1
-      newStreak += 1
-      nextRevealStreak = 0
-    }
-
-    if (willExhaust) {
-      newErrores += 1
-      newStreak = 0
-      nextRevealStreak = revealStreak + 1
-
-      // Democión base (-1)
-      if (newNivel > 1) newNivel = newNivel - 1
-
-      // Democión dura si hay racha de reveals (pva.demote)
-      const hardThr = pva?.demote?.hard_reveal_streak ?? Infinity
-      const multiDrop = pva?.demote?.multi_drop_levels ?? 1
-      if (nextRevealStreak >= hardThr && newNivel > 1 && multiDrop > 1) {
-        const totalDrop = Math.min(multiDrop - 1, newNivel - 1) // ya bajó 1
-        newNivel = newNivel - totalDrop
-        toast.error(`⤵️ Baja adicional por errores consecutivos. Nivel ${newNivel}`)
-      } else {
-        toast.error(`📉 Bajaste al Nivel ${newNivel}`)
-      }
-    }
-
-    // 2) Subir de nivel por maestría (streak real)
-    const needStreak = pva?.mastery?.true_streak_for_level_up ?? 3
-    if (newStreak >= needStreak && newNivel < 3) {
-      // Salto doble: sólo si venía del 1, muy alta p esperada y rápido
-      const dblThr = pva?.mastery?.double_jump_threshold
-      const spdFactor = pva?.mastery?.double_jump_speed_factor ?? 0.5
-      const targetTime = pva?.target_time_sec ?? 40
-
-      if (
-        newNivel === 1 &&
-        dblThr != null &&
-        p >= dblThr &&
-        timeSec <= targetTime * spdFactor
-      ) {
-        newNivel = Math.min(3, newNivel + 2)
-        toast.success('🚀 ¡Salto doble por dominio y velocidad! Nivel 3')
-      } else {
-        newNivel = newNivel + 1
-        toast.success(`🎉 ¡Subiste al Nivel ${newNivel}!`)
-      }
-      newStreak = 0
-    }
-
-    // 3) UI feedback
-    if (ok) {
-      toast.success(`✅ Correcto: ${fmt(ej.correct, tol.decimals ?? 2)} ${units}`)
-      confetti({ particleCount: 140, spread: 70, origin: { y: 0.6 } })
-      setStatus('ok')
-    } else {
-      const next = attempt + 1
-      setAttempt(next)
-      if (willExhaust) {
-        toast.error(`❌ Incorrecto. Respuesta: ${fmt(ej.correct, tol.decimals ?? 2)} ${units}`)
-        setStatus('revealed')
-      } else {
-        setStatus('fail')
-      }
-    }
-
-    // Aplicar estados y persistir
-    setAciertos(newAciertos)
-    setErrores(newErrores)
-    setStreak(newStreak)
-    setAbility(nextTheta)
-    setNivel(newNivel)
-    setRevealStreak(nextRevealStreak)
-
-    // Log + progreso
-    logAttempt({
-      correct: ok,
-      variantId: ej?.variant?.id,
-      respuesta: val,
-      correctValue: ej.correct,
-      nivel: newNivel,
-      attemptIndex,
-      timeSec,
-      isTrueSuccess
-    })
-    saveProgress({
-      nivel: newNivel,
-      theta: nextTheta,
-      aciertos: newAciertos,
-      errores: newErrores,
-      streak: newStreak
-    })
+  const val = Number(String(respuesta).replace(',', '.'))
+  if (Number.isNaN(val)) {
+    toast.error('Ingresa un número válido')
+    return
   }
+
+  const attemptIndex = attempt
+  const ok = withinTol(val, ej.correct, tol)
+  const timeSec = Math.max(0.1, (Date.now() - startAt) / 1000)
+
+  // Registrar este intento en el historial local
+  const intentoActual = {
+    intento_numero: attemptIndex + 1,
+    respuesta: val,
+    correcta: ok,
+    tiempo_segundos: timeSec,
+    timestamp: new Date().toISOString()
+  }
+  
+  const updatedAttempts = [...currentExerciseAttempts, intentoActual]
+  setCurrentExerciseAttempts(updatedAttempts)
+
+  const diff = getVariantDifficulty(ej.variant, nivel)
+  const quality = qualityFromAttempt(ok, attemptIndex)
+  const thetaInicial = ability
+  const { nextTheta, p } = updateThetaSmart({
+    theta: ability,
+    diff,
+    quality,
+    timeSec,
+    targetSec: pva?.target_time_sec ?? 40
+  })
+
+  const isTrueSuccess = ok && attemptIndex <= 1
+  const willExhaust = !ok && (attemptIndex + 1) >= maxAtt
+
+  let newAciertos = aciertos
+  let newErrores = errores
+  let newStreak = streak
+  let newNivel = nivel
+  let nextRevealStreak = revealStreak
+
+  if (isTrueSuccess) {
+    newAciertos += 1
+    newStreak += 1
+    nextRevealStreak = 0
+  }
+
+  if (willExhaust) {
+    newErrores += 1
+    newStreak = 0
+    nextRevealStreak = revealStreak + 1
+    if (newNivel > 1) newNivel = newNivel - 1
+  }
+
+  const needStreak = pva?.mastery?.true_streak_for_level_up ?? 3
+  if (newStreak >= needStreak && newNivel < 3) {
+    newNivel = newNivel + 1
+    newStreak = 0
+  }
+
+  if (ok) {
+    toast.success(`✅ Correcto: ${fmt(ej.correct, tol.decimals ?? 2)} ${units}`)
+    confetti({ particleCount: 140, spread: 70, origin: { y: 0.6 } })
+    setStatus('ok')
+  } else {
+    const next = attempt + 1
+    setAttempt(next)
+    if (willExhaust) {
+      toast.error(`❌ Incorrecto. Respuesta: ${fmt(ej.correct, tol.decimals ?? 2)} ${units}`)
+      setStatus('revealed')
+    } else {
+      setStatus('fail')
+    }
+  }
+
+  // 🎯 GUARDAR SOLO SI EL EJERCICIO TERMINÓ
+  if (isTrueSuccess || willExhaust) {
+    const tiempoTotal = updatedAttempts.reduce((sum, a) => sum + a.tiempo_segundos, 0)
+    
+    await saveExerciseCompletion({
+      student_id: userId!,
+      tema_periodo_id: id as string,
+      nivel: newNivel,
+      es_correcto: isTrueSuccess,
+      tiempo_total_segundos: tiempoTotal,
+      intentos_realizados: updatedAttempts.length,
+      ejercicio_data: {
+        nombre: ej.name,
+        variant_id: ej.variant?.id || null,
+        dificultad: diff,
+        pregunta: ej.variant?.unknown,
+        unidades: units,
+        respuesta_correcta: ej.correct,
+        intentos_maximos: maxAtt
+      },
+      respuesta_final: {
+        valor: val,
+        intento: attemptIndex + 1
+      },
+      theta_inicial: thetaInicial,
+      theta_final: nextTheta
+    })
+
+    // Actualizar student_periodo
+    await supabase
+      .from('student_periodo')
+      .update({
+        nivel: newNivel,
+        theta: nextTheta,
+        aciertos: newAciertos,
+        errores: newErrores,
+        streak: newStreak
+      })
+      .eq('student_id', userId)
+      .eq('tema_periodo_id', id)
+  }
+
+  // Actualizar estados locales
+  setAciertos(newAciertos)
+  setErrores(newErrores)
+  setStreak(newStreak)
+  setAbility(nextTheta)
+  setNivel(newNivel)
+  setRevealStreak(nextRevealStreak)
+}
+
+
+
 
   // Render
   if (loading) return <div className="p-6">Cargando...</div>
