@@ -2,7 +2,6 @@
 
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import * as XLSX from 'xlsx'
 

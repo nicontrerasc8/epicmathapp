@@ -6,6 +6,10 @@ import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 
 type Props = {
+  // Ahora puede ser:
+  // - el objeto completo de nivel (con .dsl)
+  // - directamente el dsl (con .canvas opcional)
+  // - o un meta con .meta
   pregunta?: any
   valores?: Record<string, any>
   zoomOverride?: number
@@ -14,9 +18,16 @@ type Props = {
 export default function GameRenderer({ pregunta, valores = {}, zoomOverride }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-  const meta = (pregunta?.dsl || pregunta?.meta || {}) ?? {}
+  // 🔧 Normalizamos la estructura:
+  //  - si viene como { dsl: {...} } → usamos .dsl
+  //  - si viene como { meta: {...} } → usamos .meta
+  //  - si viene como el dsl directo → usamos el objeto tal cual
+  const raw = pregunta || {}
+  const meta = (raw.dsl || raw.meta || raw) ?? {}
+
   const disp = meta.display || {}
   const c = meta.canvas || {}
+
   const baseW = disp.canvas?.width ?? c.width ?? 720
   const baseH = disp.canvas?.height ?? c.height ?? 420
   const zoom = zoomOverride ?? (disp.zoom ?? 1)
@@ -43,7 +54,7 @@ export default function GameRenderer({ pregunta, valores = {}, zoomOverride }: P
       ctx.setTransform(canvas.width / baseW, 0, 0, canvas.height / baseH, 0, 0)
       ctx.clearRect(0, 0, baseW, baseH)
 
-      // Fondo sutil para legibilidad
+      // Fondo sutil
       ctx.fillStyle = '#ffffff'
       ctx.fillRect(0, 0, baseW, baseH)
 
@@ -67,16 +78,18 @@ export default function GameRenderer({ pregunta, valores = {}, zoomOverride }: P
         ctx.restore()
       }
 
-      let script = c.script || ''
+      const script = c.script || ''
+
+      // 🧩 Si NO hay canvas/script, mostramos un mensajito y listo
       if (!script) {
         ctx.fillStyle = '#6B7280'
         ctx.font = '14px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto'
-        ctx.fillText('(No hay script de renderizado)', 24, baseH / 2)
+        ctx.fillText('(Este ejercicio no tiene dibujo)', 24, baseH / 2)
         return
       }
 
       try {
-        // Soporta scripts con VAL.* y/o plantillas {{var}}
+        // Soporta scripts con VAL.* y/o {{var}}
         let runnable = script
         const usesVAL = /(^|[^A-Za-z0-9_])VAL\./.test(script)
         if (!usesVAL) {
@@ -120,7 +133,11 @@ export default function GameRenderer({ pregunta, valores = {}, zoomOverride }: P
           ctx.fillStyle = '#fff'
           ctx.font = '12px ui-sans-serif, system-ui'
           ctx.fillText(`W×H: ${baseW}×${baseH}`, 16, 24)
-          ctx.fillText(`DPR: ${Math.max(1, Math.floor(window.devicePixelRatio || 1))}`, 16, 40)
+          ctx.fillText(
+            `DPR: ${Math.max(1, Math.floor(window.devicePixelRatio || 1))}`,
+            16,
+            40
+          )
           ctx.restore()
         }
       } catch (e) {
@@ -131,10 +148,8 @@ export default function GameRenderer({ pregunta, valores = {}, zoomOverride }: P
       }
     }
 
-    // Dibuja al inicio y en resize
     draw()
 
-    // ResizeObserver para layout responsive
     let ro: ResizeObserver | null = null
     if ('ResizeObserver' in window) {
       ro = new ResizeObserver(() => draw())
