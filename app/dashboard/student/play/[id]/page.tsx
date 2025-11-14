@@ -375,10 +375,12 @@ export default function TemaPlayPage() {
       return ej.promptText
     }
 
-    const g = (ej.variant?.givens || []).map((k: string) => {
-      const v = ej.VAL[k]
-      return `${k} = ${k === 'theta' ? fmt(v, 0) + '°' : fmt(v)}`
-    }).join(', ')
+    const g = (ej.variant?.givens || [])
+      .map((k: string) => {
+        const v = ej.VAL[k]
+        return `${k} = ${k === 'theta' ? fmt(v, 0) + '°' : fmt(v)}`
+      })
+      .join(', ')
     return `Calcula ${ej.variant?.unknown} (${units}). Datos: ${g}.`
   }, [ej, units])
 
@@ -478,6 +480,12 @@ export default function TemaPlayPage() {
   async function verificar() {
     if (!ej) return
 
+    // 🔒 Bloqueo duro: si ya está correcto o revelado, no se puede volver a verificar
+    if (status === 'ok' || status === 'revealed') {
+      toast.error('❌ Este ejercicio ya ha sido completado o revelado.')
+      return
+    }
+
     const val = Number(String(respuesta).replace(',', '.'))
     if (Number.isNaN(val)) {
       toast.error('Ingresa un número válido')
@@ -485,6 +493,23 @@ export default function TemaPlayPage() {
     }
 
     const attemptIndex = attempt
+
+    // 🔢 Determinamos cuántos intentos REALMENTE están permitidos
+    const rawReveal = ej?.variant?.attempts?.reveal_after
+    const revealAfter =
+      typeof rawReveal === 'number' && rawReveal >= 0 ? rawReveal : Infinity
+
+    let lastAllowedAttempt =
+      typeof maxAtt === 'number' && maxAtt > 0 ? maxAtt : Infinity
+
+    // Si hay reveal_after definido, el número de intentos efectivos es el mínimo
+    if (revealAfter !== Infinity) {
+      lastAllowedAttempt = Math.min(lastAllowedAttempt, revealAfter)
+    }
+
+    const isLastAttempt =
+      lastAllowedAttempt !== Infinity && attemptIndex + 1 >= lastAllowedAttempt
+
     const ok = withinTol(val, ej.correct, tol)
     const timeSec = Math.max(0.1, (Date.now() - startAt) / 1000)
 
@@ -512,7 +537,7 @@ export default function TemaPlayPage() {
     })
 
     const isTrueSuccess = ok && attemptIndex <= 1
-    const willExhaust = !ok && attemptIndex + 1 >= maxAtt
+    const willExhaust = !ok && isLastAttempt
 
     let newAciertos = aciertos
     let newErrores = errores
@@ -547,14 +572,19 @@ export default function TemaPlayPage() {
       const next = attempt + 1
       setAttempt(next)
       if (willExhaust) {
-        toast.error(`❌ Incorrecto. Respuesta: ${fmt(ej.correct, tol.decimals ?? 2)} ${units}`)
+        toast.error(
+          `❌ Incorrecto. La respuesta correcta era: ${fmt(
+            ej.correct,
+            tol.decimals ?? 2
+          )} ${units}`
+        )
         setStatus('revealed')
       } else {
         setStatus('fail')
       }
     }
 
-    // 🎯 GUARDAR SOLO SI EL EJERCICIO TERMINÓ
+    // 🎯 GUARDAR SOLO SI EL EJERCICIO TERMINÓ (acierto real o agotado)
     if (isTrueSuccess || willExhaust) {
       const tiempoTotal = updatedAttempts.reduce((sum, a) => sum + a.tiempo_segundos, 0)
 
