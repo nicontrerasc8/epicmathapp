@@ -26,7 +26,7 @@ function sampleParams(params: Record<string, [number, number]>) {
   const out: Record<string, number> = {}
   for (const k in params || {}) {
     const [min, max] = params[k]
-    const wide = (max - min) > 10
+    const wide = max - min > 10
     const step = wide ? 1 : 0.5
     const m = Math.round(1 / step)
     const rnd = min + Math.floor(Math.random() * (max - min) * m) / m
@@ -53,7 +53,7 @@ function buildVAL(variant: any, sampled: any) {
   return {
     VAL: { ...VAL, resultado: correct },
     correct,
-    resultado: correct
+    resultado: correct,
   }
 }
 
@@ -101,7 +101,7 @@ const probCorrect = (theta: number, diff: number) => logistic(1.7 * (theta - dif
 function getVariantDifficulty(variant: any, nivel: number) {
   if (variant?.difficulty != null) return Number(variant.difficulty)
   // fallback por nivel (calibra con tus datos reales)
-  return nivel === 1 ? -0.6 : (nivel === 2 ? 0.0 : 0.8)
+  return nivel === 1 ? -0.6 : nivel === 2 ? 0.0 : 0.8
 }
 
 // Calidad por intento: 1.0 (intento 1–2), 0.4 (acierto tardío 3+), 0 (fallo)
@@ -111,9 +111,17 @@ function qualityFromAttempt(isCorrect: boolean, attemptIndex: number) {
 }
 
 function updateThetaSmart({
-  theta, diff, quality, timeSec, targetSec = 40
+  theta,
+  diff,
+  quality,
+  timeSec,
+  targetSec = 40,
 }: {
-  theta: number, diff: number, quality: number, timeSec: number, targetSec?: number
+  theta: number
+  diff: number
+  quality: number
+  timeSec: number
+  targetSec?: number
 }) {
   const p = probCorrect(theta, diff) // prob. esperada (modelo)
   let K = 0.6
@@ -132,12 +140,16 @@ function thetaToLevel(theta: number) {
 function pickAdaptiveVariant(dsl: any, nivel: number, theta: number) {
   const variants = dsl?.variants || []
   if (!variants.length) return null
-  let best = variants[0], bestGap = Infinity
+  let best = variants[0],
+    bestGap = Infinity
   for (const v of variants) {
     const d = getVariantDifficulty(v, nivel)
     const p = probCorrect(theta, d)
     const gap = Math.abs(p - 0.65) // Target ~65% éxito
-    if (gap < bestGap) { bestGap = gap; best = v }
+    if (gap < bestGap) {
+      bestGap = gap
+      best = v
+    }
   }
   return best
 }
@@ -156,14 +168,14 @@ export default function TemaPlayPage() {
   const [attempt, setAttempt] = useState(0)
   const [status, setStatus] = useState<'idle' | 'ok' | 'fail' | 'revealed'>('idle')
   const [aciertos, setAciertos] = useState(0) // aciertos REALES (1er/2do intento)
-  const [errores, setErrores] = useState(0)   // fallos REALES (fallo revelado)
+  const [errores, setErrores] = useState(0) // fallos REALES (fallo revelado)
   const [loading, setLoading] = useState(true)
   const [respuesta, setRespuesta] = useState('')
 
   // Adaptativo persistente
   const [userId, setUserId] = useState<string | null>(null)
   const [ability, setAbility] = useState(0) // theta
-  const [streak, setStreak] = useState(0)   // racha de aciertos REALES
+  const [streak, setStreak] = useState(0) // racha de aciertos REALES
   const [revealStreak, setRevealStreak] = useState(0) // racha de reveals/agotados
   const [startAt, setStartAt] = useState<number>(Date.now()) // inicio del ítem (ms)
 
@@ -177,10 +189,23 @@ export default function TemaPlayPage() {
 
   // Función para guardar cada intento en la tabla 'student_attempt'
   async function logAttempt({
-    correct, variantId, respuesta, correctValue, nivel, attemptIndex, timeSec, isTrueSuccess
+    correct,
+    variantId,
+    respuesta,
+    correctValue,
+    nivel,
+    attemptIndex,
+    timeSec,
+    isTrueSuccess,
   }: {
-    correct: boolean, variantId?: string, respuesta?: number, correctValue?: number,
-    nivel: number, attemptIndex: number, timeSec: number, isTrueSuccess: boolean
+    correct: boolean
+    variantId?: string
+    respuesta?: number
+    correctValue?: number
+    nivel: number
+    attemptIndex: number
+    timeSec: number
+    isTrueSuccess: boolean
   }) {
     const userId = await getUserId()
     if (!userId || !id) return
@@ -194,13 +219,13 @@ export default function TemaPlayPage() {
       correct_value: isFinite(Number(correctValue)) ? Number(correctValue) : null,
       attempt_index: attemptIndex,
       elapsed_seconds: Math.min(999, Math.max(0, Math.round(timeSec))),
-      true_success: isTrueSuccess
+      true_success: isTrueSuccess,
     })
   }
 
   // Carga inicial
   useEffect(() => {
-    (async () => {
+    ;(async () => {
       if (!id || typeof id !== 'string') return
       const { data: userRes } = await supabase.auth.getUser()
       if (!userRes?.user) {
@@ -264,7 +289,7 @@ export default function TemaPlayPage() {
 
       const parsed = (raws || []).map((r: any) => ({
         ...r,
-        dsl: typeof r.dsl === 'string' ? JSON.parse(r.dsl) : r.dsl
+        dsl: typeof r.dsl === 'string' ? JSON.parse(r.dsl) : r.dsl,
       }))
       setReglas(parsed)
 
@@ -321,6 +346,7 @@ export default function TemaPlayPage() {
     setRespuesta('')
     setStartAt(Date.now())
     setRevealStreak(0) // resetea la racha de reveal al cambiar de ítem
+    setCurrentExerciseAttempts([])
 
     // focus al input
     setTimeout(() => inputRef.current?.focus(), 50)
@@ -332,8 +358,9 @@ export default function TemaPlayPage() {
   const maxAtt = ej?.variant?.attempts?.max ?? 0
   const decimals = tol.decimals ?? 2
   const pva = ej?.dsl?.pva || {}
-  // 🖼 ¿Este ejercicio tiene canvas/script?
   const hasCanvas = !!(ej?.dsl?.canvas?.script)
+
+  const isFinished = status === 'ok' || status === 'revealed'
 
   const pctAttempts = useMemo(
     () => Math.min(1, attempt / Math.max(1, maxAtt)),
@@ -374,41 +401,6 @@ export default function TemaPlayPage() {
 
   /************ Persistencia ************/
   // Guardar el progreso en la tabla `student_responses`
-  async function saveResponse({
-    student_id, tema_periodo_id, nivel, es_correcto, tiempo_segundos, ejercicio_data, respuesta, accion
-  }: {
-    student_id: string, tema_periodo_id: string, nivel: number, es_correcto: boolean, tiempo_segundos: number, ejercicio_data: any, respuesta: any, accion: number
-  }) {
-    try {
-      // Crear el objeto JSON con toda la información relevante
-      const responseJson = {
-        student_id,
-        tema_periodo_id,
-        nivel,
-        es_correcto,
-        tiempo_segundos,
-        ejercicio_data,
-        respuesta,
-        accion
-      }
-
-      // Insertar los datos en la tabla student_responses como un solo objeto JSON
-      await supabase.from('student_responses').insert({
-        student_id,
-        tema_periodo_id,
-        respuesta: responseJson,  // Guardamos todo en un solo campo JSON
-        tiempo_segundos,
-        accion
-      })
-
-      // Puedes agregar un toast de éxito si lo necesitas
-      toast.success('Respuesta guardada correctamente')
-    } catch (error) {
-      toast.error('Error guardando el intento de respuesta')
-      console.error(error)
-    }
-  }
-
   async function saveExerciseCompletion({
     student_id,
     tema_periodo_id,
@@ -419,7 +411,7 @@ export default function TemaPlayPage() {
     ejercicio_data,
     respuesta_final,
     theta_inicial,
-    theta_final
+    theta_final,
   }: {
     student_id: string
     tema_periodo_id: string
@@ -443,27 +435,27 @@ export default function TemaPlayPage() {
           dificultad: ejercicio_data.dificultad,
           pregunta: ejercicio_data.pregunta,
           unidades: ejercicio_data.unidades,
-          respuesta_correcta: ejercicio_data.respuesta_correcta
+          respuesta_correcta: ejercicio_data.respuesta_correcta,
         },
         progreso: {
           intentos_realizados,
           intentos_maximos: ejercicio_data.intentos_maximos,
           tiempo_total_segundos,
           tiempo_promedio_por_intento: tiempo_total_segundos / intentos_realizados,
-          historial_intentos: currentExerciseAttempts
+          historial_intentos: currentExerciseAttempts,
         },
         resultado: {
           es_correcto,
           respuesta_final: respuesta_final.valor,
           diferencia: Math.abs(respuesta_final.valor - ejercicio_data.respuesta_correcta),
-          tipo_finalizacion: es_correcto ? 'acierto' : 'agotado'
+          tipo_finalizacion: es_correcto ? 'acierto' : 'agotado',
         },
         adaptativo: {
           theta_inicial,
           theta_final,
-          cambio_theta: theta_final - theta_inicial
+          cambio_theta: theta_final - theta_inicial,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }
 
       await supabase.from('student_responses').insert({
@@ -471,19 +463,17 @@ export default function TemaPlayPage() {
         tema_periodo_id,
         respuesta: progresoJson,
         tiempo_segundos: tiempo_total_segundos,
-        accion: es_correcto ? 1 : 2 // 1=acierto, 2=agotado
+        accion: es_correcto ? 1 : 2, // 1=acierto, 2=agotado
       })
 
       // Limpiar el historial de intentos para el siguiente ejercicio
       setCurrentExerciseAttempts([])
-
     } catch (error) {
       console.error('Error guardando progreso:', error)
       toast.error('Error guardando el progreso')
     }
   }
 
-  // Verificar
   // Verificar la respuesta y guardar en la tabla `student_responses`
   async function verificar() {
     if (!ej) return
@@ -504,7 +494,7 @@ export default function TemaPlayPage() {
       respuesta: val,
       correcta: ok,
       tiempo_segundos: timeSec,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     }
 
     const updatedAttempts = [...currentExerciseAttempts, intentoActual]
@@ -513,16 +503,16 @@ export default function TemaPlayPage() {
     const diff = getVariantDifficulty(ej.variant, nivel)
     const quality = qualityFromAttempt(ok, attemptIndex)
     const thetaInicial = ability
-    const { nextTheta, p } = updateThetaSmart({
+    const { nextTheta } = updateThetaSmart({
       theta: ability,
       diff,
       quality,
       timeSec,
-      targetSec: pva?.target_time_sec ?? 40
+      targetSec: pva?.target_time_sec ?? 40,
     })
 
     const isTrueSuccess = ok && attemptIndex <= 1
-    const willExhaust = !ok && (attemptIndex + 1) >= maxAtt
+    const willExhaust = !ok && attemptIndex + 1 >= maxAtt
 
     let newAciertos = aciertos
     let newErrores = errores
@@ -579,18 +569,18 @@ export default function TemaPlayPage() {
           nombre: ej.name,
           variant_id: ej.variant?.id || null,
           dificultad: diff,
-          // 🔹 Nuevo: guardamos el texto del enunciado si existe
+          // 🔹 guardamos el texto del enunciado si existe
           pregunta: ej.promptText || ej.variant?.unknown,
           unidades: units,
           respuesta_correcta: ej.correct,
-          intentos_maximos: maxAtt
+          intentos_maximos: maxAtt,
         },
         respuesta_final: {
           valor: val,
-          intento: attemptIndex + 1
+          intento: attemptIndex + 1,
         },
         theta_inicial: thetaInicial,
-        theta_final: nextTheta
+        theta_final: nextTheta,
       })
 
       // Actualizar student_periodo
@@ -601,7 +591,7 @@ export default function TemaPlayPage() {
           theta: nextTheta,
           aciertos: newAciertos,
           errores: newErrores,
-          streak: newStreak
+          streak: newStreak,
         })
         .eq('student_id', userId)
         .eq('tema_periodo_id', id)
@@ -625,7 +615,7 @@ export default function TemaPlayPage() {
       className="min-h-screen bg-background text-foreground p-6"
       style={{
         backgroundImage:
-          'radial-gradient(ellipse at top, rgba(59,130,246,.08), transparent 40%), radial-gradient(ellipse at bottom, rgba(250,204,21,.08), transparent 40%)'
+          'radial-gradient(ellipse at top, rgba(59,130,246,.08), transparent 40%), radial-gradient(ellipse at bottom, rgba(250,204,21,.08), transparent 40%)',
       }}
     >
       <h1 className="text-2xl font-bold mb-2 text-center">
@@ -675,7 +665,7 @@ export default function TemaPlayPage() {
 
         {/* Hints/Pistas progresivas */}
         <AnimatePresence>
-          {availableHints.length > 0 && status !== 'ok' && (
+          {availableHints.length > 0 && !isFinished && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -712,77 +702,85 @@ export default function TemaPlayPage() {
               inputMode="decimal"
               value={respuesta}
               onChange={e => setRespuesta(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && verificar()}
+              onKeyDown={e => e.key === 'Enter' && !isFinished && verificar()}
               placeholder={`Tu respuesta (${ej?.variant?.unknown})`}
               aria-label="Tu respuesta"
+              disabled={isFinished}
               className={`w-full text-center text-xl rounded-xl border px-5 py-3 bg-input outline-none transition focus:ring-2 focus:ring-ring ${
-                status === 'ok' ? 'border-green-500' : (status === 'fail' ? 'border-red-300' : 'border-border')
-              }`}
+                status === 'ok'
+                  ? 'border-green-500 bg-emerald-50'
+                  : status === 'fail'
+                  ? 'border-red-300'
+                  : 'border-border'
+              } ${isFinished ? 'opacity-80 cursor-not-allowed' : ''}`}
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
               {units}
             </span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-            {[-1, -0.1, +0.1, +1].map((delta) => (
-              <button
-                key={delta}
-                onClick={() =>
-                  setRespuesta(v => {
-                    const n = Number(String(v || '0').replace(',', '.')) || 0
-                    return fmt(n + delta, decimals)
-                  })
-                }
-                className="text-xs px-2 py-1 rounded-md border hover:bg-muted"
-                type="button"
-              >
-                {delta > 0 ? `+${delta}` : delta}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setRespuesta('')}
-              className="text-xs px-2 py-1 rounded-md border hover:bg-muted"
-            >
-              Limpiar
-            </button>
-            {DEV_TOOLS && (
+
+          {/* Botones +/- solo mientras no haya terminado */}
+          {!isFinished && (
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+              {[-1, -0.1, +0.1, +1].map(delta => (
+                <button
+                  key={delta}
+                  onClick={() =>
+                    setRespuesta(v => {
+                      const n = Number(String(v || '0').replace(',', '.')) || 0
+                      return fmt(n + delta, decimals)
+                    })
+                  }
+                  className="text-xs px-2 py-1 rounded-md border hover:bg-muted"
+                  type="button"
+                >
+                  {delta > 0 ? `+${delta}` : delta}
+                </button>
+              ))}
               <button
                 type="button"
-                onClick={() => setRespuesta(fmt(ej.correct, decimals))}
+                onClick={() => setRespuesta('')}
                 className="text-xs px-2 py-1 rounded-md border hover:bg-muted"
-                title="Autocompletar con la respuesta (pruebas docentes)"
               >
-                Autocompletar
+                Limpiar
               </button>
-            )}
-          </div>
+              {DEV_TOOLS && (
+                <button
+                  type="button"
+                  onClick={() => setRespuesta(fmt(ej.correct, decimals))}
+                  className="text-xs px-2 py-1 rounded-md border hover:bg-muted"
+                  title="Autocompletar con la respuesta (pruebas docentes)"
+                >
+                  Autocompletar
+                </button>
+              )}
+            </div>
+          )}
         </motion.div>
 
+        {/* Botones principales */}
         <div className="flex items-center justify-center gap-4">
-          <motion.button
-            whileTap={{ scale: status === 'ok' || status === 'revealed' ? 1 : 0.98 }}
-            onClick={() => {
-              if (status === 'ok' || status === 'revealed') return
-              verificar()
-            }}
-            disabled={status === 'ok' || status === 'revealed'}
-            className={`px-6 py-2 rounded-lg shadow transition 
-      ${status === 'ok' || status === 'revealed'
-              ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60'
-              : 'bg-primary text-primary-foreground hover:opacity-90'}
-    `}
-          >
-            {status === 'ok' ? '¡Correcto!' : status === 'revealed' ? 'Revelado' : 'Verificar'}
-          </motion.button>
+          {/* Mientras NO haya terminado el ejercicio → solo Verificar */}
+          {!isFinished && (
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={verificar}
+              className="px-6 py-2 rounded-lg shadow bg-primary text-primary-foreground hover:opacity-90"
+            >
+              Verificar
+            </motion.button>
+          )}
 
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={() => nueva(nivel)}
-            className="border border-border px-6 py-2 rounded-lg hover:bg-muted"
-          >
-            Siguiente
-          </motion.button>
+          {/* Cuando el ejercicio ya terminó (acierto o revelado) → solo Siguiente */}
+          {isFinished && (
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={() => nueva(nivel)}
+              className="px-6 py-2 rounded-lg shadow bg-primary text-primary-foreground hover:opacity-90"
+            >
+              Siguiente
+            </motion.button>
+          )}
         </div>
 
         {/* Solución con LaTeX */}
@@ -832,7 +830,9 @@ export default function TemaPlayPage() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: (ej?.variant?.solution?.steps?.length || 0) * 0.12 + 0.2 }}
+                transition={{
+                  delay: (ej?.variant?.solution?.steps?.length || 0) * 0.12 + 0.2,
+                }}
                 className="mt-5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl p-5 text-white shadow-lg"
               >
                 <p className="text-sm font-medium mb-1 opacity-90">Respuesta final</p>
