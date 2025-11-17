@@ -6,10 +6,6 @@ import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 
 type Props = {
-  // Ahora puede ser:
-  // - el objeto completo de nivel (con .dsl)
-  // - directamente el dsl (con .canvas opcional)
-  // - o un meta con .meta
   pregunta?: any
   valores?: Record<string, any>
   zoomOverride?: number
@@ -18,10 +14,6 @@ type Props = {
 export default function GameRenderer({ pregunta, valores = {}, zoomOverride }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-  // 🔧 Normalizamos la estructura:
-  //  - si viene como { dsl: {...} } → usamos .dsl
-  //  - si viene como { meta: {...} } → usamos .meta
-  //  - si viene como el dsl directo → usamos el objeto tal cual
   const raw = pregunta || {}
   const meta = (raw.dsl || raw.meta || raw) ?? {}
 
@@ -50,15 +42,14 @@ export default function GameRenderer({ pregunta, valores = {}, zoomOverride }: P
       canvas.width = Math.round(baseW * dpr * scale * zoom)
       canvas.height = Math.round(baseH * dpr * scale * zoom)
 
-      // Normaliza sistema de coordenadas a baseW x baseH
       ctx.setTransform(canvas.width / baseW, 0, 0, canvas.height / baseH, 0, 0)
       ctx.clearRect(0, 0, baseW, baseH)
 
-      // Fondo sutil
+      // Fondo
       ctx.fillStyle = '#ffffff'
       ctx.fillRect(0, 0, baseW, baseH)
 
-      // Grid opcional (c.grid = true)
+      // Grid opcional
       if (c.grid) {
         ctx.save()
         ctx.strokeStyle = '#F3F4F6'
@@ -80,7 +71,6 @@ export default function GameRenderer({ pregunta, valores = {}, zoomOverride }: P
 
       const script = c.script || ''
 
-      // 🧩 Si NO hay canvas/script, mostramos un mensajito y listo
       if (!script) {
         ctx.fillStyle = '#6B7280'
         ctx.font = '14px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto'
@@ -89,7 +79,6 @@ export default function GameRenderer({ pregunta, valores = {}, zoomOverride }: P
       }
 
       try {
-        // Soporta scripts con VAL.* y/o {{var}}
         let runnable = script
         const usesVAL = /(^|[^A-Za-z0-9_])VAL\./.test(script)
         if (!usesVAL) {
@@ -98,7 +87,6 @@ export default function GameRenderer({ pregunta, valores = {}, zoomOverride }: P
           }
         }
 
-        // Helpers gráficos básicos
         const helpers = `
           const drawArrow = (x1,y1,x2,y2,{color="#10B981",w=2,head=10}={})=>{
             ctx.save();

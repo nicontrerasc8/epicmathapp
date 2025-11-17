@@ -36,11 +36,21 @@ function sampleParams(params: Record<string, [number, number]>) {
 }
 
 function evalExpr(expr: string, VAL: any) {
+
+  const cleaned = {}
+  for (const k in VAL) {
+    const v = VAL[k]
+    cleaned[k] = typeof v === 'object'
+      ? Number(Object.values(v)[0]) // toma el primer valor numérico
+      : Number(v)
+  }
+
   const fn = new Function('VAL', 'Math', 'Number', `'use strict'; return (${expr});`)
-  const r = fn(VAL || {}, Math, Number)
-  if (typeof r !== 'number' || !isFinite(r)) throw new Error('Bad expr: ' + expr)
+  const r = fn(cleaned, Math, Number)
+
   return r
 }
+
 
 function buildVAL(variant: any, sampled: any) {
   const VAL: any = { ...(sampled || {}) }
@@ -49,7 +59,16 @@ function buildVAL(variant: any, sampled: any) {
       VAL[k] = evalExpr(variant.render_fill[k], VAL)
     }
   }
-  const correct = evalExpr(variant?.answer?.expr, VAL)
+  let correct
+
+  if (variant.multiple_choice) {
+    // obtener correct_value en MCQ
+    correct = evalExpr(variant.correct_value.expr, VAL)
+  } else {
+    // modo numérico clásico
+    correct = evalExpr(variant.answer.expr, VAL)
+  }
+
   return {
     VAL: { ...VAL, resultado: correct },
     correct,
@@ -225,7 +244,7 @@ export default function TemaPlayPage() {
 
   // Carga inicial
   useEffect(() => {
-    ;(async () => {
+    ; (async () => {
       if (!id || typeof id !== 'string') return
       const { data: userRes } = await supabase.auth.getUser()
       if (!userRes?.user) {
@@ -322,6 +341,27 @@ export default function TemaPlayPage() {
 
     const sampled = sampleParams(variant.params || {})
     const { VAL, correct } = buildVAL(variant, sampled)
+    // 🔹 Modo selección múltiple (multiple-choice)
+    let choices: any[] | null = null
+
+    if (variant.multiple_choice) {
+      const corr = variant.correct_value
+        ? evalExpr(variant.correct_value.expr, VAL)
+        : correct
+
+      const distractors = (variant.distractor_values || []).map((d: any) =>
+        evalExpr(d.expr, VAL)
+      )
+
+      choices = [
+        { value: corr, correct: true },
+        ...distractors.map(v => ({ value: v, correct: false })),
+      ]
+
+      if (variant.shuffle) {
+        choices = choices.sort(() => Math.random() - 0.5)
+      }
+    }
 
     // 🔹 Nuevo: elegir enunciado dinámico si existe
     let promptText = ''
@@ -337,6 +377,7 @@ export default function TemaPlayPage() {
       variant,
       VAL,
       correct,
+      choices,
       name: pack?.name || match.regla?.name || 'Ejercicio',
       nivel: nivelActual,
       promptText, // 🔹 guardamos el enunciado ya resuelto
@@ -476,7 +517,130 @@ export default function TemaPlayPage() {
     }
   }
 
-  // Verificar la respuesta y guardar en la tabla `student_responses`
+  async function verificarMCQ(choice: any) {
+    if (!ej) return
+    if (status === 'ok' || status === 'revealed') return
+
+    const ok = choice.correct === true
+    const attemptIndex = attempt
+    const timeSec = Math.max(0.1, (Date.now() - startAt) / 1000)
+
+    const val = choice.value
+
+    const diff = getVariantDifficulty(ej.variant, nivel)
+    const quality = qualityFromAttempt(ok, attemptIndex)
+    const thetaInicial = ability
+    const { nextTheta } = updateThetaSmart({
+      theta: ability,
+      diff,
+      quality,
+      timeSec,
+      targetSec: pva?.target_time_sec ?? 40,
+    })
+
+    const updatedAttempts = [
+      ...currentExerciseAttempts,
+      {
+        intento_numero: attemptIndex + 1,
+        respuesta: val,
+        correcta: ok,
+        tiempo_segundos: timeSec,
+        timestamp: new Date().toISOString(),
+      },
+    ]
+    setCurrentExerciseAttempts(updatedAttempts)
+
+    // exactamente igual al verificar numérico
+    const rawReveal = ej?.variant?.attempts?.reveal_after
+    const revealAfter = rawReveal ?? Infinity
+    const isLast = attemptIndex + 1 >= revealAfter
+
+    let newAciertos = aciertos
+    let newErrores = errores
+    let newStreak = streak
+    let newNivel = nivel
+
+    const isTrueSuccess = ok && attemptIndex <= 1
+    const willExhaust = !ok && isLast
+
+    if (isTrueSuccess) {
+      newAciertos++
+      newStreak++
+    }
+
+    if (willExhaust) {
+      newErrores++
+      newStreak = 0
+      if (newNivel > 1) newNivel--
+    }
+
+    // level-up por streak
+    const needStreak = pva?.mastery?.true_streak_for_level_up ?? 3
+    if (newStreak >= needStreak && newNivel < 3) {
+      newNivel++
+      newStreak = 0
+    }
+
+    if (ok) {
+      toast.success(`Correcto ✔`)
+      confetti({ particleCount: 140, spread: 70 })
+      setStatus('ok')
+    } else {
+      if (willExhaust) {
+        toast.error(`Incorrecto ❌`)
+        setStatus('revealed')
+      } else {
+        toast.error('Incorrecto')
+        setAttempt(attemptIndex + 1)
+        setStatus('fail')
+      }
+    }
+
+    // Guardar si terminó
+    if (isTrueSuccess || willExhaust) {
+      const tiempoTotal = updatedAttempts.reduce((s, a) => s + a.tiempo_segundos, 0)
+
+      await saveExerciseCompletion({
+        student_id: userId!,
+        tema_periodo_id: id as string,
+        nivel: newNivel,
+        es_correcto: isTrueSuccess,
+        tiempo_total_segundos: tiempoTotal,
+        intentos_realizados: updatedAttempts.length,
+        ejercicio_data: {
+          nombre: ej.name,
+          variant_id: ej.variant?.id || null,
+          dificultad: diff,
+          pregunta: ej.promptText || '',
+          unidades: '',
+          respuesta_correcta: ej.correct,
+          intentos_maximos: ej.variant.attempts?.max ?? 1,
+        },
+        respuesta_final: { valor: val, intento: attemptIndex + 1 },
+        theta_inicial: thetaInicial,
+        theta_final: nextTheta,
+      })
+
+      await supabase
+        .from('student_periodo')
+        .update({
+          nivel: newNivel,
+          theta: nextTheta,
+          aciertos: newAciertos,
+          errores: newErrores,
+          streak: newStreak,
+        })
+        .eq('student_id', userId)
+        .eq('tema_periodo_id', id)
+    }
+
+    setAciertos(newAciertos)
+    setErrores(newErrores)
+    setStreak(newStreak)
+    setAbility(nextTheta)
+    setNivel(newNivel)
+  }
+
   async function verificar() {
     if (!ej) return
 
@@ -725,68 +889,114 @@ export default function TemaPlayPage() {
           transition={{ duration: 0.45 }}
           className="mx-auto w-full sm:w-2/3"
         >
-          <div className="relative">
-            <input
-              ref={inputRef}
-              type="text"
-              inputMode="decimal"
-              value={respuesta}
-              onChange={e => setRespuesta(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !isFinished && verificar()}
-              placeholder={`Tu respuesta (${ej?.variant?.unknown})`}
-              aria-label="Tu respuesta"
-              disabled={isFinished}
-              className={`w-full text-center text-xl rounded-xl border px-5 py-3 bg-input outline-none transition focus:ring-2 focus:ring-ring ${
-                status === 'ok'
-                  ? 'border-green-500 bg-emerald-50'
-                  : status === 'fail'
-                  ? 'border-red-300'
-                  : 'border-border'
-              } ${isFinished ? 'opacity-80 cursor-not-allowed' : ''}`}
-            />
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-              {units}
-            </span>
-          </div>
+          {/* ================================
+      📌 CASE 1 — MULTIPLE CHOICE
+     ================================ */}
+          {ej.variant.multiple_choice ? (
+            <div className="flex flex-col gap-3 mt-4">
+              {ej.choices.map((ch: any, i: number) => {
+                const isCorrect = ch.correct && (status === 'ok' || status === 'revealed')
+                const isWrong = !ch.correct && (status === 'revealed')
 
-          {/* Botones +/- solo mientras no haya terminado */}
-          {!isFinished && (
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-              {[-1, -0.1, +0.1, +1].map(delta => (
-                <button
-                  key={delta}
-                  onClick={() =>
-                    setRespuesta(v => {
-                      const n = Number(String(v || '0').replace(',', '.')) || 0
-                      return fmt(n + delta, decimals)
-                    })
-                  }
-                  className="text-xs px-2 py-1 rounded-md border hover:bg-muted"
-                  type="button"
-                >
-                  {delta > 0 ? `+${delta}` : delta}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setRespuesta('')}
-                className="text-xs px-2 py-1 rounded-md border hover:bg-muted"
-              >
-                Limpiar
-              </button>
-              {DEV_TOOLS && (
-                <button
-                  type="button"
-                  onClick={() => setRespuesta(fmt(ej.correct, decimals))}
-                  className="text-xs px-2 py-1 rounded-md border hover:bg-muted"
-                  title="Autocompletar con la respuesta (pruebas docentes)"
-                >
-                  Autocompletar
-                </button>
-              )}
+                return (
+                  <button
+                    key={i}
+                    disabled={status === 'ok' || status === 'revealed'}
+                    onClick={() => verificarMCQ(ch)}
+                    className={`
+              w-full rounded-xl px-5 py-3 text-left text-lg 
+              border shadow-sm transition
+              hover:shadow-md hover:-translate-y-0.5
+              ${isCorrect ? 'border-green-500 bg-emerald-50 text-green-700' : ''}
+              ${isWrong ? 'border-red-300 bg-red-50 text-red-700 opacity-60' : ''}
+              ${!isCorrect && !isWrong ? 'border-border bg-white' : ''}
+              disabled:opacity-70 disabled:cursor-not-allowed
+            `}
+                  >
+                    <span className="font-semibold">{fmt(ch.value, decimals)}</span>
+                  </button>
+                )
+              })}
             </div>
+          ) : (
+            /* ================================
+                📌 CASE 2 — NUMERIC INPUT
+               ================================ */
+            <motion.div>
+              <div className="relative">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  inputMode="decimal"
+                  value={respuesta}
+                  onChange={e => setRespuesta(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !isFinished && verificar()}
+                  placeholder="Tu respuesta"
+                  aria-label="Tu respuesta"
+                  disabled={isFinished}
+                  className={`
+            w-full text-center text-xl rounded-xl border px-5 py-3 
+            bg-input outline-none transition focus:ring-2 focus:ring-ring
+            shadow-sm hover:shadow-md hover:-translate-y-0.5
+
+            ${status === 'ok'
+                      ? 'border-green-500 bg-emerald-50'
+                      : status === 'fail'
+                        ? 'border-red-300'
+                        : 'border-border'
+                    }
+
+            ${isFinished ? 'opacity-80 cursor-not-allowed' : ''}
+          `}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  {units}
+                </span>
+              </div>
+
+              {/* Botones +/- (solo mientras no termina) */}
+              {!isFinished && (
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  {[-1, -0.1, +0.1, +1].map(delta => (
+                    <button
+                      key={delta}
+                      onClick={() =>
+                        setRespuesta(v => {
+                          const n = Number(String(v || '0').replace(',', '.')) || 0
+                          return fmt(n + delta, decimals)
+                        })
+                      }
+                      className="text-xs px-3 py-1 rounded-md border bg-white hover:bg-muted transition shadow-sm"
+                      type="button"
+                    >
+                      {delta > 0 ? `+${delta}` : delta}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => setRespuesta('')}
+                    className="text-xs px-3 py-1 rounded-md border bg-white hover:bg-muted transition shadow-sm"
+                  >
+                    Limpiar
+                  </button>
+
+                  {DEV_TOOLS && (
+                    <button
+                      type="button"
+                      onClick={() => setRespuesta(fmt(ej.correct, decimals))}
+                      className="text-xs px-3 py-1 rounded-md border bg-white hover:bg-yellow-50 transition shadow-sm"
+                      title="Autocompletar"
+                    >
+                      Autocompletar
+                    </button>
+                  )}
+                </div>
+              )}
+            </motion.div>
           )}
         </motion.div>
+
 
         {/* Botones principales */}
         <div className="flex items-center justify-center gap-4">
