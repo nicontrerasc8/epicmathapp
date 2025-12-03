@@ -19,21 +19,88 @@ const DEV_TOOLS = false // Si true, muestra botón "Autocompletar" para docentes
 const fmt = (x: any, d = 2) => {
   const n = Number(x)
   if (!isFinite(n)) return String(x)
+  // Si es entero, lo mostramos sin decimales
+  if (Math.abs(n - Math.round(n)) < 1e-9) {
+    return String(Math.round(n))
+  }
+  // Si no es entero, usamos d decimales (por defecto 2)
   return n.toFixed(d)
 }
 
-function sampleParams(params: Record<string, [number, number]>) {
+
+function sampleParams(
+  params: Record<string, any>,
+  integerKeys: string[] = []
+) {
   const out: Record<string, number> = {}
+
   for (const k in params || {}) {
-    const [min, max] = params[k]
-    const wide = max - min > 10
-    const step = wide ? 1 : 0.5
-    const m = Math.round(1 / step)
-    const rnd = min + Math.floor(Math.random() * (max - min) * m) / m
-    out[k] = Number(rnd.toFixed(2))
+    const spec = params[k]
+    const isInt = integerKeys.includes(k)
+
+    // ✅ Caso A: spec es un array
+    if (Array.isArray(spec)) {
+      // A1) Lista discreta (3 o más elementos) -> elige uno
+      if (spec.length > 2) {
+        const idx = Math.floor(Math.random() * spec.length)
+        out[k] = Number(spec[idx])
+        continue
+      }
+
+      // A2) Rango [min, max] (comportamiento viejo)
+      const [minRaw, maxRaw] = spec
+      const min = Number(minRaw)
+      const max = Number(maxRaw)
+
+      if (isInt) {
+        // enteros puros
+        const imin = Math.ceil(Math.min(min, max))
+        const imax = Math.floor(Math.max(min, max))
+        const rnd = imin + Math.floor(Math.random() * (imax - imin + 1))
+        out[k] = rnd
+      } else {
+        const wide = max - min > 10
+        const step = wide ? 1 : 0.5
+        const m = Math.round(1 / step)
+        const rnd = min + Math.floor(Math.random() * (max - min) * m) / m
+        out[k] = Number(rnd.toFixed(2))
+      }
+
+      continue
+    }
+
+    // ✅ Caso B: opcional futuro: objeto { min,max,int,values,... }
+    if (spec && typeof spec === 'object') {
+      if (Array.isArray(spec.values)) {
+        const vals = spec.values
+        const idx = Math.floor(Math.random() * vals.length)
+        out[k] = Number(vals[idx])
+        continue
+      }
+      if (typeof spec.min === 'number' && typeof spec.max === 'number') {
+        const min = spec.min
+        const max = spec.max
+        const wantInt = isInt || spec.int
+        if (wantInt) {
+          const imin = Math.ceil(Math.min(min, max))
+          const imax = Math.floor(Math.max(min, max))
+          const rnd = imin + Math.floor(Math.random() * (imax - imin + 1))
+          out[k] = rnd
+        } else {
+          const rnd = min + Math.random() * (max - min)
+          out[k] = Number(rnd.toFixed(spec.decimals ?? 2))
+        }
+        continue
+      }
+    }
+
+    // fallback súper defensivo
+    out[k] = Number(spec)
   }
+
   return out
 }
+
 
 function evalExpr(expr: string, VAL: any) {
 
@@ -100,18 +167,30 @@ function findLevelItem(reglas: any[], nivel: number) {
 }
 
 // 🎯 Parser de steps con soporte LaTeX y {{vars}}
-function parseStep(step: any, VAL: any) {
+function parseStep(step: any, VAL: any, integerKeys: string[] = []) {
   if (!step) return { text: '', formula: '' }
   let text = step.text || ''
   let formula = step.formula
+
   for (const k in VAL) {
     const regex = new RegExp(`\\{\\{${k}\\}\\}`, 'g')
-    const value = fmt(VAL[k])
-    text = text.replace(regex, value)
-    if (formula) formula = formula.replace(regex, value)
+    const n = Number(VAL[k])
+
+    let valueStr: string
+    if (integerKeys.includes(k) && Number.isFinite(n)) {
+      // 👣 si el DSL dice que este param es entero, lo muestro sin decimales
+      valueStr = String(Math.round(n))
+    } else {
+      valueStr = fmt(VAL[k]) // comportamiento antiguo
+    }
+
+    text = text.replace(regex, valueStr)
+    if (formula) formula = formula.replace(regex, valueStr)
   }
+
   return { text: text.trim(), formula: formula ? formula.trim() : '' }
 }
+
 
 /************ ADAPTIVE / IRT-LITE ************/
 const logistic = (x: number) => 1 / (1 + Math.exp(-x))
@@ -339,8 +418,12 @@ export default function TemaPlayPage() {
       return
     }
 
-    const sampled = sampleParams(variant.params || {})
-    const { VAL, correct } = buildVAL(variant, sampled)
+    const sampled = sampleParams(
+  variant.params || {},
+  variant.integer_params || []
+)
+const { VAL, correct } = buildVAL(variant, sampled)
+
     // 🔹 Modo selección múltiple (multiple-choice)
     let choices: any[] | null = null
 
@@ -368,8 +451,13 @@ export default function TemaPlayPage() {
     const enunciados = variant.enunciados || dsl.enunciados || []
     if (enunciados.length > 0) {
       const raw = enunciados[Math.floor(Math.random() * enunciados.length)]
-      const parsed = parseStep({ text: raw }, VAL)
-      promptText = parsed.text
+const parsed = parseStep(
+  { text: raw },
+  VAL,
+  variant.integer_params || []
+)
+promptText = parsed.text
+
     }
 
     setEj({
@@ -416,12 +504,15 @@ export default function TemaPlayPage() {
       return ej.promptText
     }
 
-    const g = (ej.variant?.givens || [])
-      .map((k: string) => {
-        const v = ej.VAL[k]
-        return `${k} = ${k === 'theta' ? fmt(v, 0) + '°' : fmt(v)}`
-      })
-      .join(', ')
+    const intKeys = ej.variant?.integer_params || []
+const g = (ej.variant?.givens || [])
+  .map((k: string) => {
+    const v = ej.VAL[k]
+    const d = intKeys.includes(k) ? 0 : 2
+    return `${k} = ${k === 'theta' ? fmt(v, 0) + '°' : fmt(v, d)}`
+  })
+  .join(', ')
+
     return `Calcula ${ej.variant?.unknown} (${units}). Datos: ${g}.`
   }, [ej, units])
 
@@ -433,13 +524,23 @@ export default function TemaPlayPage() {
   const availableHints = useMemo(() => {
     const hints = ej?.variant?.attempts?.hints || []
     return hints
-      .filter((h: any) => attempt >= (h.after ?? Infinity))
-      .map((h: any) => parseStep(h, ej?.VAL || {}))
+  .filter((h: any) => attempt >= (h.after ?? Infinity))
+  .map((h: any) =>
+    parseStep(
+      h,
+      ej?.VAL || {},
+      ej?.variant?.integer_params || []
+    )
+  )
+
   }, [ej, attempt])
 
   const solutionSteps = useMemo(() => {
     if (!ej?.variant?.solution?.steps) return []
-    return (ej.variant.solution.steps || []).map((step: any) => parseStep(step, ej.VAL))
+    return (ej.variant.solution.steps || []).map((step: any) =>
+  parseStep(step, ej.VAL, ej.variant.integer_params || [])
+)
+
   }, [ej])
 
   /************ Persistencia ************/
@@ -517,129 +618,126 @@ export default function TemaPlayPage() {
     }
   }
 
-  async function verificarMCQ(choice: any) {
-    if (!ej) return
-    if (status === 'ok' || status === 'revealed') return
+ async function verificarMCQ(choice: any) {
+  if (!ej) return
+  // Si ya terminó este ejercicio, no hacer nada
+  if (status === 'ok' || status === 'revealed') return
 
-    const ok = choice.correct === true
-    const attemptIndex = attempt
-    const timeSec = Math.max(0.1, (Date.now() - startAt) / 1000)
+  const attemptIndex = attempt // normalmente 0 en MCQ
+  const val = choice.value
+  const ok = choice.correct === true
+  const timeSec = Math.max(0.1, (Date.now() - startAt) / 1000)
 
-    const val = choice.value
+  // Registrar intento en memoria local
+  const intentoActual = {
+    intento_numero: attemptIndex + 1,
+    respuesta: val,
+    correcta: ok,
+    tiempo_segundos: timeSec,
+    timestamp: new Date().toISOString(),
+  }
 
-    const diff = getVariantDifficulty(ej.variant, nivel)
-    const quality = qualityFromAttempt(ok, attemptIndex)
-    const thetaInicial = ability
-    const { nextTheta } = updateThetaSmart({
-      theta: ability,
-      diff,
-      quality,
-      timeSec,
-      targetSec: pva?.target_time_sec ?? 40,
+  const updatedAttempts = [...currentExerciseAttempts, intentoActual]
+  setCurrentExerciseAttempts(updatedAttempts)
+
+  // --- Adaptativo (theta) ---
+  const diff = getVariantDifficulty(ej.variant, nivel)
+  const quality = qualityFromAttempt(ok, attemptIndex)
+  const thetaInicial = ability
+  const { nextTheta } = updateThetaSmart({
+    theta: ability,
+    diff,
+    quality,
+    timeSec,
+    targetSec: pva?.target_time_sec ?? 40,
+  })
+
+  // 🔥 MCQ: SOLO 1 intento
+  const isTrueSuccess = ok && attemptIndex <= 1
+  const willExhaust = !ok // si falló, se agota inmediatamente
+
+  let newAciertos = aciertos
+  let newErrores = errores
+  let newStreak = streak
+  let newNivel = nivel
+
+  if (isTrueSuccess) {
+    newAciertos++
+    newStreak++
+  }
+
+  if (willExhaust) {
+    newErrores++
+    newStreak = 0
+    if (newNivel > 1) newNivel--
+  }
+
+  // Subir/bajar nivel por racha
+  const needStreak = pva?.mastery?.true_streak_for_level_up ?? 3
+  if (newStreak >= needStreak && newNivel < 3) {
+    newNivel++
+    newStreak = 0
+  }
+
+  // --- Feedback visual / estado terminado ---
+  if (ok) {
+    toast.success('Correcto ✔')
+    confetti({ particleCount: 140, spread: 70 })
+    setStatus('ok') // ✅ disparará el botón "Siguiente"
+  } else {
+    toast.error('Incorrecto ❌')
+    setStatus('revealed') // ✅ también dispara "Siguiente" y muestra solución
+  }
+
+  // Guardar SOLO si el ejercicio terminó (acierto real o agotado)
+  if (isTrueSuccess || willExhaust) {
+    const tiempoTotal = updatedAttempts.reduce(
+      (s, a) => s + a.tiempo_segundos,
+      0
+    )
+
+    await saveExerciseCompletion({
+      student_id: userId!,
+      tema_periodo_id: id as string,
+      nivel: newNivel,
+      es_correcto: isTrueSuccess,
+      tiempo_total_segundos: tiempoTotal,
+      intentos_realizados: updatedAttempts.length,
+      ejercicio_data: {
+        nombre: ej.name,
+        variant_id: ej.variant?.id || null,
+        dificultad: diff,
+        pregunta: ej.promptText || '',
+        unidades: '',
+        respuesta_correcta: ej.correct,
+        intentos_maximos: ej.variant?.attempts?.max ?? 1,
+      },
+      respuesta_final: { valor: val, intento: attemptIndex + 1 },
+      theta_inicial: thetaInicial,
+      theta_final: nextTheta,
     })
 
-    const updatedAttempts = [
-      ...currentExerciseAttempts,
-      {
-        intento_numero: attemptIndex + 1,
-        respuesta: val,
-        correcta: ok,
-        tiempo_segundos: timeSec,
-        timestamp: new Date().toISOString(),
-      },
-    ]
-    setCurrentExerciseAttempts(updatedAttempts)
-
-    // exactamente igual al verificar numérico
-    const rawReveal = ej?.variant?.attempts?.reveal_after
-    const revealAfter = rawReveal ?? Infinity
-    const isLast = attemptIndex + 1 >= revealAfter
-
-    let newAciertos = aciertos
-    let newErrores = errores
-    let newStreak = streak
-    let newNivel = nivel
-
-    const isTrueSuccess = ok && attemptIndex <= 1
-    const willExhaust = !ok && isLast
-
-    if (isTrueSuccess) {
-      newAciertos++
-      newStreak++
-    }
-
-    if (willExhaust) {
-      newErrores++
-      newStreak = 0
-      if (newNivel > 1) newNivel--
-    }
-
-    // level-up por streak
-    const needStreak = pva?.mastery?.true_streak_for_level_up ?? 3
-    if (newStreak >= needStreak && newNivel < 3) {
-      newNivel++
-      newStreak = 0
-    }
-
-    if (ok) {
-      toast.success(`Correcto ✔`)
-      confetti({ particleCount: 140, spread: 70 })
-      setStatus('ok')
-    } else {
-      if (willExhaust) {
-        toast.error(`Incorrecto ❌`)
-        setStatus('revealed')
-      } else {
-        toast.error('Incorrecto')
-        setAttempt(attemptIndex + 1)
-        setStatus('fail')
-      }
-    }
-
-    // Guardar si terminó
-    if (isTrueSuccess || willExhaust) {
-      const tiempoTotal = updatedAttempts.reduce((s, a) => s + a.tiempo_segundos, 0)
-
-      await saveExerciseCompletion({
-        student_id: userId!,
-        tema_periodo_id: id as string,
+    await supabase
+      .from('student_periodo')
+      .update({
         nivel: newNivel,
-        es_correcto: isTrueSuccess,
-        tiempo_total_segundos: tiempoTotal,
-        intentos_realizados: updatedAttempts.length,
-        ejercicio_data: {
-          nombre: ej.name,
-          variant_id: ej.variant?.id || null,
-          dificultad: diff,
-          pregunta: ej.promptText || '',
-          unidades: '',
-          respuesta_correcta: ej.correct,
-          intentos_maximos: ej.variant.attempts?.max ?? 1,
-        },
-        respuesta_final: { valor: val, intento: attemptIndex + 1 },
-        theta_inicial: thetaInicial,
-        theta_final: nextTheta,
+        theta: nextTheta,
+        aciertos: newAciertos,
+        errores: newErrores,
+        streak: newStreak,
       })
-
-      await supabase
-        .from('student_periodo')
-        .update({
-          nivel: newNivel,
-          theta: nextTheta,
-          aciertos: newAciertos,
-          errores: newErrores,
-          streak: newStreak,
-        })
-        .eq('student_id', userId)
-        .eq('tema_periodo_id', id)
-    }
-
-    setAciertos(newAciertos)
-    setErrores(newErrores)
-    setStreak(newStreak)
-    setAbility(nextTheta)
-    setNivel(newNivel)
+      .eq('student_id', userId)
+      .eq('tema_periodo_id', id)
   }
+
+  // Actualizar estados locales
+  setAciertos(newAciertos)
+  setErrores(newErrores)
+  setStreak(newStreak)
+  setAbility(nextTheta)
+  setNivel(newNivel)
+}
+
 
   async function verificar() {
     if (!ej) return
@@ -892,33 +990,51 @@ export default function TemaPlayPage() {
           {/* ================================
       📌 CASE 1 — MULTIPLE CHOICE
      ================================ */}
-          {ej.variant.multiple_choice ? (
-            <div className="flex flex-col gap-3 mt-4">
-              {ej.choices.map((ch: any, i: number) => {
-                const isCorrect = ch.correct && (status === 'ok' || status === 'revealed')
-                const isWrong = !ch.correct && (status === 'revealed')
+          {ej.variant.multiple_choice ? 
+          (
+  <div className="flex flex-col gap-3 mt-4">
+    {ej.choices.map((ch: any, i: number) => {
+      const isCorrect =
+        ch.correct && (status === 'ok' || status === 'revealed')
+      const isWrong =
+        !ch.correct && status === 'revealed'
 
-                return (
-                  <button
-                    key={i}
-                    disabled={status === 'ok' || status === 'revealed'}
-                    onClick={() => verificarMCQ(ch)}
-                    className={`
-              w-full rounded-xl px-5 py-3 text-left text-lg 
-              border shadow-sm transition
-              hover:shadow-md hover:-translate-y-0.5
-              ${isCorrect ? 'border-green-500 bg-emerald-50 text-green-700' : ''}
-              ${isWrong ? 'border-red-300 bg-red-50 text-red-700 opacity-60' : ''}
-              ${!isCorrect && !isWrong ? 'border-border bg-white' : ''}
-              disabled:opacity-70 disabled:cursor-not-allowed
-            `}
-                  >
-                    <span className="font-semibold">{fmt(ch.value, decimals)}</span>
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
+      return (
+        <button
+          key={i}
+          type="button"
+          onClick={() => verificarMCQ(ch)}
+          disabled={status === 'ok' || status === 'revealed'}
+          className={`
+            w-full rounded-xl px-5 py-3 text-left text-lg 
+            border shadow-sm transition
+            hover:shadow-md hover:-translate-y-0.5
+            ${
+              isCorrect
+                ? 'border-green-500 bg-emerald-50 text-green-700'
+                : ''
+            }
+            ${
+              isWrong
+                ? 'border-red-300 bg-red-50 text-red-700 opacity-60'
+                : ''
+            }
+            ${
+              !isCorrect && !isWrong
+                ? 'border-border bg-white'
+                : ''
+            }
+            disabled:opacity-70 disabled:cursor-not-allowed
+          `}
+        >
+          <span className="font-semibold">
+            {fmt(ch.value, decimals)}
+          </span>
+        </button>
+      )
+    })}
+  </div>
+) : (
             /* ================================
                 📌 CASE 2 — NUMERIC INPUT
                ================================ */

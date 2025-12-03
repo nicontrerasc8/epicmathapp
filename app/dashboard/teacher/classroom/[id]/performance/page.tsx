@@ -399,12 +399,12 @@ export default function PerformancePage() {
     const rows = studentsFull.flatMap((s: AnyRec) =>
       (s.temas.length
         ? s.temas
-        : [{ tema: '', nivel: '', theta: 0, aciertos: 0, errores: 0 }]
+        : [{ tema: '',  aciertos: 0, errores: 0 }]
       ).map((t: AnyRec) => ({
         alumno: s.nombres,
         tema: t.tema,
-        nivel: t.nivel,
-        theta: Number(t.theta || 0).toFixed(2),
+     
+       
         aciertos: t.aciertos || 0,
         errores: t.errores || 0,
         racha: t.streak || 0,
@@ -573,59 +573,7 @@ export default function PerformancePage() {
           </motion.div>
         )}
 
-        {/* 🚨 ALERTAS DE RIESGO */}
-        {studentsAtRisk.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
-            <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-3xl p-6 border-2 border-red-300 shadow-xl">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="text-4xl">🚨</div>
-                  <h3 className="text-2xl font-black text-gray-800">
-                    Estudiantes en Riesgo ({studentsAtRisk.length})
-                  </h3>
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {studentsAtRisk.slice(0, 6).map((s: AnyRec) => (
-                  <motion.div
-                    key={s.id}
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-white p-5 rounded-2xl border-2 border-red-200 shadow-lg"
-                  >
-                    <div className="space-y-2 mb-3">
-                      {s.riskReasons.map((reason: string, i: number) => (
-                        <div
-                          key={i}
-                          className="text-sm text-red-600 flex items-center gap-2"
-                        >
-                          <span>⚠️</span>
-                          <span>{reason}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="pt-3 border-t border-red-100 space-y-1">
-                      {getRecommendations(s)
-                        .slice(0, 2)
-                        .map((rec, i) => (
-                          <div
-                            key={i}
-                            className="text-xs text-gray-600 flex items-start gap-1"
-                          >
-                            <span className="mt-0.5">→</span>
-                            <span>{rec}</span>
-                          </div>
-                        ))}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
+   
 
         {/* KPIS PRINCIPALES */}
         <motion.div
@@ -857,28 +805,6 @@ function OverviewView({ topicStats }: { topicStats: AnyRec }) {
               </div>
             </div>
 
-            {hasGap && (
-              <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200">
-                <div className="font-bold text-orange-800 mb-3 flex items-center gap-2">
-                  <span className="text-xl">💡</span>
-                  <span>Recomendaciones Pedagógicas:</span>
-                </div>
-                <ul className="space-y-2 ml-6">
-                  <li className="text-sm text-orange-700">
-                    • Revisar material didáctico de "{tema}"
-                  </li>
-                  <li className="text-sm text-orange-700">
-                    • Asignar ejercicios de refuerzo para nivel básico
-                  </li>
-                  <li className="text-sm text-orange-700">
-                    • Considerar una sesión de repaso grupal
-                  </li>
-                  <li className="text-sm text-orange-700">
-                    • Evaluar metodología de enseñanza actual
-                  </li>
-                </ul>
-              </div>
-            )}
 
             <div className="space-y-4">
               <ProgressBar
@@ -1155,12 +1081,7 @@ function StudentsView(props: {
                               Nivel {t.nivel}
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <span className="text-gray-500">Theta:</span>
-                                <span className="ml-1 font-bold text-gray-800">
-                                  {Number(t.theta || 0).toFixed(2)}
-                                </span>
-                              </div>
+                             
                               <div>
                                 <span className="text-gray-500">Racha:</span>
                                 <span className="ml-1 font-bold text-gray-800">
@@ -1261,40 +1182,6 @@ function AnalyticsView(props: {
             </div>
           </div>
 
-          {/* Distribución de Theta */}
-          <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200">
-            <div className="font-bold text-blue-800 mb-4 text-lg">
-              🎯 Distribución de Habilidad (Theta)
-            </div>
-            <div className="space-y-3">
-              {[
-                { label: 'Theta < -0.5', range: [-Infinity, -0.5], color: 'from-red-400 to-orange-500' },
-                { label: '-0.5 ≤ Theta < 0.5', range: [-0.5, 0.5], color: 'from-yellow-400 to-orange-500' },
-                { label: 'Theta ≥ 0.5', range: [0.5, Infinity], color: 'from-green-400 to-emerald-600' },
-              ].map(({ label, range, color }) => {
-                const count = periodos.filter(p => p.theta >= range[0] && p.theta < range[1]).length
-                const percentage = periodos.length > 0 ? (count / periodos.length) * 100 : 0
-                return (
-                  <div key={label}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-semibold text-gray-700">{label}</span>
-                      <span className="text-sm font-bold text-blue-700">
-                        {count} ({percentage.toFixed(1)}%)
-                      </span>
-                    </div>
-                    <div className="w-full bg-blue-100 rounded-full h-3 overflow-hidden border border-blue-300">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${percentage}%` }}
-                        transition={{ duration: 0.8, ease: 'easeOut' }}
-                        className={`h-full bg-gradient-to-r ${color}`}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
 
           {/* Tasa de éxito por tema */}
           <div className="p-6 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200">
