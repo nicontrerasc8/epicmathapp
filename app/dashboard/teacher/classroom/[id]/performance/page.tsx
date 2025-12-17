@@ -394,56 +394,45 @@ export default function PerformancePage() {
     return recs
   }
 
-  // 📊 EXPORTAR A EXCEL
-  const exportExcel = () => {
-    const rows = studentsFull.flatMap((s: AnyRec) =>
-      (s.temas.length
-        ? s.temas
-        : [{ tema: '',  aciertos: 0, errores: 0 }]
-      ).map((t: AnyRec) => ({
-        alumno: s.nombres,
-        tema: t.tema,
-     
-       
-        aciertos: t.aciertos || 0,
-        errores: t.errores || 0,
-        racha: t.streak || 0,
-        ejercicios_totales: s.totalExercises,
-        ejercicios_correctos: s.correctExercises,
-        tasa_exito: `${s.successRate.toFixed(1)}%`,
-        nivel_promedio: Number(s.nivelProm || 0).toFixed(2),
-        intentos_promedio: s.avgAttempts.toFixed(1),
-        tiempo_promedio_seg: s.avgTime.toFixed(1),
-        ultimo_intento: s.lastResponse
-          ? new Date(s.lastResponse).toLocaleString()
-          : 'N/A',
-        estado_riesgo: studentsAtRisk.some(sr => sr.id === s.id) ? 'EN RIESGO' : 'OK',
-      }))
-    )
 
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Rendimiento Completo')
+const exportExcel = () => {
+  const rows = studentsFull.flatMap((s: AnyRec) =>
+    (s.temas.length ? s.temas : [{ tema: '', aciertos: 0, errores: 0 }]).map((t: AnyRec) => ({
+      alumno: s.nombres,
+      tema: t.tema,
+      aciertos: t.aciertos || 0,
+      errores: t.errores || 0,
+    }))
+  )
 
-    if (rows[0]) {
-      ws['!cols'] = Object.keys(rows[0]).map(() => ({ wch: 18 }))
-    }
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Rendimiento')
 
-    try {
-      XLSX.writeFile(wb, `performance_${new Date().toISOString().split('T')[0]}.xlsx`)
-    } catch {
-      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-      const blob = new Blob([buf], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `performance_${new Date().toISOString().split('T')[0]}.xlsx`
-      a.click()
-      URL.revokeObjectURL(url)
-    }
+  if (rows[0]) {
+    ws['!cols'] = [
+      { wch: 25 }, // alumno
+      { wch: 30 }, // tema
+      { wch: 12 }, // aciertos
+      { wch: 12 }, // errores
+    ]
   }
+
+  try {
+    XLSX.writeFile(wb, `performance_${new Date().toISOString().split('T')[0]}.xlsx`)
+  } catch {
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([buf], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `performance_${new Date().toISOString().split('T')[0]}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+}
 
   if (loading) {
     return (
