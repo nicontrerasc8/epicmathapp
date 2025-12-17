@@ -1073,29 +1073,9 @@ const g = (ej.variant?.givens || [])
               {/* Botones +/- (solo mientras no termina) */}
               {!isFinished && (
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                  {[-1, -0.1, +0.1, +1].map(delta => (
-                    <button
-                      key={delta}
-                      onClick={() =>
-                        setRespuesta(v => {
-                          const n = Number(String(v || '0').replace(',', '.')) || 0
-                          return fmt(n + delta, decimals)
-                        })
-                      }
-                      className="text-xs px-3 py-1 rounded-md border bg-white hover:bg-muted transition shadow-sm"
-                      type="button"
-                    >
-                      {delta > 0 ? `+${delta}` : delta}
-                    </button>
-                  ))}
+            
 
-                  <button
-                    type="button"
-                    onClick={() => setRespuesta('')}
-                    className="text-xs px-3 py-1 rounded-md border bg-white hover:bg-muted transition shadow-sm"
-                  >
-                    Limpiar
-                  </button>
+                
 
                   {DEV_TOOLS && (
                     <button
