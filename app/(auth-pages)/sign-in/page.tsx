@@ -74,7 +74,7 @@ export default function SignInPage() {
           {/* Header */}
           <div className="text-center mb-6">
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              Inicia sesión en <span className="text-primary">Appruebo</span>
+              Inicia sesión en <span className="text-primary">Ludus</span>
             </h1>
          
           </div>

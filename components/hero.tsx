@@ -19,7 +19,7 @@ export default function Page() {
           transition={{ duration: 0.6 }}
         >
           <h1 className="text-5xl font-extrabold leading-tight">
-            Appruebo para{' '}
+            Ludus para{' '}
             <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
               academias
             </span>

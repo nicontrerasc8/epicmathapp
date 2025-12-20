@@ -27,7 +27,7 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Appruebo · Aprende, juega y aprueba",
+  title: "Ludus · Aprende, juega y aprueba",
   description:
     "La plataforma lúdica que transforma el aprendizaje en logros reales. Tecnología, pedagogía y diversión en un solo lugar.",
 };
@@ -61,7 +61,7 @@ export default function RootLayout({
                   href="/"
                   className="text-xl md:text-2xl font-extrabold tracking-tight text-primary hover:opacity-90 transition-opacity"
                 >
-                  Appruebo
+                  Ludus
                 </Link>
 
                 {/* Right side */}
@@ -80,7 +80,7 @@ export default function RootLayout({
             <footer className="border-t border-border bg-card text-muted-foreground py-10">
               <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 px-6 text-sm">
                 <p className="text-center md:text-left leading-relaxed">
-                  © {new Date().getFullYear()} <strong>Appruebo</strong>. 
+                  © {new Date().getFullYear()} <strong>Ludus</strong>. 
                 </p>
                
               </div>
