@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MathJax, MathJaxContext } from 'better-react-mathjax'
+import JXG from 'jsxgraph'
+// ✅ Importa el CSS de JSXGraph UNA VEZ de forma global (recomendado):
+// en app/globals.css:  @import "jsxgraph/distrib/jsxgraph.css";
+// o en pages/_app.tsx: import "jsxgraph/distrib/jsxgraph.css";
 
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
@@ -12,7 +16,7 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    PRISMA 27 — Geometría (Alturas) — hallar x + y
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ Dinámico: α cambia y SIEMPRE x + y = α
-   ✅ Diagrama en CANVAS (alturas + ángulos x, y, α)
+   ✅ Diagrama en JSXGraph (alturas + ángulos x, y, α)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -56,7 +60,7 @@ function Tex({
 }
 
 /* ============================================================
-   DIAGRAMA (Canvas)
+   DIAGRAMA (JSXGraph)
    - Triángulo ABC con ∠A = α
    - BF ⟂ AC (altura desde B)
    - CD ⟂ AB (altura desde C)
@@ -65,176 +69,195 @@ function Tex({
    - y en C entre BC y CD
 ============================================================ */
 function Diagram({ alpha }: { alpha: number }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const boardRef = useRef<any>(null)
+  const boardId = useMemo(
+    () => `jxg-${Math.random().toString(36).slice(2)}`,
+    []
+  )
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const el = document.getElementById(boardId)
+    if (!el) return
 
-    const rect = canvas.getBoundingClientRect()
-    const cssW = rect.width > 0 ? rect.width : 560
-    const cssH = 300
-    const dpr = window.devicePixelRatio || 1
+    // Limpieza segura
+    try {
+      if (boardRef.current) JXG.JSXGraph.freeBoard(boardRef.current)
+    } catch {}
+    el.innerHTML = ''
 
-    canvas.width = Math.floor(cssW * dpr)
-    canvas.height = Math.floor(cssH * dpr)
-    canvas.style.width = '100%'
-    canvas.style.height = `${cssH}px`
+    const board = JXG.JSXGraph.initBoard(boardId, {
+      boundingbox: [-1, 6, 9, -1],
+      keepaspectratio: true,
+      axis: false,
+      showNavigation: false,
+      showCopyright: false,
+    })
+    boardRef.current = board
 
-    const ctx:any = canvas.getContext('2d')
-    if (!ctx) return
+    /* ======================
+       Helpers
+    ====================== */
+    const rad = (alpha * Math.PI) / 180
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, cssW, cssH)
-
-    ctx.strokeStyle = '#000'
-    ctx.fillStyle = '#000'
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-
-    const TAU = Math.PI * 2
-    const deg2rad = (d: number) => (d * Math.PI) / 180
-    const P = (x: number, y: number) => ({ x, y })
-
-    const sub = (a: any, b: any) => P(a.x - b.x, a.y - b.y)
-    const add = (a: any, b: any) => P(a.x + b.x, a.y + b.y)
-    const mul = (v: any, k: number) => P(v.x * k, v.y * k)
-    const dot = (u: any, v: any) => u.x * v.x + u.y * v.y
-    const norm2 = (v: any) => v.x * v.x + v.y * v.y
-    const angleOf = (p: any, q: any) => Math.atan2(p.y - q.y, p.x - q.x)
-
-    function line(p1: any, p2: any, w = 4) {
-      ctx.lineWidth = w
-      ctx.beginPath()
-      ctx.moveTo(p1.x, p1.y)
-      ctx.lineTo(p2.x, p2.y)
-      ctx.stroke()
+    function unit(dx: number, dy: number) {
+      const m = Math.hypot(dx, dy) || 1e-9
+      return [dx / m, dy / m] as const
     }
 
-    function dotPt(p: any, r = 4) {
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, r, 0, TAU)
-      ctx.fill()
-    }
-
-    function text(t: string, x: number, y: number, size = 16) {
-      ctx.font = `${size}px ui-sans-serif, system-ui`
-      ctx.textAlign = 'center'
-      ctx.fillText(t, x, y)
-    }
-
-    function drawAngleSmall(V: any, P1: any, P2: any, r: number, label: string) {
-      const a1 = angleOf(P1, V)
-      const a2 = angleOf(P2, V)
-
-      let diff = a2 - a1
-      while (diff <= -Math.PI) diff += TAU
-      while (diff > Math.PI) diff -= TAU
-
-      const start = a1
-      const end = a1 + diff
-      const anticlockwise = diff < 0
-
-      ctx.beginPath()
-      ctx.arc(V.x, V.y, r, start, end, anticlockwise)
-      ctx.stroke()
-
-      const mid = start + diff / 2
-      text(label, V.x + (r + 14) * Math.cos(mid), V.y + (r + 14) * Math.sin(mid))
-    }
-
-    function rightAngleMark(V: any, u: any, v: any, s = 12) {
-      const p1 = add(V, mul(u, s))
-      const p2 = add(p1, mul(v, s))
-      const p3 = add(V, mul(v, s))
-
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.moveTo(p1.x, p1.y)
-      ctx.lineTo(p2.x, p2.y)
-      ctx.lineTo(p3.x, p3.y)
-      ctx.stroke()
+    function bisectorPoint(V: any, P1: any, P2: any, k: number) {
+      const [u1x, u1y] = unit(P1.X() - V.X(), P1.Y() - V.Y())
+      const [u2x, u2y] = unit(P2.X() - V.X(), P2.Y() - V.Y())
+      const sx = u1x + u2x
+      const sy = u1y + u2y
+      const m = Math.hypot(sx, sy) || 1e-9
+      return [V.X() + (sx / m) * k, V.Y() + (sy / m) * k] as const
     }
 
     /* ======================
-       CONSTRUCCIÓN (PDF-LIKE)
+       Estilos
     ====================== */
-    const baseY = 245
-    const L = 190
-    const a = deg2rad(alpha)
+    const pt = {
+      size: 3,
+      face: 'o',
+      strokeColor: '#000',
+      fillColor: '#000',
+      fixed: true,
+      highlight: false,
+    } as any
 
-    // A y C FIJOS (clave)
-    const A = P(40, baseY)
-    const C = P(cssW - 90, baseY)
+    const seg = { strokeWidth: 3, strokeColor: '#000', highlight: false } as any
+    const alt = { strokeWidth: 2, dash: 2, strokeColor: '#000' } as any
 
-    // B según α
-    const B = P(
-      A.x + L * Math.cos(a),
-      A.y - L * Math.sin(a)
-    )
+    const ang = {
+      strokeWidth: 2.6,
+      strokeColor: '#000',
+      fillOpacity: 0,
+      fixed: true,
+      highlight: false,
+      withLabel: false,
+    } as any
 
-    // F: pie de altura desde B
-    const F = P(B.x, baseY)
-
-    // D: proyección de C sobre AB (controlada)
-    const AB = sub(B, A)
-    let t = dot(sub(C, A), AB) / norm2(AB)
-    t = Math.min(0.65, Math.max(0.30, t)) // 🔥 BD largo sin romper AF
-    const D = add(A, mul(AB, t))
-
-    // O: intersección de alturas
-    const CD = sub(D, C)
-    const s = (B.x - C.x) / (CD.x || 1e-9)
-    const O = add(C, mul(CD, s))
+    const txt = {
+      fontSize: 18,
+      fontWeight: '700',
+      anchorX: 'middle',
+      anchorY: 'middle',
+      fixed: true,
+    } as any
 
     /* ======================
-       DIBUJO
+       Puntos base
     ====================== */
-    line(A, C, 4)
-    line(A, B, 4)
-    line(B, C, 4)
-
-    line(B, F, 3)
-    line(C, D, 3)
-
-    ;[
-      [A, 'A', -10, 20],
-      [B, 'B', 0, -16],
-      [C, 'C', 14, 20],
-      [D, 'D', -14, 10],
-      [F, 'F', 0, 22],
-      [O, 'O', 14, -10],
-    ].forEach(([p, lab, dx, dy]: any) => {
-      dotPt(p, 4)
-      text(lab, p.x + dx, p.y + dy)
+    const A = board.create('point', [0, 0], {
+      ...pt,
+      name: 'A',
+      label: { offset: [-14, -18] },
     })
 
-    // 90°
-    const uAC = P(1, 0)
-    const uBF = P(0, -1)
-    rightAngleMark(F, uAC, uBF)
+    const C = board.create('point', [8, 0], {
+      ...pt,
+      name: 'C',
+      label: { offset: [14, -18] },
+    })
 
-    const mAB = Math.hypot(AB.x, AB.y) || 1
-    const uAB = P(AB.x / mAB, AB.y / mAB)
-    const uPerpAB = P(-uAB.y, uAB.x)
-    rightAngleMark(D, uAB, uPerpAB)
+    const L = 5.2
+    const B = board.create(
+      'point',
+      [L * Math.cos(rad), L * Math.sin(rad)],
+      {
+        ...pt,
+        name: 'B',
+        label: { offset: [0, 16] },
+      }
+    )
 
-    // ángulos
-    ctx.lineWidth = 3
-    drawAngleSmall(A, B, C, 22, `${alpha}°`)
-    drawAngleSmall(B, F, C, 22, 'x')
-    drawAngleSmall(C, B, D, 22, 'y')
-  }, [alpha])
+    /* ======================
+       Lados
+    ====================== */
+    board.create('segment', [A, B], seg)
+    board.create('segment', [B, C], seg)
+    board.create('segment', [A, C], seg)
+
+    const lAB = board.create('line', [A, B], { visible: false })
+    const lAC = board.create('line', [A, C], { visible: false })
+
+    /* ======================
+       Alturas
+    ====================== */
+    const altB = board.create('perpendicular', [lAC, B], { visible: false })
+    const F = board.create('intersection', [altB, lAC], {
+      ...pt,
+      name: 'F',
+      size: 2,
+      label: { offset: [0, -22] },
+    })
+    board.create('segment', [B, F], alt)
+
+    const altC = board.create('perpendicular', [lAB, C], { visible: false })
+    const D = board.create('intersection', [altC, lAB], {
+      ...pt,
+      name: 'D',
+      size: 2,
+      label: { offset: [-14, 10] },
+    })
+    board.create('segment', [C, D], alt)
+
+    /* ======================
+       Ortocentro (opcional)
+    ====================== */
+    board.create('intersection', [altB, altC], {
+      size: 2,
+      withLabel: false,
+      fixed: true,
+    })
+
+    /* ======================
+       Ángulos (orden CORRECTO)
+    ====================== */
+    // α en A (🔥 este orden evita que salga al revés)
+    board.create('angle', [C, A, B], { ...ang, radius: 1.5 })
+
+    // x en B
+    board.create('angle', [F, B, C], { ...ang, radius:1.5 })
+
+    // y en C
+    board.create('angle', [B, C, D], { ...ang, radius: 1.5 })
+
+    /* ======================
+       Labels grandes y claros
+    ====================== */
+    board.create('text', [
+      () => bisectorPoint(A, C, B, 0.95)[0],
+      () => bisectorPoint(A, C, B, 0.95)[1],
+      () => `${alpha}°`,
+    ], txt)
+
+    board.create('text', [
+      () => bisectorPoint(B, C, F, 0.78)[0],
+      () => bisectorPoint(B, C, F, 0.78)[1],
+      () => 'x',
+    ], txt)
+
+    board.create('text', [
+      () => bisectorPoint(C, D, B, 0.78)[0],
+      () => bisectorPoint(C, D, B, 0.78)[1],
+      () => 'y',
+    ], txt)
+
+    return () => {
+      try {
+        JXG.JSXGraph.freeBoard(board)
+      } catch {}
+    }
+  }, [alpha, boardId])
 
   return (
     <div className="rounded-xl border bg-white p-3">
       <div className="text-sm font-semibold mb-2">Figura (referencial)</div>
-      <canvas ref={canvasRef} className="w-full rounded-lg" />
+      <div id={boardId} className="w-full h-[320px] rounded-lg" />
     </div>
   )
 }
-
-
 
 /* =========================
    Generador
@@ -347,7 +370,7 @@ export default function Prisma27({ temaPeriodoId }: { temaPeriodoId: string }) {
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
-        onVerify={() => { }}
+        onVerify={() => {}}
         onNext={siguiente}
         solution={
           <SolutionBox>
