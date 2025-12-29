@@ -7,7 +7,7 @@ export type ExerciseStatus = 'idle' | 'ok' | 'revealed'
 
 type Props = {
   title: string
-  prompt: string
+  prompt: any
   status: ExerciseStatus
   attempts: number
   maxAttempts: number

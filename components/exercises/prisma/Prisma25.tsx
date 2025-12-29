@@ -1,15 +1,305 @@
 ﻿'use client'
 
-export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
+import { useMemo, useState } from 'react'
+import { MathJax, MathJaxContext } from 'better-react-mathjax'
+
+import { ExerciseShell } from '../base/ExerciseShell'
+import { SolutionBox } from '../base/SolutionBox'
+import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
+import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
+
+/* ============================================================
+   PRISMA 25 — Existencia de triángulo (inecuaciones) (MathJax)
+   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
+   ✅ Estilo Prisma: teorema de existencia |a-b| < c < a+b
+   ✅ Con diagrama simple + explicación paso a paso
+============================================================ */
+
+type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
+
+function shuffle<T>(arr: T[]) {
+  return [...arr].sort(() => Math.random() - 0.5)
+}
+
+/* =========================
+   MathJax Config
+========================= */
+const MATHJAX_CONFIG = {
+  loader: { load: ['input/tex', 'output/chtml'] },
+  tex: {
+    inlineMath: [['\\(', '\\)']],
+    displayMath: [['\\[', '\\]']],
+    processEscapes: true,
+    packages: { '[+]': ['ams'] },
+  },
+  options: {
+    renderActions: { addMenu: [] },
+  },
+} as const
+
+function Tex({
+  latex,
+  display = false,
+  className = '',
+}: {
+  latex: string
+  display?: boolean
+  className?: string
+}) {
+  const wrapped = display ? `\\[${latex}\\]` : `\\(${latex}\\)`
   return (
-    <div className="p-6 text-center">
-      <h2 className="text-xl font-bold">Prisma 25</h2>
-      <p className="text-muted-foreground">
-        Ejercicio Prisma 25 aún no implementado.
-      </p>
-      <p className="text-xs mt-2 text-gray-400">
-        temaPeriodoId: {temaPeriodoId}
-      </p>
+    <span className={className}>
+      <MathJax dynamic>{wrapped}</MathJax>
+    </span>
+  )
+}
+
+/* =========================
+   Diagrama (referencial)
+========================= */
+function Diagram() {
+  const A = { x: 80, y: 220 }
+  const C = { x: 360, y: 220 }
+  const B = { x: 200, y: 85 }
+  const W = 440
+  const H = 260
+
+  // helpers para colocar textos cerca de lados
+  const mid = (p: any, q: any) => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })
+
+  const mAB = mid(A, B)
+  const mBC = mid(B, C)
+  const mAC = mid(A, C)
+
+  return (
+    <div className="rounded-xl border bg-white p-3">
+      <div className="text-sm font-semibold mb-2">Figura (referencial)</div>
+
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+        {/* lados */}
+        <line x1={A.x} y1={A.y} x2={B.x} y2={B.y} stroke="black" strokeWidth="3" />
+        <line x1={B.x} y1={B.y} x2={C.x} y2={C.y} stroke="black" strokeWidth="3" />
+        <line x1={A.x} y1={A.y} x2={C.x} y2={C.y} stroke="black" strokeWidth="3" />
+
+        {/* puntos */}
+        {[A, B, C].map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r="5" fill="black" />
+        ))}
+
+        {/* letras */}
+        <text x={A.x - 14} y={A.y + 20} fontSize="16">
+          A
+        </text>
+        <text x={C.x + 8} y={C.y + 20} fontSize="16">
+          C
+        </text>
+        <text x={B.x - 6} y={B.y - 10} fontSize="16">
+          B
+        </text>
+
+        {/* etiquetas de lados */}
+        <text x={mAB.x - 20} y={mAB.y - 6} fontSize="16">
+          10
+        </text>
+        <text x={mBC.x + 10} y={mBC.y - 6} fontSize="16">
+          x − 2
+        </text>
+        <text x={mAC.x - 24} y={mAC.y + 26} fontSize="16">
+          2x + 3
+        </text>
+      </svg>
+
+      <div className="mt-2 text-xs text-muted-foreground">
+        Lados: <span className="font-mono">10</span>, <span className="font-mono">x−2</span>,{' '}
+        <span className="font-mono">2x+3</span>
+      </div>
     </div>
+  )
+}
+
+function generateExercise() {
+  // Enunciado del PDF (tal cual)
+  const answer = 4
+
+  // Opciones como en la imagen: 4,5,6,7 (las mezclo para que no sea mecánico)
+  const base = [4, 5, 6, 7]
+  const values = shuffle(base)
+  const labels: Option['label'][] = ['A', 'B', 'C', 'D']
+  const options: Option[] = values.map((v, i) => ({
+    label: labels[i],
+    value: v,
+    correct: v === answer,
+  }))
+
+  const questionLatex = `\\text{Los lados miden } 10,\\; x-2,\\; 2x+3.\\;\\text{Halle el valor entero de } x.`
+  return { answer, options, questionLatex }
+}
+
+/* =========================
+   COMPONENT
+========================= */
+export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
+  const engine = useExerciseEngine({ maxAttempts: 1 })
+  const [nonce, setNonce] = useState(0)
+  const [selected, setSelected] = useState<number | null>(null)
+
+  const ex = useMemo(() => generateExercise(), [nonce])
+
+  function pickOption(op: Option) {
+    if (!engine.canAnswer) return
+
+    setSelected(op.value)
+    engine.submit(op.correct)
+
+    persistExerciseOnce({
+      temaPeriodoId,
+      exerciseKey: 'Prisma25',
+      prompt: 'Valor entero de x.',
+      questionLatex: ex.questionLatex,
+      options: ex.options.map(o => `${o.label}. ${o.value}`),
+      correctAnswer: `${ex.answer}`,
+      userAnswer: `${op.value}`,
+      isCorrect: op.correct,
+      extra: {
+        sides: ['10', 'x-2', '2x+3'],
+      },
+    })
+  }
+
+  function siguiente() {
+    setSelected(null)
+    engine.reset()
+    setNonce(n => n + 1)
+  }
+
+  // Latex de la solución (paso a paso)
+  const s0 = `\\textbf{Condición: } x-2>0 \\Rightarrow x>2`
+  const s1 = `\\left|(2x+3)-(x-2)\\right| < 10 < (2x+3)+(x-2)`
+  const s2 = `\\left|x+5\\right| < 10 \\Rightarrow -10 < x+5 < 10 \\Rightarrow -15 < x < 5`
+  const s3 = `10 < 3x+1 \\Rightarrow 9 < 3x \\Rightarrow 3 < x`
+  const s4 = `\\Rightarrow 3 < x < 5 \\Rightarrow x=4`
+
+  return (
+    <MathJaxContext version={3} config={MATHJAX_CONFIG}>
+      <ExerciseShell
+        title="Prisma 25 — Existencia de triángulo"
+        prompt={
+          <div className="space-y-3">
+            <div className="text-sm">
+              Los lados de un triángulo miden <span className="font-semibold">10</span>,{' '}
+              <span className="font-semibold">x − 2</span> y{' '}
+              <span className="font-semibold">2x + 3</span>. Encuentra el{' '}
+              <span className="font-semibold">valor entero</span> de <span className="font-semibold">x</span>.
+            </div>
+
+            <Diagram />
+
+            <div className="text-lg">
+              <Tex latex={`\\text{Halle } x\\in\\mathbb{Z}`} display />
+            </div>
+          </div>
+        }
+        status={engine.status}
+        attempts={engine.attempts}
+        maxAttempts={engine.maxAttempts}
+        onVerify={() => {}}
+        onNext={siguiente}
+        solution={
+          <SolutionBox>
+            <div className="space-y-4 text-sm leading-relaxed">
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">✅ Paso 1 — Longitud positiva</div>
+                <p className="text-muted-foreground">
+                  Una medida de lado no puede ser negativa, así que primero:
+                </p>
+                <div className="mt-2">
+                  <Tex latex={s0} display />
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">✅ Paso 2 — Teorema de existencia</div>
+                <p className="text-muted-foreground">
+                  Para que exista un triángulo con lados <span className="font-mono">a</span>,{' '}
+                  <span className="font-mono">b</span>, <span className="font-mono">c</span> se cumple:
+                  <span className="font-semibold"> |a−b| &lt; c &lt; a+b</span>.
+                  Tomamos <span className="font-mono">a=2x+3</span>, <span className="font-mono">b=x−2</span> y{' '}
+                  <span className="font-mono">c=10</span>.
+                </p>
+                <div className="mt-2">
+                  <Tex latex={s1} display />
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">✅ Paso 3 — Resolver las inecuaciones</div>
+                <div className="space-y-2">
+                  <div>
+                    <div className="font-semibold mb-1">Izquierda</div>
+                    <Tex latex={s2} display />
+                  </div>
+                  <div>
+                    <div className="font-semibold mb-1">Derecha</div>
+                    <Tex latex={s3} display />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">✅ Paso 4 — Intersección y entero</div>
+                <p className="text-muted-foreground">
+                  Juntamos todo (incluyendo <span className="font-mono">x&gt;2</span>) y buscamos el entero:
+                </p>
+                <div className="mt-2 space-y-2">
+                  <Tex latex={s4} display />
+                </div>
+
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-sm font-semibold">Respuesta:</span>
+                  <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">{ex.answer}</span>
+                </div>
+              </div>
+
+              <div className="text-xs text-muted-foreground">
+                Chequeo rápido: el rango queda <span className="font-mono">(3,5)</span>, así que el único entero es{' '}
+                <span className="font-mono">4</span>.
+              </div>
+            </div>
+          </SolutionBox>
+        }
+      >
+        <div className="grid grid-cols-2 gap-4">
+          {ex.options.map(op => {
+            const isSelected = selected === op.value
+            const showCorrect = engine.status !== 'idle' && op.correct
+            const showWrong = engine.status === 'revealed' && isSelected && !op.correct
+
+            return (
+              <button
+                key={op.label}
+                type="button"
+                disabled={!engine.canAnswer}
+                onClick={() => pickOption(op)}
+                className={[
+                  'border rounded-xl p-4 text-center transition',
+                  'hover:shadow-sm hover:-translate-y-0.5',
+                  isSelected && 'ring-2 ring-primary',
+                  showCorrect && 'bg-green-400',
+                  showWrong && 'bg-red-400',
+                  !engine.canAnswer && 'opacity-80 cursor-not-allowed',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                <div className="font-semibold mb-1">{op.label}.</div>
+                <div className="text-lg">
+                  <Tex latex={`${op.value}`} />
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </ExerciseShell>
+    </MathJaxContext>
   )
 }
