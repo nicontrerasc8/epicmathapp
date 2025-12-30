@@ -397,7 +397,7 @@ function buildExercise(excludeSigs: string[]): ExData {
   const d3 = Math.abs(answer - gamma) || answer + 6
   const d4 = 180 - answer
 
-  const set = new Set<number>([answer, d1, d2, d3, d4])
+  const set:any = new Set<number>([answer, d1, d2, d3, d4])
   const vals: number[] = []
   for (const v of set) {
     if (v > 0 && v <= 180) vals.push(v)
