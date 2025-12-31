@@ -1,6 +1,8 @@
 'use client'
 
 import React from 'react'
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 
 import Prisma01 from './prisma/Prisma01'
 import Prisma02 from './prisma/Prisma02'
@@ -107,23 +109,35 @@ export const ExerciseRegistry = ({
   sessionId,
 }: ExerciseComponentProps) => {
   const ExerciseComponent = EXERCISE_COMPONENTS[exerciseId]
-console.log('exerciseId recibido:', exerciseId)
-console.log('keys registry:', Object.keys(EXERCISE_COMPONENTS))
 
-  if (!ExerciseComponent) {
-    return (
-      <div className="p-6 text-center text-muted-foreground">
-        Ejercicio no implementado
-      </div>
-    )
-  }
+  console.log('exerciseId recibido:', exerciseId)
+  console.log('keys registry:', Object.keys(EXERCISE_COMPONENTS))
 
   return (
-    <ExerciseComponent
-      exerciseId={exerciseId}
-      temaId={temaId}
-      classroomId={classroomId}
-      sessionId={sessionId}
-    />
+    <div className="relative">
+      {/* ✅ Botón Volver (siempre) */}
+      <Link
+        href="/dashboard/student/play"
+        className="absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Volver
+      </Link>
+
+      {!ExerciseComponent ? (
+        <div className="p-6 pt-16 text-center text-muted-foreground">
+          Ejercicio no implementado
+        </div>
+      ) : (
+        <div className="pt-16">
+          <ExerciseComponent
+            exerciseId={exerciseId}
+            temaId={temaId}
+            classroomId={classroomId}
+            sessionId={sessionId}
+          />
+        </div>
+      )}
+    </div>
   )
 }
