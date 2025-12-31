@@ -9,11 +9,12 @@ import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
 import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
-   PRISMA 10 — Conjuntos A y B + validar 4 afirmaciones (VVVF)
+   PRISMA 10 — Conjuntos A y B + validar 4 afirmaciones (I–IV)
    (A ⊂ B, B ⊂ A, A = B, A ≠ B)
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ 100% dinámico: genera A explícito y B por comprensión
    ✅ MathJax PRO: datos, afirmaciones y solución con TeX
+   ✅ Persist con la MISMA firma que Prisma01/05
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: string; correct: boolean }
@@ -53,7 +54,7 @@ function isEqual(A: number[], B: number[]) {
    B: { x / x∈N, x es par, x < m }
    A: conjunto explícito, según escenario
 ========================= */
-type Scenario = 'equal' | 'A_subset_B' | 'B_subset_A' | 'disjointish'
+type Scenario = 'equal' | 'A_subset_B' | 'B_subset_A' | 'mix'
 
 function pickEvenFromB(B: number[], k: number) {
   return uniq(shuffle(B).slice(0, k))
@@ -77,7 +78,7 @@ function makeA_forScenario(B: number[], limit: number, scenario: Scenario) {
     return uniq([...B, ...pickOddNotInB(limit, extraCount)])
   }
 
-  // disjointish
+  // mix: A comparte varios pares con B, pero también mete impares (ni subset ni igual normalmente)
   const keepSome = pickEvenFromB(B, Math.max(2, B.length - randInt(1, 3)))
   const addOdds = pickOddNotInB(limit, randInt(2, 4))
   return uniq([...keepSome, ...addOdds])
@@ -112,9 +113,9 @@ function generateOptions(correct: string): Option[] {
     const cand = flipBits(correct, coin(0.7) ? 1 : 2)
     if (cand !== correct) set.add(cand)
   }
+
   const distractors = Array.from(set).slice(0, 3)
   const labels: Option['label'][] = ['A', 'B', 'C', 'D']
-
   const all = shuffle([
     { value: correct, correct: true },
     ...distractors.map(v => ({ value: v, correct: false })),
@@ -137,7 +138,7 @@ function generateExercise() {
       if (r < 0.45) return 'equal'
       if (r < 0.65) return 'A_subset_B'
       if (r < 0.85) return 'B_subset_A'
-      return 'disjointish'
+      return 'mix'
     })()
 
     const A = makeA_forScenario(B, limit, scenario)
@@ -146,7 +147,7 @@ function generateExercise() {
     if (res.bits === 'FFFF' || res.bits === 'VVVV') continue
 
     const options = generateOptions(res.bits)
-    return { limit, A, B, res, options }
+    return { limit, A, B, res, options, scenario }
   }
 
   // fallback
@@ -160,7 +161,7 @@ function generateExercise() {
     { label: 'C', value: 'VFVF', correct: false },
     { label: 'D', value: 'VFFV', correct: false },
   ] as Option[]
-  return { limit, A, B, res, options }
+  return { limit, A, B, res, options, scenario: 'equal' as Scenario }
 }
 
 /* =========================
@@ -200,11 +201,9 @@ function Tex({
    TeX helpers (conjuntos)
 ========================= */
 function setTeX(nums: number[]) {
-  // {0,2,4}
   return `\\{${nums.join(', ')}\\}`
 }
 function listCandidatesTeX(limit: number) {
-  // {0,1,2,...,limit-1}
   if (limit <= 1) return `\\{0\\}`
   return `\\{0,1,2,\\dots,${limit - 1}\\}`
 }
@@ -212,7 +211,17 @@ function listCandidatesTeX(limit: number) {
 /* =========================
    PRISMA 10 — UI
 ========================= */
-export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma10({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -230,8 +239,6 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
   const BdefTex = `B=\\{x\\in\\mathbb{N}\\mid x\\ \\text{es par},\\ x<${ej.limit}\\}`
   const AdefTex = `A=${Atex}`
 
-  const questionLatex = `\\text{Sea } ${AdefTex}\\ \\text{y}\\ ${BdefTex}.\\ \\text{Evalúa I–IV.}`
-
   const prompt =
     `Si: A = { ${ej.A.join('; ')} }  y  B = { x / x ∈ ℕ ; x es par, x < ${ej.limit} }.\n` +
     `Entonces la validez de las afirmaciones I–IV es:`
@@ -242,28 +249,34 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // Persist (misma firma que Prisma01)
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma10',
-      prompt,
-      questionLatex,
-      options: ej.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: ej.res.bits,
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        A: ej.A,
-        B: ej.B,
-        limit: ej.limit,
-        statements: {
-          I_A_subset_B: ej.res.A_sub_B,
-          II_B_subset_A: ej.res.B_sub_A,
-          III_A_eq_B: ej.res.A_eq_B,
-          IV_A_neq_B: ej.res.A_neq_B,
+      exerciseId, // ej: 'Prisma10'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: op.value,
+        correctAnswer: ej.res.bits,
+        latex: `\\text{Sea } ${AdefTex}\\ \\text{y}\\ ${BdefTex}.\\ \\text{Evalúa I–IV.}`,
+        options: ej.options.map(o => o.value),
+        extra: {
+          A: ej.A,
+          B: ej.B,
+          limit: ej.limit,
+          scenario: ej.scenario,
+          statements: {
+            I_A_subset_B: ej.res.A_sub_B,
+            II_B_subset_A: ej.res.B_sub_A,
+            III_A_eq_B: ej.res.A_eq_B,
+            IV_A_neq_B: ej.res.A_neq_B,
+          },
+          diffs: { AminusB, BminusA },
+          latexParts: { A: Atex, B: Btex, Bdef: BdefTex },
         },
-        diffs: { AminusB, BminusA },
-        bits: ej.res.bits,
-        latex: { A: Atex, B: Btex, Bdef: BdefTex },
       },
     })
   }
@@ -274,7 +287,7 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
     setNonce(n => n + 1)
   }
 
-  // helpers para “profe”
+  // helpers “profe”
   const A_is_subset_B_plain = isSubset(ej.A, ej.B)
   const B_is_subset_A_plain = isSubset(ej.B, ej.A)
   const A_eq_B_plain = isEqual(ej.A, ej.B)
@@ -297,12 +310,12 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <div className="font-semibold mb-2">👀 Paso 0 — Qué significa cada afirmación</div>
                 <div className="space-y-2 text-muted-foreground">
                   <div>
-                    <Tex tex={`A\\subset B`} /> significa: <span className="font-semibold">todo</span> elemento de A está en B,
+                    <Tex tex={`A\\subset B`} /> significa: todo elemento de A está en B,
                     <span className="font-semibold"> y además </span>
-                    <Tex tex={`A\\neq B`} /> (es subconjunto <span className="font-semibold">propio</span>).
+                    <Tex tex={`A\\neq B`} /> (subconjunto propio).
                   </div>
                   <div>
-                    <Tex tex={`A=B`} /> significa: tienen <span className="font-semibold">exactamente</span> los mismos elementos.
+                    <Tex tex={`A=B`} /> significa: tienen exactamente los mismos elementos.
                   </div>
                   <div>
                     <Tex tex={`A\\neq B`} /> significa: al menos un elemento está en uno y no en el otro.
@@ -327,12 +340,12 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
                   </div>
 
                   <div className="font-semibold mt-3 mb-1">Luego: solo pares</div>
-                  <div className="text-muted-foreground">
-                    Nos quedamos con los que cumplen “x es par”.
-                  </div>
+                  <div className="text-muted-foreground">Nos quedamos con los que cumplen “x es par”.</div>
+
                   <div className="mt-2 inline-block rounded bg-muted px-3 py-2 font-mono">
                     B = {ej.B.join('; ')}
                   </div>
+
                   <div className="mt-2 rounded border p-3 bg-white">
                     <Tex block tex={`B=${Btex}`} />
                   </div>
@@ -349,7 +362,7 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Comparamos A y B (la idea clave)</div>
+                <div className="font-semibold mb-2">✅ Paso 3 — Comparamos A y B (idea clave)</div>
 
                 <div className="rounded-md border bg-background p-3">
                   <div className="font-semibold mb-1">Miramos qué “sobra” en cada uno</div>
@@ -361,7 +374,7 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
                   <div className="mt-3 grid md:grid-cols-2 gap-3">
                     <div className="rounded border bg-white p-3">
                       <div className="font-semibold mb-1">
-                        <Tex tex={`A\\setminus B`} /> (elementos que están en A pero no en B)
+                        <Tex tex={`A\\setminus B`} /> (en A pero no en B)
                       </div>
                       <div className="mt-2 font-mono">
                         {AminusB.length === 0 ? '∅ (vacío)' : `{ ${AminusB.join('; ')} }`}
@@ -370,7 +383,7 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
 
                     <div className="rounded border bg-white p-3">
                       <div className="font-semibold mb-1">
-                        <Tex tex={`B\\setminus A`} /> (elementos que están en B pero no en A)
+                        <Tex tex={`B\\setminus A`} /> (en B pero no en A)
                       </div>
                       <div className="mt-2 font-mono">
                         {BminusA.length === 0 ? '∅ (vacío)' : `{ ${BminusA.join('; ')} }`}
@@ -418,7 +431,7 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
                         )
                       ) : (
                         <>
-                          Hay elementos en A que no están en B (mira <Tex tex={`A\\setminus B`} />), así que no puede ser
+                          Hay elementos en A que no están en B (mira <Tex tex={`A\\setminus B`} />), así que no puede ser{' '}
                           <Tex tex={`A\\subset B`} />.
                         </>
                       )}
@@ -454,7 +467,7 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
                         )
                       ) : (
                         <>
-                          Hay elementos en B que no están en A (mira <Tex tex={`B\\setminus A`} />), así que no puede ser
+                          Hay elementos en B que no están en A (mira <Tex tex={`B\\setminus A`} />), así que no puede ser{' '}
                           <Tex tex={`B\\subset A`} />.
                         </>
                       )}
@@ -484,9 +497,7 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
                           <Tex tex={`B\\setminus A=\\varnothing`} />. Entonces <Tex tex={`A=B`} />.
                         </>
                       ) : (
-                        <>
-                          Como al menos uno de los dos conjuntos tiene “algo que sobra”, no pueden ser iguales.
-                        </>
+                        <>Como al menos uno de los dos conjuntos tiene “algo que sobra”, no pueden ser iguales.</>
                       )}
                     </div>
                   </div>
@@ -532,11 +543,11 @@ export default function Prisma10({ temaPeriodoId }: { temaPeriodoId: string }) {
           </SolutionBox>
         }
       >
-        {/* Datos (tipo Prisma17) */}
+        {/* Datos */}
         <div className="rounded-xl border bg-white p-4 mb-4 text-sm space-y-3">
           <div className="font-semibold">Datos:</div>
 
-          <div className="rounded border p-3 bg-white">
+          <div className="rounded border p-3 bg-white space-y-2">
             <Tex block tex={AdefTex} />
             <Tex block tex={BdefTex} />
           </div>

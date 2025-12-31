@@ -10,10 +10,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 13 — Potencias: “Se reduce a z^m, halle m/4”
-   ✅ MathJax (better-react-mathjax) — mismo formato que Prisma 17
+   ✅ MathJax (better-react-mathjax) — mismo formato que Prisma 01/17
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ Dinámico (genera E con exponentes tipo -2^2, 2^-2, 2^-1)
    ✅ Explicación tipo profe con pasos + cálculo de m/4
+   ✅ Persist (MISMA firma que Prisma01/10)
 ============================================================ */
 
 type Option = { value: string; correct: boolean }
@@ -45,7 +46,7 @@ const MATHJAX_CONFIG = {
     packages: { '[+]': ['ams'] },
   },
   options: {
-    renderActions: { addMenu: [] }, // quita el menú contextual (más limpio)
+    renderActions: { addMenu: [] }, // quita menú contextual
   },
 } as const
 
@@ -77,25 +78,23 @@ function Tex({
    ⇒ m/4 = k+w (entero, lindo para alternativas)
 ========================= */
 function buildScenario() {
-  const k = randInt(2, 9) // controla el bloque grande
-  const w = randInt(1, 7) // controla u+v = 4w
+  const k = randInt(2, 9)
+  const w = randInt(1, 7)
   const sumUV = 4 * w
 
   const u = randInt(1, sumUV - 1)
   const v = sumUV - u
 
-  // Exponentes base para que al elevar por 1/4 y 1/2 salga u y v exactos
+  // bases para que al elevar por 1/4 y 1/2 salga u y v exactos
   const exp2_base = 4 * u
   const exp3_base = 2 * v
 
-  const m = 4 * k + u + v // = 4(k+w)
-  const asked = m / 4 // = k+w
+  const m = 4 * k + u + v
+  const asked = m / 4
 
-  // LaTeX del enunciado (bonito)
-  // Nota: escribimos -2^{2} para reflejar el caso “-2^2” (precedencia)
+  // Nota: -2^{2} representa el caso “-2^2” (el menos va afuera)
   const E_tex = `E = \\left(z^{- ${k}}\\right)^{-2^{2}}\\cdot \\left(z^{${exp2_base}}\\right)^{2^{-2}}\\cdot \\left(z^{${exp3_base}}\\right)^{2^{-1}}`
 
-  // Opciones (distractores típicos)
   const correct = asked
   const distractors = shuffle(
     Array.from(
@@ -106,7 +105,8 @@ function buildScenario() {
           correct + 1,
           correct + 2,
           m, // confunden y marcan m
-          2 * correct, // error por “duplicar”
+          2 * correct, // error típico por duplicar
+          k + u, // otro típico “me olvidé de v”
         ].filter(x => Number.isFinite(x) && x > 0 && x !== correct)
       )
     )
@@ -120,9 +120,21 @@ function buildScenario() {
   return { k, w, u, v, exp2_base, exp3_base, m, asked, E_tex, options }
 }
 
-export default function Prisma13({ temaPeriodoId }: { temaPeriodoId: string }) {
+/* =========================
+   PRISMA 13 — UI
+========================= */
+export default function Prisma13({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
-
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
@@ -135,21 +147,28 @@ export default function Prisma13({ temaPeriodoId }: { temaPeriodoId: string }) {
     engine.submit(op.correct)
 
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma13',
-      prompt: 'Si la expresión se reduce a z^m, halle m/4.',
-      questionLatex: ejercicio.E_tex,
-      options: ejercicio.options.map(o => o.value),
-      correctAnswer: String(ejercicio.asked),
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        k: ejercicio.k,
-        w: ejercicio.w,
-        u: ejercicio.u,
-        v: ejercicio.v,
-        m: ejercicio.m,
-        asked: ejercicio.asked,
+      exerciseId, // ej: 'Prisma13'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: op.value,
+        correctAnswer: String(ejercicio.asked),
+        latex: ejercicio.E_tex,
+        options: ejercicio.options.map(o => o.value),
+        extra: {
+          k: ejercicio.k,
+          w: ejercicio.w,
+          u: ejercicio.u,
+          v: ejercicio.v,
+          exp2_base: ejercicio.exp2_base,
+          exp3_base: ejercicio.exp3_base,
+          m: ejercicio.m,
+          asked: ejercicio.asked,
+        },
       },
     })
   }
@@ -196,8 +215,8 @@ export default function Prisma13({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">👀 Paso 0 — Leer la expresión</div>
                 <p className="text-muted-foreground">
-                  Primero vamos a simplificar los exponentes numéricos (ojo con el caso{' '}
-                  <span className="font-mono">-2^2</span>: el “-” va afuera).
+                  Primero simplificamos los exponentes numéricos (ojo con <span className="font-mono">-2^2</span>: el “-”
+                  va afuera).
                 </p>
                 <div className="mt-2 rounded-md border bg-background p-3">
                   <Tex block tex={E_tex} />
@@ -206,21 +225,21 @@ export default function Prisma13({ temaPeriodoId }: { temaPeriodoId: string }) {
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Reducimos los exponentes numéricos</div>
+                <div className="font-semibold mb-2">✅ Paso 1 — Reducimos exponentes numéricos</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={step1_tex} />
                   <Tex block tex={step1b_tex} />
                   <Tex block tex={step1c_tex} />
                 </div>
                 <div className="mt-2 text-muted-foreground">
-                  Ojo clave: <span className="font-mono">-2^2</span> NO es <span className="font-mono">(+4)</span>;
-                  es <span className="font-mono">-(2^2)= -4</span>.
+                  Clave: <span className="font-mono">-2^2</span> = <span className="font-mono">-(2^2)</span> ={' '}
+                  <span className="font-mono">-4</span>.
                 </div>
               </div>
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Reescribimos E con esos valores</div>
+                <div className="font-semibold mb-2">✅ Paso 2 — Reescribimos E</div>
                 <div className="rounded-md border bg-background p-3">
                   <Tex block tex={rewritten_tex} />
                 </div>
@@ -239,7 +258,7 @@ export default function Prisma13({ temaPeriodoId }: { temaPeriodoId: string }) {
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Multiplicamos potencias de la misma base</div>
+                <div className="font-semibold mb-2">✅ Paso 4 — Multiplicamos potencias (misma base)</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={mult_tex} />
                   <Tex block tex={m_tex} />
@@ -262,12 +281,13 @@ export default function Prisma13({ temaPeriodoId }: { temaPeriodoId: string }) {
           </SolutionBox>
         }
       >
-        {/* Card de expresión (igual estilo Prisma 17) */}
+        {/* Card de expresión */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="font-semibold mb-2">Expresión:</div>
           <Tex block tex={E_tex} />
         </div>
 
+        {/* Opciones */}
         <div className="grid grid-cols-2 gap-4">
           {ejercicio.options.map(op => {
             const isSelected = selected === op.value

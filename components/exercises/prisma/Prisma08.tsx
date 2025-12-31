@@ -14,7 +14,7 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
      F = { ax + b | x ∈ Z+ ∧ mx < x + c }
    Pedir: suma de elementos de F
 
-   ✅ MathJax (better-react-mathjax) — mismo formato que Prisma 17
+   ✅ MathJax (better-react-mathjax) — mismo formato que Prisma 01/17
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ Generación dinámica (sin hardcode)
    ✅ Explicación detallada (inecuación → listar x → armar F → sumar)
@@ -31,13 +31,12 @@ function randInt(min: number, max: number) {
 function choice<T>(arr: T[]) {
   return arr[Math.floor(Math.random() * arr.length)]
 }
-
 function sum1ToN(n: number) {
   return (n * (n + 1)) / 2
 }
 
 /* =========================
-   MathJax Config (igual Prisma 17)
+   MathJax Config (igual Prisma 01)
 ========================= */
 const MATHJAX_CONFIG = {
   loader: { load: ['input/tex', 'output/chtml'] },
@@ -75,13 +74,13 @@ function texSet(arr: Array<number | string>) {
   return `\\left\\{${arr.join(', ')}\\right\\}`
 }
 
-/** Genera un ejercicio de buena dificultad (n pequeño) */
+/** Genera un ejercicio (n pequeño) */
 function generateExercise() {
-  // f(x) = a x + b
+  // f(x) = ax + b
   const a = choice([2, 3, 4, 5])
   const b = randInt(0, 6)
 
-  // Inecuación: m x < x + c  => (m-1)x < c => x < c/(m-1)
+  // Inecuación: mx < x + c  => (m-1)x < c => x < c/(m-1)
   const m = choice([3, 4, 5, 6, 7, 8]) // evita m=1,2
   const maxX = randInt(4, 8) // x = 1..maxX
 
@@ -92,7 +91,6 @@ function generateExercise() {
   const elements = xs.map(x => a * x + b)
   const correctSum = elements.reduce((acc, v) => acc + v, 0)
 
-  // LaTeX del set (bonito)
   const setTex = `F = \\left\\{ ${a}x + ${b} \\mid x \\in \\mathbb{Z}^{+} \\land ${m}x < x + ${c} \\right\\}`
 
   return { a, b, m, c, maxX, xs, elements, correctSum, setTex }
@@ -135,7 +133,17 @@ function makeDistractors(ex: ReturnType<typeof generateExercise>) {
   return options.sort(() => Math.random() - 0.5)
 }
 
-export default function Prisma08({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma08({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -152,23 +160,27 @@ export default function Prisma08({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // ✅ mismo contrato/estilo que tu Prisma 01 (persist nuevo)
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma08',
-      prompt: 'Calcular la suma de los elementos de F.',
-      questionLatex: ejercicio.setTex,
-      options: ejercicio.options.map(o => o.value),
-      correctAnswer: String(ejercicio.correctSum),
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        a: ejercicio.a,
-        b: ejercicio.b,
-        m: ejercicio.m,
-        c: ejercicio.c,
-        maxX: ejercicio.maxX,
-        xs: ejercicio.xs,
-        elements: ejercicio.elements,
+      exerciseId, // ej: 'Prisma08'
+      temaId,
+      classroomId,
+      sessionId,
+      correct: op.correct,
+      answer: {
+        selected: op.value,
+        correctAnswer: String(ejercicio.correctSum),
+        latex: ejercicio.setTex,
+        options: ejercicio.options.map(o => o.value),
+        extra: {
+          a: ejercicio.a,
+          b: ejercicio.b,
+          m: ejercicio.m,
+          c: ejercicio.c,
+          maxX: ejercicio.maxX,
+          xs: ejercicio.xs,
+          elements: ejercicio.elements,
+        },
       },
     })
   }
@@ -241,7 +253,9 @@ x &< \\frac{${ejercicio.c}}{${ejercicio.m - 1}} = ${bound}
                     <thead>
                       <tr className="bg-muted">
                         <th className="border py-2">x</th>
-                        <th className="border py-2">{ejercicio.a}x + {ejercicio.b}</th>
+                        <th className="border py-2">
+                          {ejercicio.a}x + {ejercicio.b}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -282,7 +296,7 @@ x &< \\frac{${ejercicio.c}}{${ejercicio.m - 1}} = ${bound}
           </SolutionBox>
         }
       >
-        {/* Card expresión (igual estilo Prisma 17) */}
+        {/* Card expresión (igual estilo Prisma 01/17) */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="font-semibold mb-2">Expresión:</div>
           <Tex block tex={ejercicio.setTex} />

@@ -12,13 +12,16 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
   PRISMA 28 — Bisectriz + Altura (hallar x)
 
   ✅ Estilo Prisma27:
-     - Diagrama (maqueta) grande en SVG (no a escala)
+     - Diagrama grande en SVG (maqueta, no a escala)
      - Variables visibles: mx, nx, γ°, 90°
      - 1 intento, autocalifica al elegir opción
-     - "Siguiente" genera un ejercicio distinto (evita repetidos recientes)
+     - "Siguiente" genera otro (evita repetidos recientes)
   ✅ Propiedad:
      γ = (|∠A − ∠C|)/2  y  ∠A=mx, ∠C=nx  ⇒  γ = ((m−n)x)/2
      ⇒ x = 2γ/(m−n)
+
+  ✅ Persist estilo Prisma01:
+     persistExerciseOnce({ exerciseId, temaId, classroomId, sessionId, correct, answer })
 ============================================================ */
 
 type OptionKey = 'A' | 'B' | 'C' | 'D'
@@ -63,7 +66,6 @@ const P = (x: number, y: number): Pt => ({ x, y })
 const sub = (a: Pt, b: Pt): Pt => P(a.x - b.x, a.y - b.y)
 const add = (a: Pt, b: Pt): Pt => P(a.x + b.x, a.y + b.y)
 const mul = (v: Pt, k: number): Pt => P(v.x * k, v.y * k)
-const dot = (a: Pt, b: Pt) => a.x * b.x + a.y * b.y
 const len = (v: Pt) => Math.hypot(v.x, v.y) || 1
 const unit = (v: Pt) => {
   const m = len(v)
@@ -229,9 +231,7 @@ function Prisma28Diagram({
   return (
     <div className="rounded-2xl border bg-white p-4">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-sm font-semibold">
-          {mode === 'question' ? 'Diagrama' : 'Diagrama'}
-        </div>
+        <div className="text-sm font-semibold">Diagrama</div>
         <div className="text-xs text-muted-foreground">variables visibles • no a escala</div>
       </div>
 
@@ -305,19 +305,55 @@ function Prisma28Diagram({
         <circle cx={H.x} cy={H.y} r={4.5} fill="#111" />
         <circle cx={D.x} cy={D.y} r={4.5} fill="#111" />
 
-        <text x={A.x - 16} y={A.y + 28} fill="#111" fontSize={15} fontWeight={800} style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
+        <text
+          x={A.x - 16}
+          y={A.y + 28}
+          fill="#111"
+          fontSize={15}
+          fontWeight={800}
+          style={{ fontFamily: 'ui-sans-serif, system-ui' }}
+        >
           A
         </text>
-        <text x={B.x} y={B.y - 22} fill="#111" fontSize={15} fontWeight={800} textAnchor="middle" style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
+        <text
+          x={B.x}
+          y={B.y - 22}
+          fill="#111"
+          fontSize={15}
+          fontWeight={800}
+          textAnchor="middle"
+          style={{ fontFamily: 'ui-sans-serif, system-ui' }}
+        >
           B
         </text>
-        <text x={C.x + 16} y={C.y + 28} fill="#111" fontSize={15} fontWeight={800} style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
+        <text
+          x={C.x + 16}
+          y={C.y + 28}
+          fill="#111"
+          fontSize={15}
+          fontWeight={800}
+          style={{ fontFamily: 'ui-sans-serif, system-ui' }}
+        >
           C
         </text>
-        <text x={H.x - 12} y={H.y + 28} fill="#111" fontSize={15} fontWeight={800} style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
+        <text
+          x={H.x - 12}
+          y={H.y + 28}
+          fill="#111"
+          fontSize={15}
+          fontWeight={800}
+          style={{ fontFamily: 'ui-sans-serif, system-ui' }}
+        >
           H
         </text>
-        <text x={D.x + 12} y={D.y + 28} fill="#111" fontSize={15} fontWeight={800} style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
+        <text
+          x={D.x + 12}
+          y={D.y + 28}
+          fill="#111"
+          fontSize={15}
+          fontWeight={800}
+          style={{ fontFamily: 'ui-sans-serif, system-ui' }}
+        >
           D
         </text>
 
@@ -419,7 +455,17 @@ function buildExercise(excludeSigs: string[]): ExData {
 /* ============================================================
   COMPONENT
 ============================================================ */
-export default function Prisma28({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma28({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
 
   const init = useMemo(() => buildExercise([]), [])
@@ -433,19 +479,30 @@ export default function Prisma28({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelectedKey(op.key)
     engine.submit(op.correct)
 
+    const questionLatex = `\\text{Calcular }x,\\ \\text{si }BD\\text{ es bisectriz y }BH\\text{ es altura.}`
+    const optionsLatex = ex.options
+      .slice()
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map(o => `${o.key}.\\ ${o.value}^{\\circ}`)
+
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma28',
-      prompt: 'Calcular x, si BD es bisectriz y BH es altura.',
-      questionLatex: `\\text{Calcular }x,\\ \\text{si }BD\\text{ es bisectriz y }BH\\text{ es altura.}`,
-      options: ex.options
-        .slice()
-        .sort((a, b) => a.key.localeCompare(b.key))
-        .map(o => `${o.key}.\\ ${o.value}^{\\circ}`),
-      correctAnswer: `${ex.answer}`,
-      userAnswer: `${op.value}`,
-      isCorrect: op.correct,
-      extra: { gamma: ex.gamma, A: `${ex.m}x`, C: `${ex.n}x` },
+      exerciseId,
+      temaId,
+      classroomId,
+      sessionId,
+      correct: op.correct,
+      answer: {
+        selected: `${op.key}. ${op.value}°`,
+        correctAnswer: `${ex.answer}°`,
+        latex: questionLatex,
+        options: optionsLatex,
+        extra: {
+          gamma: ex.gamma,
+          A: `${ex.m}x`,
+          C: `${ex.n}x`,
+          formula: 'x = 2γ/(m−n)',
+        },
+      },
     })
   }
 
@@ -491,7 +548,6 @@ export default function Prisma28({ temaPeriodoId }: { temaPeriodoId: string }) {
         onNext={siguiente}
         solution={
           <SolutionBox>
-            {/* ✅ CAMBIO: primero el gráfico, luego la resolución */}
             <div className="space-y-4">
               <Prisma28Diagram gamma={ex.gamma} m={ex.m} n={ex.n} mode="solution" />
 
@@ -504,7 +560,7 @@ export default function Prisma28({ temaPeriodoId }: { temaPeriodoId: string }) {
                     <div className="rounded-lg border bg-background p-3 space-y-2">
                       <Tex tex={s1} block />
                       <div className="text-xs text-muted-foreground">
-                        (Ángulo entre una <b>altura</b> y una <b>bisectriz</b> trazadas desde el mismo vértice)
+                        (Ángulo entre una <b>altura</b> y una <b>bisectriz</b> desde el mismo vértice)
                       </div>
                     </div>
                   </div>

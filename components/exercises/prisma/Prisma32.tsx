@@ -10,13 +10,16 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 32 — Conversión de ángulos (° , g , rad) + MathJax
-   Tipo (como tu imagen):
+
+   Tipo:
      A = ( ...°  + ...^g + ... rad ) / (... rad)
 
-   ✅ MathJax (better-react-mathjax) — mismo estilo que Prisma 17/18
+   ✅ MathJax (better-react-mathjax)
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico: construye valores equivalentes (en grados) para que A sea 2..4
-   ✅ Explicación: convertir a sexagesimal y operar
+   ✅ Dinámico: arma equivalencias exactas para que A sea 2..4
+
+   ✅ Persist NUEVO:
+     { exerciseId, temaId, classroomId, sessionId, correct, answer:{} }
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -41,6 +44,9 @@ function reduceFrac(p: number, q: number) {
   if (q === 0) return { p, q }
   const g = gcd(p, q)
   return { p: p / g, q: q / g }
+}
+function shuffle<T>(arr: T[]) {
+  return [...arr].sort(() => Math.random() - 0.5)
 }
 
 function piFracLatex(p: number, q: number) {
@@ -95,33 +101,31 @@ function Tex({
 
 /* =========================
    GENERADOR
-   Elegimos un “bloque” D en grados que sea múltiplo de 9:
-     D = 9k  (k=1..9)  ⇒  D°  ↔  (kπ/20) rad  ↔  (10k)^g
-   Luego hacemos:
+   Elegimos un “bloque” D en grados múltiplo de 9:
+     D = 9k (k=1..9)
+   Entonces:
+     D° ↔ (10k)^g   (porque 1g = 0.9°)
+     D° ↔ (kπ/20) rad  (porque 180° ↔ π rad)
+
+   Hacemos:
      Numerador = (1·D)° + (m2·(10k))^g + (m3·(kπ/20)) rad
      Denominador = (kπ/20) rad
-   Entonces A = (1+m2+m3).
-   Forzamos A ∈ {2,3,4}.
+   ⇒ A = 1 + m2 + m3 ∈ {2,3,4}
 ========================= */
 function generateExercise() {
   for (let tries = 0; tries < 200; tries++) {
-    const k = randInt(1, 9) // D=9k (°)
+    const k = randInt(1, 9)
     const Ddeg = 9 * k
-    const gBase = 10 * k // en g (porque 1g=0.9°)
+    const gBase = 10 * k
 
-    // Queremos respuesta A entre 2 y 4
     const A = randInt(2, 4)
 
-    // m1 fijo = 1 (siempre hay un término en grados)
-    // m2 + m3 = A - 1
     const m2 = randInt(0, A - 1)
     const m3 = A - 1 - m2
 
-    // evitamos que ambos sean 0 (si A=1, pero aquí A>=2 igual queda ok)
-    // (A=2 podría dar (m2=0,m3=1) o (m2=1,m3=0), ambos valen)
+    const degTerm = 1 * Ddeg
+    const gradTerm = m2 * gBase
 
-    const degTerm = 1 * Ddeg // en grados
-    const gradTerm = m2 * gBase // en g
     const radDenP = k
     const radDenQ = 20
 
@@ -135,20 +139,19 @@ function generateExercise() {
 
     const exprLatex = `A = \\dfrac{${degLatex} + ${gradLatex} + ${radNumLatex}}{${radDenLatex}}`
 
-    const options: Option[] = [
+    const options: Option[] = shuffle([
       { label: 'A', value: 1, correct: A === 1 },
       { label: 'B', value: 2, correct: A === 2 },
       { label: 'C', value: 3, correct: A === 3 },
       { label: 'D', value: 4, correct: A === 4 },
-    ]
+    ])
 
     // conversiones exactas a grados (para la solución)
-    const gradToDeg = (gradTerm * 9) / 10 // porque 1g = 9/10°
+    const gradToDeg = (gradTerm * 9) / 10
     const radDenDeg = Ddeg
     const radNumDeg = m3 * Ddeg
     const numDeg = degTerm + gradToDeg + radNumDeg
 
-    // sanity: todo debe ser entero
     if (!Number.isInteger(gradToDeg) || !Number.isInteger(numDeg)) continue
 
     return {
@@ -175,7 +178,7 @@ function generateExercise() {
     }
   }
 
-  // fallback exacto del ejemplo de tu imagen
+  // fallback
   const exprLatex =
     `A = \\dfrac{45^{\\circ} + 50^{g} + \\frac{\\pi}{4}\\,\\text{rad}}{\\frac{\\pi}{4}\\,\\text{rad}}`
   return {
@@ -208,9 +211,19 @@ function generateExercise() {
 }
 
 /* =========================
-   UI
+   UI (NUEVO FORMATO)
 ========================= */
-export default function Prisma32({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma32({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -223,22 +236,40 @@ export default function Prisma32({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    const ordered = ex.options.slice().sort((a, b) => a.label.localeCompare(b.label))
+
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma32',
-      prompt: 'Opera la expresión.',
-      questionLatex: ex.exprLatex,
-      options: ex.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: String(ex.A),
-      userAnswer: String(op.value),
-      isCorrect: op.correct,
-      extra: {
-        k: ex.k,
-        Ddeg: ex.Ddeg,
-        gradTerm: ex.gradTerm,
-        degTerm: ex.degTerm,
-        radNum: { p: ex.radNumP, q: ex.radNumQ },
-        radDen: { p: ex.radDenP, q: ex.radDenQ },
+      exerciseId,
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: String(op.value),
+        correctAnswer: String(ex.A),
+        latex: ex.exprLatex,
+        options: ordered.map(o => String(o.value)),
+        extra: {
+          // para auditoría/explicación en backoffice
+          labeledOptions: ordered.map(o => `${o.label}.\\ ${o.value}`),
+
+          k: ex.k,
+          Ddeg: ex.Ddeg,
+          degTerm: ex.degTerm,
+          gradTerm: ex.gradTerm,
+          radNum: { p: ex.radNumP, q: ex.radNumQ },
+          radDen: { p: ex.radDenP, q: ex.radDenQ },
+
+          // conversiones usadas en la solución
+          gradToDeg: ex.gradToDeg,
+          radNumDeg: ex.radNumDeg,
+          radDenDeg: ex.radDenDeg,
+          numDeg: ex.numDeg,
+
+          rule: 'Convertir todo a grados y dividir',
+        },
       },
     })
   }
@@ -272,18 +303,15 @@ export default function Prisma32({ temaPeriodoId }: { temaPeriodoId: string }) {
         solution={
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
-              {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Idea del problema</div>
+                <div className="font-semibold mb-2">👀 Paso 0 — Idea</div>
                 <p className="text-muted-foreground">
-                  Como hay grados (°), gradianes (g) y radianes (rad), lo más fácil es convertir todo al mismo sistema
-                  (usaremos <span className="font-semibold">grados</span>) y recién operar.
+                  Convertimos todo al mismo sistema (grados) y recién operamos.
                 </p>
               </div>
 
-              {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Convertimos a sistema sexagesimal (grados)</div>
+                <div className="font-semibold mb-2">✅ Paso 1 — Convertir a grados</div>
 
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <div className="text-muted-foreground">
@@ -292,17 +320,15 @@ export default function Prisma32({ temaPeriodoId }: { temaPeriodoId: string }) {
                   <Tex block tex={gradConv_tex} />
 
                   <div className="pt-2 text-muted-foreground">
-                    <span className="font-semibold">Radianes a grados:</span>{' '}
-                    <span className="font-mono">1 rad = 180°/π</span>
+                    <span className="font-semibold">Radianes a grados:</span> 1 rad = 180°/π
                   </div>
                   <Tex block tex={radDenConv_tex} />
                   <Tex block tex={radNumConv_tex} />
                 </div>
               </div>
 
-              {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Operamos (ya todo en grados)</div>
+                <div className="font-semibold mb-2">✅ Paso 2 — Operar</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={numDeg_tex} />
                   <Tex block tex={A_tex} />
@@ -319,7 +345,6 @@ export default function Prisma32({ temaPeriodoId }: { temaPeriodoId: string }) {
           </SolutionBox>
         }
       >
-        {/* Card de expresión (igual estilo Prisma 17) */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="font-semibold mb-2">Expresión:</div>
           <Tex block tex={ex.exprLatex} />

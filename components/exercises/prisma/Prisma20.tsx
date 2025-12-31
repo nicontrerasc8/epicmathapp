@@ -11,9 +11,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 20 — Suma de logaritmos telescópica
    Ejemplo: E = log(1/2)+log(2/3)+...+log(9/10)  => E = -1
+
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ MathJax (better-react-mathjax) como Prisma 17
+   ✅ MathJax (better-react-mathjax)
    ✅ Explicación tipo profe (producto, cancelación, resultado)
+   ✅ Persist NUEVO (igual Prisma01): { exerciseId, temaId, classroomId, sessionId, correct, answer:{} }
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -71,20 +73,40 @@ function generateExercise() {
   // Correcto siempre -1
   const correct = -1
 
-  // Distractores típicos (muy Prisma): 1, b, -b
+  // Distractores típicos (muy Prisma)
   const distractors = shuffle([1, b, -b]).slice(0, 3)
 
   const values = shuffle([correct, ...distractors])
   const labels: Option['label'][] = ['A', 'B', 'C', 'D']
-  const options: Option[] = values.map((v, i) => ({ label: labels[i], value: v, correct: v === correct }))
+  const options: Option[] = values.map((v, i) => ({
+    label: labels[i],
+    value: v,
+    correct: v === correct,
+  }))
 
-  // latex del enunciado (con puntos suspensivos)
-  const exprLatex = `E=\\log_{${b}}\\left(\\frac{1}{2}\\right)+\\log_{${b}}\\left(\\frac{2}{3}\\right)+\\log_{${b}}\\left(\\frac{3}{4}\\right)+\\cdots+\\log_{${b}}\\left(\\frac{${b - 1}}{${b}}\\right)`
+  const exprLatex =
+    `E=\\log_{${b}}\\left(\\frac{1}{2}\\right)+` +
+    `\\log_{${b}}\\left(\\frac{2}{3}\\right)+` +
+    `\\log_{${b}}\\left(\\frac{3}{4}\\right)+\\cdots+` +
+    `\\log_{${b}}\\left(\\frac{${b - 1}}{${b}}\\right)`
 
   return { b, correct, options, exprLatex }
 }
 
-export default function Prisma20({ temaPeriodoId }: { temaPeriodoId: string }) {
+/* =========================
+   COMPONENT
+========================= */
+export default function Prisma20({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -97,19 +119,25 @@ export default function Prisma20({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // ✅ Persist NUEVO (igual Prisma01)
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma20',
-      prompt: 'Halle el valor de E.',
-      questionLatex: ex.exprLatex,
-      options: ex.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: String(ex.correct),
-      userAnswer: String(op.value),
-      isCorrect: op.correct,
-      extra: {
-        base: ex.b,
-        exprLatex: ex.exprLatex,
-        telescoping: true,
+      exerciseId, // ej: 'Prisma20'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: String(op.value),
+        correctAnswer: String(ex.correct),
+        latex: ex.exprLatex,
+        options: ex.options.map(o => String(o.value)),
+        extra: {
+          base: ex.b,
+          telescoping: true,
+          labeledOptions: ex.options.map(o => `${o.label}. ${o.value}`),
+        },
       },
     })
   }
@@ -140,7 +168,9 @@ export default function Prisma20({ temaPeriodoId }: { temaPeriodoId: string }) {
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Unimos la suma usando propiedad de logaritmos</div>
+                <div className="font-semibold mb-2">
+                  ✅ Paso 1 — Unimos la suma (logaritmo del producto)
+                </div>
                 <p className="text-muted-foreground">
                   Propiedad: <Tex tex={`\\log_b(m)+\\log_b(n)=\\log_b(m\\cdot n)`} />.
                   <br />
@@ -160,9 +190,11 @@ export default function Prisma20({ temaPeriodoId }: { temaPeriodoId: string }) {
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Reducimos el producto (se cancela “en cadena”)</div>
+                <div className="font-semibold mb-2">
+                  ✅ Paso 2 — Reducimos el producto (se cancela “en cadena”)
+                </div>
                 <p className="text-muted-foreground">
-                  Mira qué pasa: el <Tex tex={`2`} /> de arriba cancela con el <Tex tex={`2`} /> de abajo,
+                  El <Tex tex={`2`} /> de arriba cancela con el <Tex tex={`2`} /> de abajo,
                   el <Tex tex={`3`} /> con el <Tex tex={`3`} />, y así sucesivamente.
                 </p>
 
@@ -178,9 +210,9 @@ export default function Prisma20({ temaPeriodoId }: { temaPeriodoId: string }) {
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Calculamos el logaritmo final</div>
+                <div className="font-semibold mb-2">✅ Paso 3 — Logaritmo final</div>
                 <p className="text-muted-foreground">
-                  Ya tenemos que el producto vale <Tex tex={`\\frac{1}{${b}}`} />. Entonces:
+                  Como el producto vale <Tex tex={`\\frac{1}{${b}}`} />, entonces:
                 </p>
 
                 <div className="mt-3 space-y-2">
@@ -189,7 +221,10 @@ export default function Prisma20({ temaPeriodoId }: { temaPeriodoId: string }) {
                   </div>
 
                   <div className="rounded border bg-white p-3">
-                    <Tex block tex={`\\frac{1}{${b}}=${b}^{-1}\\ \\Rightarrow\\ E=\\log_{${b}}\\left(${b}^{-1}\\right)=-1`} />
+                    <Tex
+                      block
+                      tex={`\\frac{1}{${b}}=${b}^{-1}\\ \\Rightarrow\\ E=\\log_{${b}}\\left(${b}^{-1}\\right)=-1`}
+                    />
                   </div>
                 </div>
               </div>
@@ -205,11 +240,13 @@ export default function Prisma20({ temaPeriodoId }: { temaPeriodoId: string }) {
           </SolutionBox>
         }
       >
+        {/* Enunciado */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="font-semibold mb-2">Expresión:</div>
           <Tex block tex={ex.exprLatex} />
         </div>
 
+        {/* Opciones */}
         <div className="grid grid-cols-2 gap-4">
           {ex.options.map(op => {
             const isSelected = selected === op.value

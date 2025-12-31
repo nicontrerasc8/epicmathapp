@@ -17,6 +17,7 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
      - F (BF ⟂ AC)
      - D (CD ⟂ AB)  <-- el que marcaste en rojo, ahora sí dentro
   ✅ Ejercicio dinámico: α cambia siempre y evita repetir recientes.
+  ✅ Persist con firma: (exerciseId, temaId, classroomId, sessionId)
 ============================================================ */
 
 type OptionKey = 'A' | 'B' | 'C' | 'D'
@@ -129,7 +130,6 @@ function OutlinedLabel({
   size?: number
   weight?: number
 }) {
-  // Texto con contorno blanco => nunca se “tapa” por líneas
   return (
     <text
       x={x}
@@ -223,19 +223,13 @@ function Prisma27Diagram({ alpha, mode }: { alpha: number; mode: DiagramMode }) 
   const rightD = <RightAngleMarker V0={D} u={uAB} v={vPerp} s={18} />
 
   // ✅ POSICIONES DE “90°” DENTRO:
-  // F: cerca del cuadrito de la base
   const ninetyF = P(F.x + 40, F.y - 22)
-
-  // D: lo ponemos “dentro del ángulo” (como tu imagen),
-  // usando una mezcla uAB (sube hacia B) + vPerp (entra al triángulo)
   const ninetyD = add(D, add(mul(uAB, 30), mul(vPerp, 14)))
 
   return (
     <div className="rounded-2xl border bg-white p-4">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-sm font-semibold">
-          {mode === 'question' ? 'Diagrama' : 'Diagrama'}
-        </div>
+        <div className="text-sm font-semibold">Diagrama</div>
         <div className="text-xs text-muted-foreground">variables visibles • no a escala</div>
       </div>
 
@@ -306,13 +300,13 @@ function Prisma27Diagram({ alpha, mode }: { alpha: number; mode: DiagramMode }) 
           </>
         )}
 
-        {/* Arcos + etiquetas en ángulos */}
+        {/* Arcos + etiquetas */}
         <AngleArcWithLabel V0={A} P1={B} P2={C} r={48} label={`${alpha}°`} labelPush={22} />
         <AngleArcWithLabel V0={B} P1={F} P2={C} r={44} label="x" labelPush={20} />
         <AngleArcWithLabel V0={C} P1={B} P2={D} r={44} label="y" labelPush={20} />
         {mode === 'solution' && <AngleArcWithLabel V0={O} P1={B} P2={C} r={38} label="θ" labelPush={20} />}
 
-        {/* Puntos y letras mínimas */}
+        {/* Puntos y letras */}
         <circle cx={A.x} cy={A.y} r={4.5} fill="#111" />
         <circle cx={B.x} cy={B.y} r={4.5} fill="#111" />
         <circle cx={C.x} cy={C.y} r={4.5} fill="#111" />
@@ -357,7 +351,6 @@ function Prisma27Diagram({ alpha, mode }: { alpha: number; mode: DiagramMode }) 
   Ejercicios dinámicos (sin repetir recientes)
 ============================================================ */
 function alphaPool(): number[] {
-  // más variedad (múltiplos de 5)
   const pool: number[] = []
   for (let a = 35; a <= 85; a += 5) pool.push(a)
   return pool
@@ -370,7 +363,6 @@ function buildExercise(excludeRecentAlphas: number[]) {
 
   const answer = alpha
 
-  // distractores tipo-examen (y variados)
   const d1 = 180 - alpha
   const d2 = Math.min(175, alpha + choice([45, 50, 55, 60]))
   const d3 = Math.max(15, Math.round(alpha / 2) + choice([-10, -5, 0, 5]))
@@ -391,9 +383,19 @@ function buildExercise(excludeRecentAlphas: number[]) {
 }
 
 /* ============================================================
-  Prisma27 component
+  Prisma27 component (firma nueva)
 ============================================================ */
-export default function Prisma27({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma27({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
 
   const init = buildExercise([])
@@ -409,19 +411,22 @@ export default function Prisma27({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelectedKey(op.key)
     engine.submit(op.correct)
 
+    const ordered = ex.options.slice().sort((a, b) => a.key.localeCompare(b.key))
+
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma27',
-      prompt: 'Encontrar x + y usando propiedades de alturas.',
-      questionLatex: `\\text{Diagrama referencial (no a escala). Si } \\angle A=${ex.alpha}^{\\circ},\\ \\text{halle } x+y.`,
-      options: ex.options
-        .slice()
-        .sort((a, b) => a.key.localeCompare(b.key))
-        .map(o => `${o.key}.\\ ${o.value}^{\\circ}`),
-      correctAnswer: `${ex.answer}`,
-      userAnswer: `${op.value}`,
-      isCorrect: op.correct,
-      extra: { alpha: ex.alpha },
+      exerciseId,
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+      answer: {
+        selected: `${op.key}:${op.value}`,
+        correctAnswer: String(ex.answer),
+        latex: `\\text{Diagrama referencial (no a escala). Si } \\angle A=${ex.alpha}^{\\circ},\\ \\text{halle } x+y.`,
+        options: ordered.map(o => `${o.key}.\\ ${o.value}^{\\circ}`),
+        extra: { alpha: ex.alpha, theta },
+      },
     })
   }
 
@@ -429,7 +434,6 @@ export default function Prisma27({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelectedKey(null)
     engine.reset()
 
-    // evita repetir los últimos 6 alphas
     const recent = alphaHistory.slice(-6)
     const next = buildExercise(recent)
 
@@ -481,7 +485,7 @@ export default function Prisma27({ temaPeriodoId }: { temaPeriodoId: string }) {
                   </div>
 
                   <div className="text-xs text-muted-foreground">
-                    Nota: el dibujo es una maqueta (no a escala). La respuesta se obtiene por propiedades.
+                    Nota: el dibujo es una maqueta (no a escala). La respuesta sale por propiedades.
                   </div>
                 </div>
               </div>

@@ -213,21 +213,14 @@ type DiagramMode = 'question' | 'solution'
 const VB_W = 1100
 const VB_H = 620
 
-function Prisma30Diagram({
-  n,
-  mode,
-}: {
-  n: number
-  mode: DiagramMode
-}) {
+function Prisma30Diagram({ n, mode }: { n: number; mode: DiagramMode }) {
   // Puntos base (maqueta estable)
   const A = P(120, 540)
   const C = P(1040, 540)
   const B = P(430, 120)
 
-  // BD casi vertical: ponemos D debajo de B
+  // BD “vertical”: D debajo de B
   const D = P(B.x, 330)
-
   // E sobre BD (más arriba)
   const E = P(B.x, 230)
 
@@ -236,32 +229,25 @@ function Prisma30Diagram({
   const G = add(D, mul(sub(C, D), tG))
 
   // EF ⟂ BD: como BD es vertical, EF es horizontal
-  const vEF = P(1, 0) // horizontal
-  const vBD = sub(B, D) // vertical-ish
-
-  // GF ⟂ DC: F es intersección entre horizontal por E y perpendicular a DC por G
+  const vEF = P(1, 0)
   const vDC = sub(C, D)
   const vPerpDC = perp(unit(vDC))
+
+  // F = intersección entre horizontal por E y perpendicular a DC por G
   const F = intersectLines(E, vEF, G, vPerpDC) ?? P(820, 230)
 
   // Estética
   const thick = 7
   const med = 5
-  const thin = 3.2
 
-  // Labels 90° dentro
+  // 90° dentro
   const ninetyE = add(E, P(18, 20))
   const ninetyG = add(G, P(-20, -18))
-
-  // Label “nα”
-  const nAlphaLabel = `${n}α`
 
   return (
     <div className="rounded-2xl border bg-white p-4">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-sm font-semibold">
-          {mode === 'question' ? 'Figura' : 'Figura'}
-        </div>
+        <div className="text-sm font-semibold">Figura</div>
         <div className="text-xs text-muted-foreground">bisectrices internas • 90° marcados • no a escala</div>
       </div>
 
@@ -291,7 +277,8 @@ function Prisma30Diagram({
         <path d={`M ${C.x} ${C.y} L ${D.x} ${D.y}`} stroke="#111" strokeWidth={med} strokeLinecap="round" fill="none" />
 
         {/* Cuadrilátero DEFG */}
-        <path d={`M ${D.x} ${D.y} L ${E.x} ${E.y} L ${F.x} ${F.y} L ${G.x} ${G.y} Z`}
+        <path
+          d={`M ${D.x} ${D.y} L ${E.x} ${E.y} L ${F.x} ${F.y} L ${G.x} ${G.y} Z`}
           stroke="#111"
           strokeWidth={mode === 'solution' ? thick : med}
           strokeLinecap="round"
@@ -299,7 +286,7 @@ function Prisma30Diagram({
           fill="none"
         />
 
-        {/* Marcas rectas */}
+        {/* Cuadritos de 90° */}
         <RightAngleSquare V0={E} dir1={sub(D, E)} dir2={sub(F, E)} size={20} />
         <RightAngleSquare V0={G} dir1={sub(D, G)} dir2={sub(F, G)} size={20} />
 
@@ -312,7 +299,7 @@ function Prisma30Diagram({
           <circle key={i} cx={p.x} cy={p.y} r={5.2} fill="#111" />
         ))}
 
-        {/* Etiquetas */}
+        {/* Letras */}
         <text x={A.x} y={A.y + 34} textAnchor="middle" fill="#111" fontSize={16} fontWeight={900} style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
           A
         </text>
@@ -322,7 +309,6 @@ function Prisma30Diagram({
         <text x={C.x + 16} y={C.y + 26} fill="#111" fontSize={16} fontWeight={900} style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
           C
         </text>
-
         <text x={D.x - 18} y={D.y + 18} fill="#111" fontSize={16} fontWeight={900} style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
           D
         </text>
@@ -340,12 +326,11 @@ function Prisma30Diagram({
         <AngleArcWithLabel V0={A} P1={B} P2={C} r={46} label="α" labelPush={18} />
 
         {/* Ángulo nα en D (entre DB y DC) */}
-        <AngleArcWithLabel V0={D} P1={B} P2={C} r={38} label={nAlphaLabel} labelPush={18} />
+        <AngleArcWithLabel V0={D} P1={B} P2={C} r={38} label={`${n}α`} labelPush={18} />
 
         {/* Ángulo x en F (entre FE y FG) */}
         <AngleArcWithLabel V0={F} P1={E} P2={G} r={40} label="x" labelPush={18} />
 
-        {/* Indicador suave (solo solución) */}
         {mode === 'solution' && (
           <text
             x={720}
@@ -365,10 +350,10 @@ function Prisma30Diagram({
 }
 
 /* ============================================================
-  Generador dinámico:
-    nα = 90 + α/2  → α = 90/(n - 1/2)
+  Generador dinámico (exacto, sin redondeos):
+    nα = 90 + α/2  → (n - 1/2)α = 90  → α = 180/(2n-1)
     x = 180 - nα
-  Elegimos n que da α entero y x bonito.
+  Elegimos n con α entero y “bonito”.
 ============================================================ */
 type ExData = {
   n: number
@@ -378,36 +363,36 @@ type ExData = {
   questionLatex: string
 }
 
-function computeAlpha(n: number) {
-  // α = 90 / (n - 1/2)
-  return 90 / (n - 0.5)
+function computeAlphaExact(n: number) {
+  // α = 180/(2n-1)
+  return 180 / (2 * n - 1)
 }
+
 function buildExercise(recentNs: number[]): ExData {
-  // n válidos (α entero y x entero)
+  // 2n-1 debe dividir a 180 y ser impar.
+  // Opciones “bonitas” (α razonable):
   // n=2 -> α=60 -> x=60
   // n=3 -> α=36 -> x=72
   // n=5 -> α=20 -> x=80
-  const pool = [2, 3, 5]
+  // n=8 -> α=12 -> x=84
+  const pool = [2, 3, 5, 8]
   const candidates = pool.filter(v => !recentNs.includes(v))
   const n = choice(candidates.length ? candidates : pool)
 
-  const alpha = computeAlpha(n)
+  const alpha = computeAlphaExact(n) // entero por construcción
   const x = 180 - n * alpha
 
-  // Opciones (distractores típicos)
+  // Distractores típicos (evita cosas equivalentes a x)
   const d1 = alpha
   const d2 = n * alpha
-  const d3 = 90 - alpha / 2 // NO es x (ojo: en realidad sí es x, pero solo si nα = 90+α/2, aquí se cumple -> sería x)
-  // Entonces NO lo usamos como distractor.
-  const d4 = 180 - alpha
+  const d3 = 180 - alpha
 
-  const set = new Set<number>([x, d1, d2, d4])
-  while (set.size < 4) {
-    set.add(x + choice([-20, -10, 10, 20, 30, -30]))
-  }
+  const set = new Set<number>([x, d1, d2, d3])
+  while (set.size < 4) set.add(x + choice([-30, -20, -10, 10, 20, 30]))
 
   const values = shuffle(Array.from(set)).slice(0, 4)
   const keys: OptionKey[] = shuffle(['A', 'B', 'C', 'D'])
+
   const options: Option[] = values.map((v, i) => ({
     key: keys[i],
     value: Math.round(v),
@@ -415,8 +400,8 @@ function buildExercise(recentNs: number[]): ExData {
   }))
 
   const questionLatex =
-    `\\text{En la figura, } BD \\text{ y } CD \\text{ son bisectrices internas.}` +
-    `\\ \\angle A=\\alpha\\ \\text{y}\\ \\angle BDC=${n}\\alpha.\\ \\text{Halle }x.`
+    `\\text{En la figura, } BD \\text{ y } CD \\text{ son bisectrices internas. }` +
+    `\\angle A=\\alpha,\\ \\angle BDC=${n}\\alpha.\\ \\text{Halle }x.`
 
   return { n, alpha: Math.round(alpha), x: Math.round(x), options, questionLatex }
 }
@@ -424,7 +409,17 @@ function buildExercise(recentNs: number[]): ExData {
 /* ============================================================
   Component
 ============================================================ */
-export default function Prisma30({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma30({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
 
   const init = useMemo(() => buildExercise([]), [])
@@ -433,50 +428,68 @@ export default function Prisma30({ temaPeriodoId }: { temaPeriodoId: string }) {
   const [selectedKey, setSelectedKey] = useState<OptionKey | null>(null)
 
   function pickOption(op: Option) {
-    if (!engine.canAnswer) return
-    setSelectedKey(op.key)
-    engine.submit(op.correct)
+  if (!engine.canAnswer) return
 
-    persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma30',
-      prompt: 'Hallar x usando incentro y cuadrilátero cíclico.',
-      questionLatex: ex.questionLatex,
-      options: ex.options
-        .slice()
-        .sort((a, b) => a.key.localeCompare(b.key))
-        .map(o => `${o.key}.\\ ${o.value}^{\\circ}`),
-      correctAnswer: `${ex.x}`,
-      userAnswer: `${op.value}`,
-      isCorrect: op.correct,
-      extra: { n: ex.n, alpha: ex.alpha, x: ex.x },
-    })
-  }
+  setSelectedKey(op.key)
+  engine.submit(op.correct)
+
+  // 🔒 Opciones SIEMPRE ordenadas A–D
+  const ordered = ex.options
+    .slice()
+    .sort((a, b) => a.key.localeCompare(b.key))
+
+  persistExerciseOnce({
+    exerciseId,
+    temaId,
+    classroomId,
+    sessionId,
+
+    correct: op.correct,
+
+    answer: {
+      selected: String(op.value),
+      correctAnswer: String(ex.x),
+      latex:
+        `\\text{En la figura, } BD \\text{ y } CD \\text{ son bisectrices internas. }` +
+        `\\angle A=\\alpha,\\ \\angle BDC=${ex.n}\\alpha.\\ \\text{Halle } x.`,
+      options: ordered.map(o => String(o.value)),
+      extra: {
+        n: ex.n,
+        alpha: ex.alpha,
+        nAlpha: ex.n * ex.alpha,
+        rule: 'Incentro: ∠BDC = 90° + α/2; cuadrilátero cíclico: ángulos opuestos suman 180°',
+        labeledOptions: ordered.map(o => `${o.key}.\\ ${o.value}^{\\circ}`),
+      },
+    },
+  })
+}
+
 
   function siguiente() {
     setSelectedKey(null)
     engine.reset()
 
-    const recent = history.slice(-6) // evita repetir últimos 6
+    const recent = history.slice(-6)
     const next = buildExercise(recent)
 
     setEx(next)
     setHistory(h => [...h, next.n].slice(-12))
   }
 
-  // =========================
-  // Solución dinámica (primero diagrama, luego pasos)
-  // =========================
+  // ======= Solución dinámica =======
   const n = ex.n
   const alpha = ex.alpha
   const x = ex.x
   const nAlpha = n * alpha
 
-  const step1a = `\\text{Como }BD\\text{ y }CD\\text{ son bisectrices internas, su intersección }D\\text{ es el incentro.}`
+  const step1a =
+    `\\text{Como } BD \\text{ y } CD \\text{ son bisectrices internas, se intersectan en el incentro } D.`
   const step1b = `\\angle BDC = 90^{\\circ} + \\dfrac{\\angle A}{2} = 90^{\\circ}+\\dfrac{\\alpha}{2}`
   const step1c = `${n}\\alpha = 90^{\\circ}+\\dfrac{\\alpha}{2}`
-  const step1d = `${n}\\alpha-\\dfrac{\\alpha}{2}=90^{\\circ}\\Rightarrow\\left(${n}-\\dfrac12\\right)\\alpha=90^{\\circ}`
+  const step1d =
+    `${n}\\alpha-\\dfrac{\\alpha}{2}=90^{\\circ}\\Rightarrow\\left(${n}-\\dfrac12\\right)\\alpha=90^{\\circ}`
   const step1e = `\\alpha=\\dfrac{90^{\\circ}}{${n}-\\frac12}=${alpha}^{\\circ}`
+
   const step2a = `\\angle E=90^{\\circ}\\ \\text{y}\\ \\angle G=90^{\\circ}\\Rightarrow\\ DEFG\\ \\text{es c\\'iclico.}`
   const step2b = `\\text{En un cuadril\\'atero c\\'iclico, los \\'angulos opuestos suman }180^{\\circ}.`
   const step2c = `\\angle EDG + \\angle EFG = 180^{\\circ}`

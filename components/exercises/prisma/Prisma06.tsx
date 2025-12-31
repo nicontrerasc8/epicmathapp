@@ -9,16 +9,17 @@ import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
 import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
-   PRISMA 6 — Conjuntos por comprensión (L = {ax + b / x∈N, x<k})
+   PRISMA 6 — Conjuntos por comprensión (L = {ax + b | x∈N, x<k})
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ 100% dinámico: genera a, b, k y opciones
-   ✅ Ahora con MathJax (better-react-mathjax) como Prisma 17
+   ✅ MathJax (better-react-mathjax)
    ✅ Explicación tipo profe: lista de x, tabla, conjunto L y verificación
+   ✅ Persist NUEVO estilo Prisma01 (exerciseId, temaId, classroomId...)
 ============================================================ */
 
 type Option = {
   label: 'A' | 'B' | 'C' | 'D'
-  text: string // ej: "7 ∉ L" (se mantiene para compatibilidad)
+  text: string
   correct: boolean
   n: number
   membership: 'in' | 'notin'
@@ -30,9 +31,6 @@ type Option = {
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
-function coin(p = 0.5) {
-  return Math.random() < p
-}
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
@@ -41,7 +39,7 @@ function uniqueNumbers(arr: number[]) {
 }
 
 /* =========================
-   MathJax Config (igual estilo Prisma 17)
+   MathJax Config
 ========================= */
 const MATHJAX_CONFIG = {
   loader: { load: ['input/tex', 'output/chtml'] },
@@ -78,12 +76,12 @@ function Tex({
 /* =========================
    Pretty LaTeX builders
 ========================= */
-function fmtLinear(a: number, b: number) {
+function fmtLinearLatex(a: number, b: number) {
   if (b === 0) return `${a}x`
   if (b > 0) return `${a}x + ${b}`
   return `${a}x - ${Math.abs(b)}`
 }
-function fmtLinearLatex(a: number, b: number) {
+function fmtLinearText(a: number, b: number) {
   if (b === 0) return `${a}x`
   if (b > 0) return `${a}x + ${b}`
   return `${a}x - ${Math.abs(b)}`
@@ -104,20 +102,17 @@ function setToLatex(nums: number[]) {
    LÓGICA DE CONJUNTO
 ========================= */
 function buildXValues(k: number) {
-  // N incluye 0 → {0,1,2,...,k-1}
+  // OJO: acá asumes N incluye 0 → {0,1,2,...,k-1}
   return Array.from({ length: k }, (_, i) => i)
 }
-
 function computeLValues(a: number, b: number, k: number) {
   const xs = buildXValues(k)
   const ys = xs.map(x => a * x + b)
   return { xs, ys, L: uniqueNumbers(ys) }
 }
-
 function pickFromSet(setArr: number[]) {
   return setArr[randInt(0, setArr.length - 1)]
 }
-
 function makeNotInCandidates(L: number[]) {
   const min = Math.min(...L)
   const max = Math.max(...L)
@@ -135,7 +130,6 @@ function makeNotInCandidates(L: number[]) {
   for (let v = min - 60; v <= max + 60; v++) big.push(v)
   return big.filter(n => !L.includes(n))
 }
-
 function buildStatement(n: number, membership: 'in' | 'notin') {
   return membership === 'in' ? `${n} ∈ L` : `${n} ∉ L`
 }
@@ -170,6 +164,10 @@ function generateExercise() {
     const options: Option[] = slots.map(s => {
       const isCorrect = s.label === correctLabel
 
+      // Si la opción debe ser verdadera:
+      // - si dice "∈", el número debe estar en L
+      // - si dice "∉", el número debe NO estar en L
+      // Si la opción debe ser falsa, elegimos lo contrario.
       const shouldBeIn =
         (s.membership === 'in' && isCorrect) || (s.membership === 'notin' && !isCorrect)
 
@@ -235,36 +233,55 @@ function generateExercise() {
   }
 }
 
-export default function Prisma06({ temaPeriodoId }: { temaPeriodoId: string }) {
+/* =========================
+   PRISMA 06 (UI)
+========================= */
+export default function Prisma06({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
 
   const [nonce, setNonce] = useState(0)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<'A' | 'B' | 'C' | 'D' | null>(null)
 
   const ej = useMemo(() => generateExercise(), [nonce])
 
   function pickOption(op: Option) {
     if (!engine.canAnswer) return
+
     setSelected(op.label)
     engine.submit(op.correct)
 
+    const correctPretty = `${ej.correctLabel}. ${ej.correctText}`
+    const selectedPretty = `${op.label}. ${op.text}`
+
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma06',
-      prompt: ej.prompt,
-      questionLatex: ej.questionLatex,
-      options: ej.options.map(o => `${o.label}. ${membershipLatex(o.n, o.membership)}`),
-      correctAnswer: `${ej.correctLabel}. ${ej.correctText}`,
-      userAnswer: `${op.label}. ${op.text}`,
-      isCorrect: op.correct,
-      extra: {
-        a: ej.a,
-        b: ej.b,
-        k: ej.k,
-        xs: ej.xs,
-        ys: ej.ys,
-        L: ej.L,
-        questionLatex: ej.questionLatex,
+      exerciseId, // 'Prisma06'
+      temaId,
+      classroomId,
+      sessionId,
+      correct: op.correct,
+      answer: {
+        selected: selectedPretty,
+        correctAnswer: correctPretty,
+        latex: ej.questionLatex,
+        options: ej.options.map(o => `${o.label}. ${membershipLatex(o.n, o.membership)}`),
+        extra: {
+          a: ej.a,
+          b: ej.b,
+          k: ej.k,
+          xs: ej.xs,
+          ys: ej.ys,
+          L: ej.L,
+        },
       },
     })
   }
@@ -299,13 +316,13 @@ export default function Prisma06({ temaPeriodoId }: { temaPeriodoId: string }) {
 
                 <p className="text-muted-foreground mt-2">
                   Lo leemos así: “L contiene los valores que salen de{' '}
-                  <span className="font-semibold">{fmtLinear(ej.a, ej.b)}</span> cuando{' '}
+                  <span className="font-semibold">{fmtLinearText(ej.a, ej.b)}</span> cuando{' '}
                   <span className="font-semibold">x</span> es natural y además{' '}
                   <span className="font-semibold">x &lt; {ej.k}</span>”.
                 </p>
 
                 <div className="mt-2 rounded-md border bg-background p-3">
-                  <div className="font-semibold mb-1">Nota (como en tu guía)</div>
+                  <div className="font-semibold mb-1">Nota</div>
                   <Tex block tex={`\\mathbb{N} = \\{0,1,2,3,\\dots\\}`} />
                 </div>
               </div>
@@ -347,9 +364,7 @@ export default function Prisma06({ temaPeriodoId }: { temaPeriodoId: string }) {
                           <tr key={x}>
                             <td className="border py-2 font-semibold">{x}</td>
                             <td className="border py-2">
-                              <Tex
-                                tex={`${ej.a}\\cdot ${x} ${bPart} = ${ej.ys[i]}`}
-                              />
+                              <Tex tex={`${ej.a}\\cdot ${x} ${bPart} = ${ej.ys[i]}`} />
                             </td>
                           </tr>
                         )
@@ -403,7 +418,7 @@ export default function Prisma06({ temaPeriodoId }: { temaPeriodoId: string }) {
           </SolutionBox>
         }
       >
-        {/* Panel bonito tipo Prisma 17 */}
+        {/* Panel bonito */}
         <div className="rounded-xl border bg-white p-4 mb-4 space-y-3">
           <div className="font-semibold">Definición del conjunto:</div>
           <Tex block tex={setDefinitionLatex(ej.a, ej.b, ej.k)} />

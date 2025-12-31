@@ -10,10 +10,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 17 — Logaritmos (evaluación directa) + LaTeX (MathJax)
-   ✅ Usa "better-react-mathjax" (NO KaTeX)
+   ✅ better-react-mathjax (NO KaTeX)
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ 100% dinámico: genera 3 logaritmos con argumentos perfectos
+   ✅ 100% dinámico: 3 logs con argumentos “potencia perfecta”
    ✅ Explicación clara: evalúa cada log y luego opera
+   ✅ Persist con la misma firma que Prisma13 (exerciseId/temaId/...)
 ============================================================ */
 
 type Sign = '+' | '-'
@@ -21,12 +22,15 @@ type Term = {
   base: number
   exp: number
   arg: number
-  sign: Sign // para term2 y term3; term1 se asume "+"
+  sign: Sign // t2 y t3; t1 se asume "+"
   value: number // = exp
 }
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
 
+/* =========================
+   HELPERS
+========================= */
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
@@ -54,7 +58,7 @@ const MATHJAX_CONFIG = {
     packages: { '[+]': ['ams'] },
   },
   options: {
-    renderActions: { addMenu: [] }, // quita el menú contextual (más limpio)
+    renderActions: { addMenu: [] }, // quita menú contextual
   },
 } as const
 
@@ -67,7 +71,6 @@ function Tex({
   block?: boolean
   className?: string
 }) {
-  // Ojo: MathJax necesita delimitadores \(...\) o \[...\]
   const wrapped = block ? `\\[${tex}\\]` : `\\(${tex}\\)`
   return (
     <span className={className}>
@@ -79,7 +82,7 @@ function Tex({
 }
 
 /* =========================
-   LaTeX builder
+   LaTeX builders
 ========================= */
 function buildExprLatex(t1: Term, t2: Term, t3: Term) {
   const s2 = t2.sign === '-' ? '-' : '+'
@@ -115,13 +118,13 @@ function generateTerms(): { t1: Term; t2: Term; t3: Term } {
   let t2 = mkTerm(coin(0.55) ? '-' : '+')
   let t3 = mkTerm(coin(0.55) ? '+' : '-')
 
-  // evita ambos "+" (para parecerse al estilo del ejemplo)
+  // evita ambos "+" (más “estilo prisma”)
   if (t2.sign === '+' && t3.sign === '+') t2 = { ...t2, sign: '-' }
 
   // evita 0±0±0
   if (t1.value === 0 && t2.value === 0 && t3.value === 0) return generateTerms()
 
-  // evita args demasiado grandes
+  // evita argumentos gigantes
   if (t1.arg > 5000 || t2.arg > 5000 || t3.arg > 5000) return generateTerms()
 
   return { t1, t2, t3 }
@@ -162,12 +165,13 @@ function generateExercise() {
     const { t1, t2, t3 } = generateTerms()
     const correct = applySigns(t1, t2, t3)
 
-    // distractores serios: cambiar signo de un término
+    // distractores “serios”: flip de signo de un término
     const flip2: Term = { ...t2, sign: t2.sign === '-' ? '+' : '-' }
     const flip3: Term = { ...t3, sign: t3.sign === '-' ? '+' : '-' }
     const alt1 = applySigns(t1, flip2, t3)
     const alt2 = applySigns(t1, t2, flip3)
 
+    // rango razonable para alternativas
     if (correct < -8 || correct > 12) continue
 
     const exprLatex = buildExprLatex(t1, t2, t3)
@@ -177,7 +181,7 @@ function generateExercise() {
     return { t1, t2, t3, correct, exprLatex, numericLatex, options }
   }
 
-  // fallback del ejemplo
+  // fallback
   const t1: Term = { base: 4, exp: 3, arg: 64, sign: '+', value: 3 }
   const t2: Term = { base: 7, exp: 2, arg: 49, sign: '-', value: 2 }
   const t3: Term = { base: 5, exp: 0, arg: 1, sign: '+', value: 0 }
@@ -188,6 +192,7 @@ function generateExercise() {
     { label: 'C', value: 0, correct: false },
     { label: 'D', value: -1, correct: false },
   ]
+
   return {
     t1,
     t2,
@@ -202,7 +207,17 @@ function generateExercise() {
 /* =========================
    PRISMA 17 — UI
 ========================= */
-export default function Prisma17({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma17({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -216,18 +231,22 @@ export default function Prisma17({ temaPeriodoId }: { temaPeriodoId: string }) {
     engine.submit(op.correct)
 
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma17',
-      prompt: 'Calcula el valor de M.',
-      questionLatex: ej.exprLatex,
-      options: ej.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: String(ej.correct),
-      userAnswer: String(op.value),
-      isCorrect: op.correct,
-      extra: {
-        exprLatex: ej.exprLatex,
-        numericLatex: ej.numericLatex,
-        terms: [ej.t1, ej.t2, ej.t3],
+      exerciseId, // 'Prisma17'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+      answer: {
+        selected: String(op.value),
+        correctAnswer: String(ej.correct),
+        latex: ej.exprLatex,
+        options: ej.options.map(o => `${o.label}. ${o.value}`),
+        extra: {
+          exprLatex: ej.exprLatex,
+          numericLatex: ej.numericLatex,
+          terms: [ej.t1, ej.t2, ej.t3],
+        },
       },
     })
   }
@@ -252,134 +271,104 @@ export default function Prisma17({ temaPeriodoId }: { temaPeriodoId: string }) {
         onVerify={() => {}}
         onNext={siguiente}
         solution={
-  <SolutionBox>
-    <div className="space-y-4 text-sm leading-relaxed">
-      {/* Paso 0 */}
-      <div className="rounded-lg border bg-white p-3">
-        <div className="font-semibold mb-2">👀 Paso 0 — Leer bien los signos</div>
-        <p className="text-muted-foreground">
-          La expresión tiene tres logaritmos y entre ellos hay signos. Esos signos se respetan al final:
-          <span className="font-semibold"> {sign2} </span> para el segundo término y
-          <span className="font-semibold"> {sign3} </span> para el tercero.
-        </p>
-      </div>
+          <SolutionBox>
+            <div className="space-y-4 text-sm leading-relaxed">
+              {/* Paso 0 */}
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">👀 Paso 0 — Leer bien los signos</div>
+                <p className="text-muted-foreground">
+                  La expresión tiene tres logaritmos y entre ellos hay signos. Esos signos se respetan al final:
+                  <span className="font-semibold"> {sign2} </span> para el segundo término y
+                  <span className="font-semibold"> {sign3} </span> para el tercero.
+                </p>
+              </div>
 
-      {/* Paso 1 */}
-      <div className="rounded-lg border bg-white p-3">
-        <div className="font-semibold mb-2">✅ Paso 1 — Evaluar cada logaritmo (la idea clave)</div>
+              {/* Paso 1 */}
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">✅ Paso 1 — Evaluar cada logaritmo (idea clave)</div>
 
-        <div className="rounded-md border bg-background p-3">
-          <p className="text-muted-foreground">
-            Un logaritmo responde esta pregunta:
-            <span className="font-semibold"> “¿a qué exponente debo elevar la base para obtener el argumento?”</span>
-          </p>
+                <div className="rounded-md border bg-background p-3">
+                  <p className="text-muted-foreground">
+                    Un logaritmo responde: <span className="font-semibold">“¿a qué exponente debo elevar la base para
+                    obtener el argumento?”</span>
+                  </p>
 
-          <div className="mt-2">
-            <Tex
-              block
-              tex={`\\text{Si } b^k = N, \\text{ entonces } \\log_b(N)=k.`}
-            />
-          </div>
+                  <div className="mt-2">
+                    <Tex block tex={`\\text{Si } b^k = N,\\ \\text{entonces } \\log_b(N)=k.`} />
+                  </div>
 
-          <p className="mt-2 text-muted-foreground">
-            En tu ejercicio, el argumento ya fue construido como una potencia perfecta de la base
-            (por eso es “evaluación directa”).
-          </p>
-        </div>
+                  <p className="mt-2 text-muted-foreground">
+                    Aquí el argumento ya fue construido como potencia perfecta de la base, por eso se evalúa directo.
+                  </p>
+                </div>
 
-        <div className="mt-3 space-y-3">
-          {/* Termino 1 */}
-          <div className="rounded border p-3">
-            <div className="font-semibold mb-2">Término 1</div>
-            <Tex
-              block
-              tex={`${ej.t1.base}^{${ej.t1.value}} = ${ej.t1.arg}`}
-            />
-            <Tex
-              block
-              tex={`\\Rightarrow\\; \\log_{${ej.t1.base}}\\left(${ej.t1.arg}\\right) = ${ej.t1.value}`}
-            />
-          </div>
+                <div className="mt-3 space-y-3">
+                  {/* T1 */}
+                  <div className="rounded border p-3 bg-white">
+                    <div className="font-semibold mb-2">Término 1</div>
+                    <Tex block tex={`${ej.t1.base}^{${ej.t1.value}} = ${ej.t1.arg}`} />
+                    <Tex block tex={`\\Rightarrow\\ \\log_{${ej.t1.base}}\\left(${ej.t1.arg}\\right) = ${ej.t1.value}`} />
+                  </div>
 
-          {/* Termino 2 */}
-          <div className="rounded border p-3">
-            <div className="font-semibold mb-2">
-              Término 2 <span className="text-muted-foreground">(ojo al signo {sign2})</span>
+                  {/* T2 */}
+                  <div className="rounded border p-3 bg-white">
+                    <div className="font-semibold mb-2">
+                      Término 2 <span className="text-muted-foreground">(ojo al signo {sign2})</span>
+                    </div>
+                    <Tex block tex={`${ej.t2.base}^{${ej.t2.value}} = ${ej.t2.arg}`} />
+                    <Tex block tex={`\\Rightarrow\\ \\log_{${ej.t2.base}}\\left(${ej.t2.arg}\\right) = ${ej.t2.value}`} />
+                  </div>
+
+                  {/* T3 */}
+                  <div className="rounded border p-3 bg-white">
+                    <div className="font-semibold mb-2">
+                      Término 3 <span className="text-muted-foreground">(ojo al signo {sign3})</span>
+                    </div>
+                    <Tex block tex={`${ej.t3.base}^{${ej.t3.value}} = ${ej.t3.arg}`} />
+                    <Tex block tex={`\\Rightarrow\\ \\log_{${ej.t3.base}}\\left(${ej.t3.arg}\\right) = ${ej.t3.value}`} />
+                    {ej.t3.arg === 1 && (
+                      <p className="mt-2 text-muted-foreground">
+                        Tip: como <span className="font-semibold">b^0=1</span>, entonces <span className="font-semibold">
+                        \\(\\log_b(1)=0\\)</span>.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Paso 2 */}
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">✅ Paso 2 — Sustituimos en la expresión</div>
+                <p className="text-muted-foreground">Reemplazamos cada logaritmo por su valor.</p>
+                <div className="mt-2 space-y-2">
+                  <Tex block tex={ej.exprLatex} />
+                  <Tex block tex={ej.numericLatex} />
+                </div>
+              </div>
+
+              {/* Paso 3 */}
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">✅ Paso 3 — Operar respetando signos</div>
+                <div className="mt-2">
+                  <Tex block tex={`M = ${ej.correct}`} />
+                </div>
+
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-sm font-semibold">Respuesta:</span>
+                  <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">{ej.correct}</span>
+                </div>
+              </div>
             </div>
-            <Tex
-              block
-              tex={`${ej.t2.base}^{${ej.t2.value}} = ${ej.t2.arg}`}
-            />
-            <Tex
-              block
-              tex={`\\Rightarrow\\; \\log_{${ej.t2.base}}\\left(${ej.t2.arg}\\right) = ${ej.t2.value}`}
-            />
-          </div>
-
-          {/* Termino 3 */}
-          <div className="rounded border p-3">
-            <div className="font-semibold mb-2">
-              Término 3 <span className="text-muted-foreground">(ojo al signo {sign3})</span>
-            </div>
-            <Tex
-              block
-              tex={`${ej.t3.base}^{${ej.t3.value}} = ${ej.t3.arg}`}
-            />
-            <Tex
-              block
-              tex={`\\Rightarrow\\; \\log_{${ej.t3.base}}\\left(${ej.t3.arg}\\right) = ${ej.t3.value}`}
-            />
-            {ej.t3.arg === 1 && (
-              <p className="mt-2 text-muted-foreground">
-                Tip rápido: <span className="font-semibold">cualquier base</span> (válida) elevada a 0 da 1,
-                por eso <span className="font-semibold">\\(\\log_b(1)=0\\)</span>.
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Paso 2 */}
-      <div className="rounded-lg border bg-white p-3">
-        <div className="font-semibold mb-2">✅ Paso 2 — Reemplazar en la expresión</div>
-        <p className="text-muted-foreground">
-          Ahora que ya sabemos cuánto vale cada logaritmo, sustituimos en M.
-        </p>
-        <div className="mt-2 space-y-2">
-          <Tex block tex={ej.exprLatex} />
-          <Tex block tex={ej.numericLatex} />
-        </div>
-      </div>
-
-      {/* Paso 3 */}
-      <div className="rounded-lg border bg-white p-3">
-        <div className="font-semibold mb-2">✅ Paso 3 — Operar respetando signos</div>
-        <p className="text-muted-foreground">
-          Operamos como una suma/resta normal. Recuerda: el segundo y tercer término llevan sus signos.
-        </p>
-        <div className="mt-2">
-          <Tex block tex={`M = ${ej.correct}`} />
-        </div>
-
-        {/* Mini chequeo */}
-        <div className="mt-3 rounded-md border bg-background p-3">
-          <div className="font-semibold mb-1">🧠 Chequeo rápido</div>
-          <p className="text-muted-foreground">
-            Si el resultado te sale raro, vuelve al Paso 1 y verifica que cada potencia realmente coincide:
-            base<sup>exponente</sup> = argumento.
-          </p>
-        </div>
-      </div>
-    </div>
-  </SolutionBox>
-}
-
+          </SolutionBox>
+        }
       >
+        {/* Card de expresión */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="font-semibold mb-2">Expresión:</div>
           <Tex block tex={ej.exprLatex} />
         </div>
 
+        {/* Opciones */}
         <div className="grid grid-cols-2 gap-4">
           {ej.options.map(op => {
             const isSelected = selected === op.value

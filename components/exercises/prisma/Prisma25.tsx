@@ -11,8 +11,9 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 25 — Existencia de triángulo (inecuaciones) (MathJax)
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Estilo Prisma: teorema de existencia |a-b| < c < a+b
+   ✅ Estilo Prisma: teorema |a-b| < c < a+b
    ✅ Con diagrama simple + explicación paso a paso
+   ✅ Persist estilo Prisma01: (exerciseId, temaId, classroomId, sessionId, correct, answer)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -32,24 +33,24 @@ const MATHJAX_CONFIG = {
     processEscapes: true,
     packages: { '[+]': ['ams'] },
   },
-  options: {
-    renderActions: { addMenu: [] },
-  },
+  options: { renderActions: { addMenu: [] } },
 } as const
 
 function Tex({
-  latex,
-  display = false,
+  tex,
+  block = false,
   className = '',
 }: {
-  latex: string
-  display?: boolean
+  tex: string
+  block?: boolean
   className?: string
 }) {
-  const wrapped = display ? `\\[${latex}\\]` : `\\(${latex}\\)`
+  const wrapped = block ? `\\[${tex}\\]` : `\\(${tex}\\)`
   return (
     <span className={className}>
-      <MathJax dynamic>{wrapped}</MathJax>
+      <MathJax dynamic inline={!block}>
+        {wrapped}
+      </MathJax>
     </span>
   )
 }
@@ -64,9 +65,7 @@ function Diagram() {
   const W = 440
   const H = 260
 
-  // helpers para colocar textos cerca de lados
   const mid = (p: any, q: any) => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })
-
   const mAB = mid(A, B)
   const mBC = mid(B, C)
   const mAC = mid(A, C)
@@ -117,13 +116,13 @@ function Diagram() {
   )
 }
 
+/* =========================
+   Generador (mismo enunciado PDF)
+========================= */
 function generateExercise() {
-  // Enunciado del PDF (tal cual)
   const answer = 4
 
-  // Opciones como en la imagen: 4,5,6,7 (las mezclo para que no sea mecánico)
-  const base = [4, 5, 6, 7]
-  const values = shuffle(base)
+  const values = shuffle([4, 5, 6, 7])
   const labels: Option['label'][] = ['A', 'B', 'C', 'D']
   const options: Option[] = values.map((v, i) => ({
     label: labels[i],
@@ -138,7 +137,17 @@ function generateExercise() {
 /* =========================
    COMPONENT
 ========================= */
-export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma25({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -152,16 +161,20 @@ export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
     engine.submit(op.correct)
 
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma25',
-      prompt: 'Valor entero de x.',
-      questionLatex: ex.questionLatex,
-      options: ex.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: `${ex.answer}`,
-      userAnswer: `${op.value}`,
-      isCorrect: op.correct,
-      extra: {
-        sides: ['10', 'x-2', '2x+3'],
+      exerciseId, // 'Prisma25'
+      temaId,
+      classroomId,
+      sessionId,
+      correct: op.correct,
+      answer: {
+        selected: `${op.label}. ${op.value}`,
+        correctAnswer: `${ex.answer}`,
+        latex: ex.questionLatex,
+        options: ex.options.map(o => `${o.label}. ${o.value}`),
+        extra: {
+          sides: ['10', 'x-2', '2x+3'],
+          rule: '|a-b| < c < a+b',
+        },
       },
     })
   }
@@ -169,7 +182,7 @@ export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
   function siguiente() {
     setSelected(null)
     engine.reset()
-    setNonce(n => n + 1)
+    setNonce(n => n + 1) // solo para re-mezclar opciones
   }
 
   // Latex de la solución (paso a paso)
@@ -195,7 +208,7 @@ export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
             <Diagram />
 
             <div className="text-lg">
-              <Tex latex={`\\text{Halle } x\\in\\mathbb{Z}`} display />
+              <Tex block tex={`\\text{Halle } x\\in\\mathbb{Z}`} />
             </div>
           </div>
         }
@@ -213,7 +226,7 @@ export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
                   Una medida de lado no puede ser negativa, así que primero:
                 </p>
                 <div className="mt-2">
-                  <Tex latex={s0} display />
+                  <Tex block tex={s0} />
                 </div>
               </div>
 
@@ -221,13 +234,13 @@ export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <div className="font-semibold mb-2">✅ Paso 2 — Teorema de existencia</div>
                 <p className="text-muted-foreground">
                   Para que exista un triángulo con lados <span className="font-mono">a</span>,{' '}
-                  <span className="font-mono">b</span>, <span className="font-mono">c</span> se cumple:
-                  <span className="font-semibold"> |a−b| &lt; c &lt; a+b</span>.
+                  <span className="font-mono">b</span>, <span className="font-mono">c</span>:
+                  <span className="font-semibold"> |a-b| &lt; c &lt; a+b</span>.
                   Tomamos <span className="font-mono">a=2x+3</span>, <span className="font-mono">b=x−2</span> y{' '}
                   <span className="font-mono">c=10</span>.
                 </p>
                 <div className="mt-2">
-                  <Tex latex={s1} display />
+                  <Tex block tex={s1} />
                 </div>
               </div>
 
@@ -236,11 +249,11 @@ export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <div className="space-y-2">
                   <div>
                     <div className="font-semibold mb-1">Izquierda</div>
-                    <Tex latex={s2} display />
+                    <Tex block tex={s2} />
                   </div>
                   <div>
                     <div className="font-semibold mb-1">Derecha</div>
-                    <Tex latex={s3} display />
+                    <Tex block tex={s3} />
                   </div>
                 </div>
               </div>
@@ -250,13 +263,15 @@ export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <p className="text-muted-foreground">
                   Juntamos todo (incluyendo <span className="font-mono">x&gt;2</span>) y buscamos el entero:
                 </p>
-                <div className="mt-2 space-y-2">
-                  <Tex latex={s4} display />
+                <div className="mt-2">
+                  <Tex block tex={s4} />
                 </div>
 
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-sm font-semibold">Respuesta:</span>
-                  <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">{ex.answer}</span>
+                  <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
+                    {ex.answer}
+                  </span>
                 </div>
               </div>
 
@@ -293,7 +308,7 @@ export default function Prisma25({ temaPeriodoId }: { temaPeriodoId: string }) {
               >
                 <div className="font-semibold mb-1">{op.label}.</div>
                 <div className="text-lg">
-                  <Tex latex={`${op.value}`} />
+                  <Tex tex={`${op.value}`} />
                 </div>
               </button>
             )

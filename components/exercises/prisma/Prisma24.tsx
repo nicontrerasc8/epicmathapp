@@ -12,14 +12,13 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    PRISMA 24 — Suma de ángulos (x + y + z + w)
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ Dinámico: φ puede variar, y la suma siempre es 180 + φ
-   ✅ Diagrama: ahora con CANVAS para que el arco salga bien (arriba)
+   ✅ Diagrama en CANVAS (arco de φ siempre arriba)
+   ✅ Persist con firma: (exerciseId, temaId, classroomId, sessionId)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
 
-function randInt(min: number, max: number) {
-  return min + Math.floor(Math.random() * (max - min + 1))
-}
+
 function choice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
@@ -38,32 +37,30 @@ const MATHJAX_CONFIG = {
     processEscapes: true,
     packages: { '[+]': ['ams'] },
   },
-  options: {
-    renderActions: { addMenu: [] },
-  },
+  options: { renderActions: { addMenu: [] } },
 } as const
 
 function Tex({
-  latex,
-  display = false,
+  tex,
+  block = false,
   className = '',
 }: {
-  latex: string
-  display?: boolean
+  tex: string
+  block?: boolean
   className?: string
 }) {
-  const wrapped = display ? `\\[${latex}\\]` : `\\(${latex}\\)`
+  const wrapped = block ? `\\[${tex}\\]` : `\\(${tex}\\)`
   return (
     <span className={className}>
-      <MathJax dynamic>{wrapped}</MathJax>
+      <MathJax dynamic inline={!block}>
+        {wrapped}
+      </MathJax>
     </span>
   )
 }
 
 /* ============================================================
-   DIAGRAMA (Canvas) — CORRECTO
-   - Construyo la X con ángulo φ EXACTO en el cruce
-   - El arco SIEMPRE se dibuja arriba (no invertido)
+   DIAGRAMA (Canvas)
 ============================================================ */
 function Diagram({ phi }: { phi: number }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -263,7 +260,6 @@ function Diagram({ phi }: { phi: number }) {
   )
 }
 
-
 /* =========================
    Generador
    (x+y) + (z+w) + (180-phi) = 360
@@ -282,9 +278,9 @@ function generateExercise() {
 
     const set = new Set<number>()
     set.add(answer)
-      ;[d1, d2, d3].forEach(v => {
-        if (Number.isFinite(v) && v > 0) set.add(v)
-      })
+    ;[d1, d2, d3].forEach(v => {
+      if (Number.isFinite(v) && v > 0) set.add(v)
+    })
     while (set.size < 4) set.add(answer + choice([-50, -30, 30, 50]))
 
     const values = shuffle(Array.from(set)).slice(0, 4)
@@ -318,7 +314,17 @@ function generateExercise() {
 /* =========================
    COMPONENT
 ========================= */
-export default function Prisma24({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma24({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -331,15 +337,19 @@ export default function Prisma24({ temaPeriodoId }: { temaPeriodoId: string }) {
     engine.submit(op.correct)
 
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma24',
-      prompt: 'Calcular x + y + z + w.',
-      questionLatex: ex.questionLatex,
-      options: ex.options.map(o => `${o.label}. ${o.value}°`),
-      correctAnswer: `${ex.answer}`,
-      userAnswer: `${op.value}`,
-      isCorrect: op.correct,
-      extra: { phi: ex.phi },
+      exerciseId, // 'Prisma24'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+      answer: {
+        selected: String(op.value),
+        correctAnswer: String(ex.answer),
+        latex: ex.questionLatex,
+        options: ex.options.map(o => `${o.label}. ${o.value}°`),
+        extra: { phi: ex.phi },
+      },
     })
   }
 
@@ -369,40 +379,39 @@ export default function Prisma24({ temaPeriodoId }: { temaPeriodoId: string }) {
               <span className="font-semibold">x + y + z + w</span>.
             </div>
 
-            {/* ✅ Canvas (arco correcto) */}
             <Diagram phi={ex.phi} />
 
             <div className="text-lg">
-              <Tex latex={`\\text{Halle } x+y+z+w`} display />
+              <Tex tex={`\\text{Halle } x+y+z+w`} block />
             </div>
           </div>
         }
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
-        onVerify={() => { }}
+        onVerify={() => {}}
         onNext={siguiente}
         solution={
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Ángulos exteriores en cada triángulo</div>
+                <div className="font-semibold mb-2">✅ Paso 1 — Ángulos exteriores</div>
                 <div className="space-y-2">
-                  <Tex latex={s1} display />
-                  <Tex latex={s2} display />
+                  <Tex tex={s1} block />
+                  <Tex tex={s2} block />
                 </div>
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — El ángulo “pequeño” del cruce</div>
-                <Tex latex={s3} display />
+                <div className="font-semibold mb-2">✅ Paso 2 — Ángulo “pequeño” del cruce</div>
+                <Tex tex={s3} block />
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Suma de ángulos exteriores</div>
+                <div className="font-semibold mb-2">✅ Paso 3 — Suma alrededor</div>
                 <div className="space-y-2">
-                  <Tex latex={s4} display />
-                  <Tex latex={s5} display />
+                  <Tex tex={s4} block />
+                  <Tex tex={s5} block />
                 </div>
 
                 <div className="mt-3 flex items-center gap-2">
@@ -414,7 +423,7 @@ export default function Prisma24({ temaPeriodoId }: { temaPeriodoId: string }) {
               </div>
 
               <div className="text-xs text-muted-foreground">
-                Para este tipo de figura, siempre sale <span className="font-mono">x+y+z+w = 180 + \u03C6</span>.
+                Regla del patrón: <span className="font-mono">x+y+z+w = 180 + \\varphi</span>.
               </div>
             </div>
           </SolutionBox>
@@ -444,9 +453,7 @@ export default function Prisma24({ temaPeriodoId }: { temaPeriodoId: string }) {
                   .join(' ')}
               >
                 <div className="font-semibold mb-1">{op.label}.</div>
-                <div className="text-lg">
-                  <Tex latex={`${op.value}^{\\circ}`} />
-                </div>
+                <div className="font-mono text-lg">{op.value}°</div>
               </button>
             )
           })}

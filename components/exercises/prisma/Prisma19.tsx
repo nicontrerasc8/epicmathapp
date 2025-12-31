@@ -9,13 +9,15 @@ import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
 import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
-   PRISMA 19 — Propiedades de logaritmos (m, n) + LaTeX (MathJax)
+   PRISMA 19 — Propiedades de logaritmos (m, n) + MathJax
    Enunciado:
      Si log(a)=m; log(b)=n, calcular
      P = log(a·b)/(m+n)
+
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ 100% dinámico: genera a,b “bonitos” (sin números gigantes)
-   ✅ Explicación tipo guía: descomponer → propiedad → reemplazar → simplificar
+   ✅ 100% dinámico: a,b “bonitos” (sin números gigantes)
+   ✅ Explicación tipo guía: producto → propiedad → reemplazar → simplificar
+   ✅ Persist estilo Prisma01 (exerciseId, temaId, classroomId, sessionId)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -43,9 +45,7 @@ const MATHJAX_CONFIG = {
     processEscapes: true,
     packages: { '[+]': ['ams'] },
   },
-  options: {
-    renderActions: { addMenu: [] },
-  },
+  options: { renderActions: { addMenu: [] } },
 } as const
 
 function Tex({
@@ -74,7 +74,7 @@ function generateExercise() {
   // control: evitar números gigantes
   const basePool = [2, 3, 4, 5, 6, 7, 8, 9]
 
-  for (let tries = 0; tries < 120; tries++) {
+  for (let tries = 0; tries < 140; tries++) {
     const aBase = basePool[randInt(0, basePool.length - 1)]
     const bBase = basePool[randInt(0, basePool.length - 1)]
     const aExp = randInt(2, 4)
@@ -84,11 +84,11 @@ function generateExercise() {
     const b = powInt(bBase, bExp)
     const ab = a * b
 
-    if (ab > 200000) continue
+    if (ab > 200_000) continue
 
     const correct = 1
 
-    // distractores “creíbles” para examen
+    // distractores “creíbles”
     const candidates = shuffle([0, 2, 3, 4, -1, 12, 5, 6]).filter(v => v !== correct)
     const values = shuffle([correct, ...candidates.slice(0, 3)])
 
@@ -119,7 +119,17 @@ function generateExercise() {
 /* =========================
    UI — PRISMA 19
 ========================= */
-export default function Prisma19({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma19({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -137,20 +147,23 @@ export default function Prisma19({ temaPeriodoId }: { temaPeriodoId: string }) {
     engine.submit(op.correct)
 
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma19',
-      prompt: 'Calcula P usando propiedades de logaritmos.',
-      questionLatex: promptLatex,
-      options: ej.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: String(ej.correct),
-      userAnswer: String(op.value),
-      isCorrect: op.correct,
-      extra: {
-        a: ej.a,
-        b: ej.b,
-        ab: ej.ab,
-        keyRule: 'log(xy)=log(x)+log(y)',
-        note: 'Siempre P=1 porque log(ab)=m+n.',
+      exerciseId, // 'Prisma19'
+      temaId,
+      classroomId,
+      sessionId,
+      correct: op.correct,
+      answer: {
+        selected: String(op.value),
+        correctAnswer: String(ej.correct),
+        latex: promptLatex,
+        options: ej.options.map(o => `${o.label}. ${o.value}`),
+        extra: {
+          a: ej.a,
+          b: ej.b,
+          ab: ej.ab,
+          keyRule: 'log(xy)=log(x)+log(y)',
+          note: 'Siempre P=1 porque log(ab)=log(a)+log(b)=m+n.',
+        },
       },
     })
   }
@@ -179,11 +192,11 @@ export default function Prisma19({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <div className="font-semibold mb-2">👀 Paso 0 — ¿Qué te están dando?</div>
                 <p className="text-muted-foreground">
                   Te dicen dos “nombres”:
-                  <span className="font-semibold"> {` log(${ej.a}) = m `}</span> y
-                  <span className="font-semibold"> {` log(${ej.b}) = n `}</span>.
+                  <span className="font-semibold">{` \\log(${ej.a}) = m `}</span> y
+                  <span className="font-semibold">{` \\log(${ej.b}) = n `}</span>.
                   <br />
-                  O sea: <span className="font-semibold">m</span> representa a <span className="font-semibold">log(a)</span> y
-                  <span className="font-semibold">n</span> representa a <span className="font-semibold">log(b)</span>.
+                  O sea: <span className="font-semibold">m</span> representa <span className="font-semibold">log(a)</span> y{' '}
+                  <span className="font-semibold">n</span> representa <span className="font-semibold">log(b)</span>.
                 </p>
               </div>
 
@@ -192,14 +205,18 @@ export default function Prisma19({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <div className="font-semibold mb-2">✅ Paso 1 — Escribimos P</div>
                 <Tex block tex={`P=\\frac{\\log(${ej.ab})}{m+n}`} />
                 <p className="mt-2 text-muted-foreground">
-                  Nota: <span className="font-semibold">{ej.ab}</span> es el producto <span className="font-semibold">{ej.a}\\cdot {ej.b}</span>.
+                  Nota: <span className="font-semibold">{ej.ab}</span> es el producto{' '}
+                  <span className="font-semibold">
+                    {ej.a}\\cdot {ej.b}
+                  </span>
+                  .
                 </p>
                 <Tex block tex={`P=\\frac{\\log(${ej.a}\\cdot ${ej.b})}{m+n}`} />
               </div>
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Usamos la propiedad del producto</div>
+                <div className="font-semibold mb-2">✅ Paso 2 — Propiedad del producto</div>
                 <div className="rounded-md border bg-background p-3">
                   <Tex block tex={`\\log(xy)=\\log(x)+\\log(y)`} />
                 </div>

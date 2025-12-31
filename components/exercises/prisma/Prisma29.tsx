@@ -19,6 +19,9 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
      Bisectrices exteriores en A y B:
      x = 90° − ∠D/2
      ⇒ x = (φ + β)/2
+
+  ✅ Persist NUEVO:
+     { exerciseId, temaId, classroomId, sessionId, correct, answer:{} }
 ============================================================ */
 
 type OptionKey = 'A' | 'B' | 'C' | 'D'
@@ -63,7 +66,6 @@ const P = (x: number, y: number): Pt => ({ x, y })
 const sub = (a: Pt, b: Pt): Pt => P(a.x - b.x, a.y - b.y)
 const add = (a: Pt, b: Pt): Pt => P(a.x + b.x, a.y + b.y)
 const mul = (v: Pt, k: number): Pt => P(v.x * k, v.y * k)
-const len = (v: Pt) => Math.hypot(v.x, v.y) || 1
 
 function angleDeg(from: Pt, to: Pt) {
   return (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI
@@ -215,7 +217,6 @@ function Prisma29Diagram({ sum, mode }: { sum: number; mode: DiagramMode }) {
   const thinW = 3.2
 
   // ✅ Posición segura del texto “φ + β = …°”
-  // Evita SIEMPRE cruzarse con la extensión BD (que va hasta casi y=0 en x≈510).
   const sumPos = P(735, 92)
 
   // En solución: mostrar ∠D (para justificar el Paso 1)
@@ -224,9 +225,7 @@ function Prisma29Diagram({ sum, mode }: { sum: number; mode: DiagramMode }) {
   return (
     <div className="rounded-2xl border bg-white p-4">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-sm font-semibold">
-          {mode === 'question' ? 'Figura' : 'Figura'}
-        </div>
+        <div className="text-sm font-semibold">Figura</div>
         <div className="text-xs text-muted-foreground">bisectrices exteriores • no a escala</div>
       </div>
 
@@ -246,7 +245,7 @@ function Prisma29Diagram({ sum, mode }: { sum: number; mode: DiagramMode }) {
           Diagrama referencial (no a escala)
         </text>
 
-        {/* ✅ Texto condición en lugar correcto (NO se cruza con rectas) */}
+        {/* ✅ Texto condición (NO se cruza con rectas) */}
         <OutlinedLabel text={`φ + β = ${sum}°`} x={sumPos.x} y={sumPos.y} size={24} weight={900} />
 
         {/* Recta base (D—E) */}
@@ -309,16 +308,46 @@ function Prisma29Diagram({ sum, mode }: { sum: number; mode: DiagramMode }) {
         <circle cx={D.x} cy={D.y} r={4.2} fill="#111" />
 
         {/* Labels puntos */}
-        <text x={D.x - 18} y={D.y + 30} fill="#111" fontSize={15} fontWeight={800} style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
+        <text
+          x={D.x - 18}
+          y={D.y + 30}
+          fill="#111"
+          fontSize={15}
+          fontWeight={800}
+          style={{ fontFamily: 'ui-sans-serif, system-ui' }}
+        >
           D
         </text>
-        <text x={A.x} y={A.y + 36} fill="#111" fontSize={15} fontWeight={800} textAnchor="middle" style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
+        <text
+          x={A.x}
+          y={A.y + 36}
+          fill="#111"
+          fontSize={15}
+          fontWeight={800}
+          textAnchor="middle"
+          style={{ fontFamily: 'ui-sans-serif, system-ui' }}
+        >
           A
         </text>
-        <text x={B.x} y={B.y - 24} fill="#111" fontSize={15} fontWeight={800} textAnchor="middle" style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
+        <text
+          x={B.x}
+          y={B.y - 24}
+          fill="#111"
+          fontSize={15}
+          fontWeight={800}
+          textAnchor="middle"
+          style={{ fontFamily: 'ui-sans-serif, system-ui' }}
+        >
           B
         </text>
-        <text x={C.x + 18} y={C.y + 28} fill="#111" fontSize={15} fontWeight={800} style={{ fontFamily: 'ui-sans-serif, system-ui' }}>
+        <text
+          x={C.x + 18}
+          y={C.y + 28}
+          fill="#111"
+          fontSize={15}
+          fontWeight={800}
+          style={{ fontFamily: 'ui-sans-serif, system-ui' }}
+        >
           C
         </text>
 
@@ -368,7 +397,7 @@ type ExData = {
 }
 
 function buildExercise(excludeSums: number[]): ExData {
-  // Solo pares para que x sea entero y se sienta “bonito”
+  // pares para que x sea entero
   const cleanPool = [90, 100, 120, 140, 160, 170].filter(s => s % 2 === 0)
 
   const filtered = cleanPool.filter(s => !excludeSums.includes(s))
@@ -401,9 +430,19 @@ function buildExercise(excludeSums: number[]): ExData {
 }
 
 /* ============================================================
-  Component
+  Component (props NUEVOS)
 ============================================================ */
-export default function Prisma29({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma29({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
 
   const init = useMemo(() => buildExercise([]), [])
@@ -417,19 +456,27 @@ export default function Prisma29({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelectedKey(op.key)
     engine.submit(op.correct)
 
+    const ordered = ex.options.slice().sort((a, b) => a.key.localeCompare(b.key))
+
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma29',
-      prompt: 'Calcular x si AC y BC son bisectrices exteriores.',
-      questionLatex: `\\text{Calcular }x\\text{ si }\\phi+\\beta=${ex.sum}^{\\circ}.`,
-      options: ex.options
-        .slice()
-        .sort((a, b) => a.key.localeCompare(b.key))
-        .map(o => `${o.key}.\\ ${o.value}^{\\circ}`),
-      correctAnswer: `${ex.answer}`,
-      userAnswer: `${op.value}`,
-      isCorrect: op.correct,
-      extra: { sum: ex.sum },
+      exerciseId,
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: String(op.value),
+        correctAnswer: String(ex.answer),
+        latex: `\\text{Calcular }x\\text{ si }\\phi+\\beta=${ex.sum}^{\\circ}.`,
+        options: ordered.map(o => String(o.value)),
+        extra: {
+          sum: ex.sum,
+          labeledOptions: ordered.map(o => `${o.key}.\\ ${o.value}^{\\circ}`),
+          rule: 'x = (φ + β)/2',
+        },
+      },
     })
   }
 
@@ -458,9 +505,8 @@ export default function Prisma29({ temaPeriodoId }: { temaPeriodoId: string }) {
         prompt={
           <div className="space-y-2">
             <div className="text-sm text-muted-foreground">
-              En la figura, <span className="font-semibold">AC</span> y{' '}
-              <span className="font-semibold">BC</span> son bisectrices exteriores.
-              Calcula <span className="font-semibold">x</span> si{' '}
+              En la figura, <span className="font-semibold">AC</span> y <span className="font-semibold">BC</span> son
+              bisectrices exteriores. Calcula <span className="font-semibold">x</span> si{' '}
               <span className="font-semibold">φ + β = {ex.sum}°</span>.
             </div>
           </div>
@@ -484,7 +530,9 @@ export default function Prisma29({ temaPeriodoId }: { temaPeriodoId: string }) {
                 </div>
 
                 <div className="rounded-lg border bg-background p-3">
-                  <div className="font-semibold text-foreground mb-2">✅ Paso 2 — Propiedad de bisectrices exteriores</div>
+                  <div className="font-semibold text-foreground mb-2">
+                    ✅ Paso 2 — Propiedad de bisectrices exteriores
+                  </div>
                   <Tex tex={s2} block />
                   <Tex tex={s3} block />
                 </div>
@@ -501,9 +549,7 @@ export default function Prisma29({ temaPeriodoId }: { temaPeriodoId: string }) {
                   </div>
                 </div>
 
-                <div className="text-xs">
-                  Nota: el dibujo es una maqueta (no a escala). La respuesta sale por propiedades, no por medir.
-                </div>
+                <div className="text-xs">Nota: el dibujo es una maqueta (no a escala). La respuesta sale por propiedades.</div>
               </div>
             </div>
           </SolutionBox>

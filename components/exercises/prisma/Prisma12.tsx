@@ -14,10 +14,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
      P = ( m^eN repetido k veces · m^(eD·a) ) / ( m^eD repetido (u + a) veces )
    y se reduce a m^r (independiente de "a") si eD·a cancela.
 
-   ✅ Usa "better-react-mathjax" (NO KaTeX)
+   ✅ better-react-mathjax (NO KaTeX)
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ Generación dinámica (sin hardcode)
    ✅ Explicación tipo profe (pasos con potencias)
+   ✅ Persist NUEVO (igual Prisma01)
 ============================================================ */
 
 type Option = { value: string; correct: boolean }
@@ -36,7 +37,7 @@ function shuffle<T>(arr: T[]) {
 }
 
 /* =========================
-   MathJax Config (igual Prisma17)
+   MathJax Config (igual Prisma01/11)
 ========================= */
 const MATHJAX_CONFIG = {
   loader: { load: ['input/tex', 'output/chtml'] },
@@ -46,9 +47,7 @@ const MATHJAX_CONFIG = {
     processEscapes: true,
     packages: { '[+]': ['ams'] },
   },
-  options: {
-    renderActions: { addMenu: [] }, // limpio
-  },
+  options: { renderActions: { addMenu: [] } },
 } as const
 
 function Tex({
@@ -71,7 +70,7 @@ function Tex({
 }
 
 /* =========================
-   LaTeX builders
+   LaTeX helpers
 ========================= */
 function optToLatex(v: string) {
   // "m", "m^2" => "m^{2}"
@@ -91,7 +90,6 @@ function buildExprLatex(params: {
   const { base, eN, k, eD, u } = params
 
   // P = ( m^eN repetido k veces · m^(eD a) ) / ( m^eD repetido (u+a) veces )
-  // Usamos underbrace + cdots (se ve como libro)
   return [
     `P = \\dfrac{`,
     `\\underbrace{${base}^{${eN}}\\cdot ${base}^{${eN}}\\cdots ${base}^{${eN}}}_{${k}\\,\\text{veces}}\\cdot ${base}^{${eD}a}`,
@@ -125,9 +123,7 @@ function generateExercise() {
 
   const correct = targetR === 1 ? base : `${base}^${targetR}`
   const optionsAll = ['m', 'm^2', 'm^3', 'm^4']
-  const options: Option[] = shuffle(
-    optionsAll.map(v => ({ value: v, correct: v === correct }))
-  )
+  const options: Option[] = shuffle(optionsAll.map(v => ({ value: v, correct: v === correct })))
 
   const exprLatex = buildExprLatex({ base, eN, k, eD, u })
 
@@ -147,7 +143,17 @@ function generateExercise() {
 /* =========================
    COMPONENT
 ========================= */
-export default function Prisma12({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma12({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -166,9 +172,7 @@ export default function Prisma12({ temaPeriodoId }: { temaPeriodoId: string }) {
       u: 38,
       targetR: 4,
       correct: 'm^4',
-      options: shuffle(
-        ['m', 'm^2', 'm^3', 'm^4'].map(v => ({ value: v, correct: v === 'm^4' }))
-      ),
+      options: shuffle(['m', 'm^2', 'm^3', 'm^4'].map(v => ({ value: v, correct: v === 'm^4' }))),
       exprLatex: buildExprLatex({ base: 'm', eN: 4, k: 20, eD: 2, u: 38 }),
     }
     return fallback
@@ -180,23 +184,29 @@ export default function Prisma12({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // ✅ Persist NUEVO (igual Prisma01/11)
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma12',
-      prompt: 'Reduzca la expresión P.',
-      questionLatex: ejercicio.exprLatex,
-      options: ejercicio.options.map(o => o.value),
-      correctAnswer: ejercicio.correct,
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        base: ejercicio.base,
-        eN: ejercicio.eN,
-        k: ejercicio.k,
-        eD: ejercicio.eD,
-        u: ejercicio.u,
-        targetR: ejercicio.targetR,
-        exprLatex: ejercicio.exprLatex,
+      exerciseId, // ej: 'Prisma12'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: op.value,
+        correctAnswer: ejercicio.correct,
+        latex: ejercicio.exprLatex,
+        options: ejercicio.options.map(o => o.value),
+        extra: {
+          base: ejercicio.base,
+          eN: ejercicio.eN,
+          k: ejercicio.k,
+          eD: ejercicio.eD,
+          u: ejercicio.u,
+          targetR: ejercicio.targetR,
+          exprLatex: ejercicio.exprLatex,
+        },
       },
     })
   }
@@ -211,7 +221,6 @@ export default function Prisma12({ temaPeriodoId }: { temaPeriodoId: string }) {
   const numPow = ejercicio.eN * ejercicio.k
   const denPowConst = ejercicio.eD * ejercicio.u
   const finalPow = ejercicio.targetR
-
   const finalLatex = finalPow === 1 ? 'm' : `m^{${finalPow}}`
 
   return (
@@ -298,17 +307,15 @@ export default function Prisma12({ temaPeriodoId }: { temaPeriodoId: string }) {
                     tex={`P = \\dfrac{m^{${numPow}+${ejercicio.eD}a}}{m^{${denPowConst}+${ejercicio.eD}a}}
                     = m^{(${numPow}+${ejercicio.eD}a)-(${denPowConst}+${ejercicio.eD}a)}`}
                   />
-                  <Tex
-                    block
-                    tex={`= m^{${numPow}-${denPowConst}}`}
-                  />
+                  <Tex block tex={`= m^{${numPow}-${denPowConst}}`} />
                 </div>
 
                 <div className="mt-3 rounded-md border bg-background p-3">
                   <div className="font-semibold mb-1">💡 Lo clave</div>
                   <p className="text-muted-foreground">
-                    El término <span className="font-mono">+{ejercicio.eD}a</span> aparece arriba y abajo, por eso se
-                    <span className="font-semibold"> cancela</span>. La respuesta no depende de <span className="font-mono">a</span>.
+                    El término <span className="font-mono">+{ejercicio.eD}a</span> aparece arriba y abajo, por eso se{' '}
+                    <span className="font-semibold">cancela</span>. La respuesta no depende de{' '}
+                    <span className="font-mono">a</span>.
                   </p>
                 </div>
               </div>

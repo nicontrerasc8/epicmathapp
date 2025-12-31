@@ -9,12 +9,15 @@ import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
 import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
-   PRISMA 9 — Subconjuntos propios de un conjunto B + LaTeX (MathJax)
-   ✅ Usa "better-react-mathjax" (NO KaTeX)
+   PRISMA 9 — Subconjuntos propios de un conjunto B (con elementos que son conjuntos)
+   ✅ better-react-mathjax (NO KaTeX)
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico: genera el conjunto B con n elementos (incluye elementos que son conjuntos)
-   ✅ Explicación tipo profe (n(B), fórmula, cálculo)
+   ✅ Dinámico: B con n elementos (algunos pueden ser {2; 3} etc.)
+   ✅ Explicación tipo profe: n(B), 2^n, propios = 2^n - 1
+   ✅ Persist: MISMA estructura que Prisma01 (exerciseId/temaId/classroomId/sessionId)
 ============================================================ */
+
+type Option = { label: 'A' | 'B' | 'C' | 'D'; value: string; correct: boolean }
 
 /* =========================
    HELPERS
@@ -35,7 +38,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /* =========================
-   MathJax Config (igual Prisma17)
+   MathJax Config (igual Prisma01/17)
 ========================= */
 const MATHJAX_CONFIG = {
   loader: { load: ['input/tex', 'output/chtml'] },
@@ -72,19 +75,15 @@ function Tex({
 /* =========================
    GENERACIÓN DEL CONJUNTO B
 ========================= */
-type Option = { value: string; correct: boolean }
-
 function fmtInnerSet(items: number[]) {
-  // estilo del enunciado: {2; 3}
+  // estilo “{2; 3}”
   return `{${items.join('; ')}}`
 }
 
 function buildSetElement(universe: number[]): string {
   const kind = choice(['atom', 'singleton', 'pair'] as const)
 
-  if (kind === 'atom') {
-    return String(choice(universe))
-  }
+  if (kind === 'atom') return String(choice(universe))
 
   if (kind === 'singleton') {
     const x = choice(universe)
@@ -100,28 +99,29 @@ function buildSetElement(universe: number[]): string {
 }
 
 function buildScenario() {
-  const n = randInt(2, 6) // respuestas: 3,7,15,31,63
+  const n = randInt(2, 6) // 2..6 -> propios: 3,7,15,31,63
   const universe = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-  // construimos B con n elementos distintos (por string)
+  // B con n elementos distintos (por string)
   const set = new Set<string>()
   let guard = 0
-  while (set.size < n && guard < 200) {
+  while (set.size < n && guard < 240) {
     set.add(buildSetElement(universe))
     guard++
   }
   const elements = Array.from(set)
 
-  // Para LaTeX, usamos \{ ... \} y separador ; (como el enunciado)
+  // Para LaTeX: \left\{ ... \right\} con separador ;
   const B_latex = `\\left\\{${elements.join('; ')}\\right\\}`
 
   const totalSubsets = 2 ** n
   // según tu material: propios = todos menos B (incluye ∅)
   const correctNum = totalSubsets - 1
 
+  // distractores típicos + cercanos
   const candidates = [
     totalSubsets, // 2^n
-    totalSubsets - 2, // 2^n - 2 (si excluyen vacío y el mismo)
+    totalSubsets - 2, // 2^n - 2 (excluyen vacío y el mismo)
     2 ** (n - 1) - 1, // error común
     2 ** (n + 1) - 1, // sobreestiman n
     n ** 2 - 1,
@@ -131,38 +131,46 @@ function buildScenario() {
 
   const unique = Array.from(new Set(candidates)).filter(x => x !== correctNum)
 
-  while (unique.length < 6) {
-    const k = correctNum + randInt(-6, 12)
+  while (unique.length < 8) {
+    const k = correctNum + randInt(-8, 14)
     if (k >= 0 && k !== correctNum && !unique.includes(k)) unique.push(k)
   }
 
   const distractors = shuffle(unique).slice(0, 3)
-
-  const options: Option[] = shuffle([
-    { value: String(correctNum), correct: true },
-    ...distractors.map(d => ({ value: String(d), correct: false })),
+  const values = shuffle([
+    { v: correctNum, ok: true },
+    ...distractors.map(d => ({ v: d, ok: false })),
   ])
 
-  return {
-    n,
-    elements,
-    B_latex,
-    correctNum,
-    totalSubsets,
-    options,
-  }
+  const labels: Array<'A' | 'B' | 'C' | 'D'> = ['A', 'B', 'C', 'D']
+  const options: Option[] = values.map((x, i) => ({
+    label: labels[i],
+    value: String(x.v),
+    correct: x.ok,
+  }))
+
+  return { n, elements, B_latex, correctNum, totalSubsets, options }
 }
 
 /* =========================
    COMPONENT
 ========================= */
-export default function Prisma09({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma09({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
-
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
-  const ejercicio = useMemo(() => buildScenario(), [nonce])
+  const ex = useMemo(() => buildScenario(), [nonce])
 
   function pickOption(op: Option) {
     if (!engine.canAnswer) return
@@ -170,21 +178,27 @@ export default function Prisma09({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // ✅ MISMA ESTRUCTURA QUE PRISMA01
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma09',
-      prompt: '¿Cuántos subconjuntos propios tiene el conjunto B?',
-      questionLatex: `B = ${ejercicio.B_latex}`,
-      options: ejercicio.options.map(o => o.value),
-      correctAnswer: String(ejercicio.correctNum),
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        B_latex: ejercicio.B_latex,
-        n: ejercicio.n,
-        elements: ejercicio.elements,
-        totalSubsets: ejercicio.totalSubsets,
-        rule: 'subconjuntos propios = 2^n - 1 (incluye vacío, excluye B)',
+      exerciseId, // 'Prisma09'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: op.value,
+        selectedLabel: op.label,
+        correctAnswer: String(ex.correctNum),
+        latex: `B=${ex.B_latex}`,
+        options: ex.options.map(o => ({ label: o.label, value: o.value })),
+        extra: {
+          n: ex.n,
+          elements: ex.elements,
+          totalSubsets: ex.totalSubsets,
+          rule: 'subconjuntos propios = 2^n - 1 (incluye ∅, excluye B)',
+        },
       },
     })
   }
@@ -213,7 +227,7 @@ export default function Prisma09({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <div className="font-semibold mb-2">✅ Paso 1 — Identificamos los elementos de B</div>
 
                 <div className="rounded-md border bg-background p-3">
-                  <Tex block tex={`B = ${ejercicio.B_latex}`} />
+                  <Tex block tex={`B=${ex.B_latex}`} />
                 </div>
 
                 <div className="mt-3 overflow-x-auto">
@@ -225,7 +239,7 @@ export default function Prisma09({ temaPeriodoId }: { temaPeriodoId: string }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {ejercicio.elements.map((e, idx) => (
+                      {ex.elements.map((e, idx) => (
                         <tr key={idx}>
                           <td className="border py-2 font-semibold">{idx + 1}</td>
                           <td className="border py-2 font-mono">{e}</td>
@@ -238,7 +252,7 @@ export default function Prisma09({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <div className="mt-3 rounded-lg border bg-white p-3">
                   <div>
                     Número de elementos de B:{' '}
-                    <span className="font-semibold">n(B) = {ejercicio.n}</span>
+                    <span className="font-semibold">n(B) = {ex.n}</span>
                   </div>
                   <div className="text-muted-foreground mt-1">
                     Ojo: si un elemento es <span className="font-mono">{`{2; 3}`}</span>, igual cuenta como{' '}
@@ -255,7 +269,7 @@ export default function Prisma09({ temaPeriodoId }: { temaPeriodoId: string }) {
                   <span className="font-semibold">subconjuntos</span> es:
                 </p>
                 <div className="mt-2 rounded-md border bg-background p-3">
-                  <Tex block tex={`\\text{Total de subconjuntos} = 2^n`} />
+                  <Tex block tex={`\\text{Total de subconjuntos}=2^n`} />
                 </div>
               </div>
 
@@ -267,7 +281,7 @@ export default function Prisma09({ temaPeriodoId }: { temaPeriodoId: string }) {
                   subconjuntos excepto el mismo <span className="font-semibold">B</span> (sí incluye el vacío).
                 </p>
                 <div className="mt-2 rounded-md border bg-background p-3">
-                  <Tex block tex={`\\text{Subconjuntos propios} = 2^n - 1`} />
+                  <Tex block tex={`\\text{Subconjuntos propios}=2^n-1`} />
                 </div>
               </div>
 
@@ -276,26 +290,26 @@ export default function Prisma09({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <div className="font-semibold mb-2">✅ Paso 4 — Cálculo</div>
 
                 <div className="rounded-md border bg-background p-3 space-y-2">
-                  <Tex block tex={`n(B) = ${ejercicio.n}`} />
-                  <Tex block tex={`2^{${ejercicio.n}} = ${ejercicio.totalSubsets}`} />
+                  <Tex block tex={`n(B)=${ex.n}`} />
+                  <Tex block tex={`2^{${ex.n}}=${ex.totalSubsets}`} />
                   <Tex
                     block
-                    tex={`\\text{Subconjuntos propios} = ${ejercicio.totalSubsets} - 1 = \\mathbf{${ejercicio.correctNum}}`}
+                    tex={`\\text{Subconjuntos propios}=${ex.totalSubsets}-1=\\mathbf{${ex.correctNum}}`}
                   />
                 </div>
 
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-sm font-semibold">Respuesta:</span>
                   <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
-                    {ejercicio.correctNum}
+                    {ex.correctNum}
                   </span>
                 </div>
 
                 <div className="mt-3 rounded-md border bg-background p-3">
                   <div className="font-semibold mb-1">🧠 Chequeo rápido</div>
                   <p className="text-muted-foreground">
-                    Si alguien usa <span className="font-mono">2^n - 2</span> es porque excluye también el vacío.
-                    Aquí <span className="font-semibold">sí contamos</span> el vacío, solo quitamos a B.
+                    Si alguien usa <span className="font-mono">2^n-2</span>, es porque excluye también el vacío.
+                    Aquí <span className="font-semibold">sí contamos</span> el vacío; solo quitamos a B.
                   </p>
                 </div>
               </div>
@@ -307,20 +321,20 @@ export default function Prisma09({ temaPeriodoId }: { temaPeriodoId: string }) {
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="font-semibold mb-2">Conjunto:</div>
           <div className="rounded-md border bg-background p-3">
-            <Tex block tex={`B = ${ejercicio.B_latex}`} />
+            <Tex block tex={`B=${ex.B_latex}`} />
           </div>
         </div>
 
         {/* Opciones */}
         <div className="grid grid-cols-2 gap-4">
-          {ejercicio.options.map(op => {
+          {ex.options.map(op => {
             const isSelected = selected === op.value
             const showCorrect = engine.status !== 'idle' && op.correct
             const showWrong = engine.status === 'revealed' && isSelected && !op.correct
 
             return (
               <button
-                key={op.value}
+                key={op.label}
                 type="button"
                 disabled={!engine.canAnswer}
                 onClick={() => pickOption(op)}
@@ -335,6 +349,7 @@ export default function Prisma09({ temaPeriodoId }: { temaPeriodoId: string }) {
                   .filter(Boolean)
                   .join(' ')}
               >
+                <div className="text-sm font-semibold mb-1">{op.label}.</div>
                 <div className="font-mono text-lg">{op.value}</div>
               </button>
             )

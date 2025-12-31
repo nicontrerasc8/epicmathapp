@@ -11,13 +11,15 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 16 — Logaritmos: hallar x + LaTeX (MathJax)
    Tipo:
-     \log_b(1/x) = -n
-   Opciones: b^n, -b^n, 1/b^n, b^(n-1) (distractores típicos)
+     log_b(1/x) = -n
+   => 1/x = b^{-n} = 1/b^n
+   => x = b^n
 
-   ✅ Usa "better-react-mathjax" (NO KaTeX)
+   ✅ better-react-mathjax (NO KaTeX)
    ✅ 1 SOLO INTENTO (autocalifica al click)
    ✅ Generación dinámica
    ✅ Explicación paso a paso (definición + exponente negativo)
+   ✅ Persist NUEVO (igual Prisma01)
 ============================================================ */
 
 type Option = { value: string; correct: boolean }
@@ -41,7 +43,7 @@ function powInt(b: number, e: number) {
 }
 
 /* =========================
-   MathJax Config (igual Prisma17)
+   MathJax Config
 ========================= */
 const MATHJAX_CONFIG = {
   loader: { load: ['input/tex', 'output/chtml'] },
@@ -51,9 +53,7 @@ const MATHJAX_CONFIG = {
     processEscapes: true,
     packages: { '[+]': ['ams'] },
   },
-  options: {
-    renderActions: { addMenu: [] },
-  },
+  options: { renderActions: { addMenu: [] } },
 } as const
 
 function Tex({
@@ -94,9 +94,11 @@ function generateExercise() {
   const set = new Set<string>([correctStr, d1, d2, d3])
   while (set.size < 4) set.add(String(correctNum + choice([1, 2, 3, 4, 5])))
 
-  const options: Option[] = Array.from(set)
-    .slice(0, 4)
-    .map(v => ({ value: v, correct: v === correctStr }))
+  const options: Option[] = shuffle(
+    Array.from(set)
+      .slice(0, 4)
+      .map(v => ({ value: v, correct: v === correctStr }))
+  )
 
   const exprLatex = `\\log_{${base}}\\left(\\frac{1}{x}\\right) = -${n}`
 
@@ -105,7 +107,7 @@ function generateExercise() {
     n,
     correctNum,
     correctStr,
-    options: shuffle(options),
+    options,
     exprLatex,
   }
 }
@@ -113,7 +115,17 @@ function generateExercise() {
 /* =========================
    COMPONENT
 ========================= */
-export default function Prisma16({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma16({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -126,19 +138,26 @@ export default function Prisma16({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // ✅ Persist NUEVO (igual Prisma01/12)
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma16',
-      prompt: 'Calcule el valor de x.',
-      questionLatex: ejercicio.exprLatex,
-      options: ejercicio.options.map(o => o.value),
-      correctAnswer: ejercicio.correctStr,
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        base: ejercicio.base,
-        n: ejercicio.n,
-        exprLatex: ejercicio.exprLatex,
+      exerciseId, // ej: 'Prisma16'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: op.value,
+        correctAnswer: ejercicio.correctStr,
+        latex: ejercicio.exprLatex,
+        options: ejercicio.options.map(o => o.value),
+        extra: {
+          base: ejercicio.base,
+          n: ejercicio.n,
+          correctNum: ejercicio.correctNum,
+          exprLatex: ejercicio.exprLatex,
+        },
       },
     })
   }
@@ -159,7 +178,7 @@ export default function Prisma16({ temaPeriodoId }: { temaPeriodoId: string }) {
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
-        onVerify={() => { }}
+        onVerify={() => {}}
         onNext={siguiente}
         solution={
           <SolutionBox>
@@ -168,42 +187,25 @@ export default function Prisma16({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 1 — Definición de logaritmo</div>
                 <p className="text-muted-foreground">
-                  Regla clave:
-                  <span className="font-semibold"> si </span>
-                  <span className="font-mono">log_b(A)=c</span>
-                  <span className="font-semibold"> entonces </span>
+                  Regla clave: si <span className="font-mono">log_b(A)=c</span>, entonces{' '}
                   <span className="font-mono">b^c=A</span>.
                 </p>
 
                 <div className="mt-2 rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={ejercicio.exprLatex} />
-                  <Tex
-                    block
-                    tex={`\\Rightarrow\\; ${base}^{-${n}} = \\frac{1}{x}`}
-                  />
+                  <Tex block tex={`\\Rightarrow\\; ${base}^{-${n}} = \\frac{1}{x}`} />
                 </div>
               </div>
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 2 — Exponente negativo</div>
-                <p className="text-muted-foreground">
-                  Regla:
-                </p>
-                <div className="mt-2">
-                  <Tex block tex={`b^{-n} = \\frac{1}{b^n}`} />
-                </div>
-
+                <p className="text-muted-foreground">Regla:</p>
 
                 <div className="mt-2 rounded-md border bg-background p-3 space-y-2">
-                  <Tex
-                    block
-                    tex={`${base}^{-${n}} = \\frac{1}{${base}^{${n}}}`}
-                  />
-                  <Tex
-                    block
-                    tex={`\\Rightarrow\\; \\frac{1}{${base}^{${n}}} = \\frac{1}{x}`}
-                  />
+                  <Tex block tex={`b^{-n} = \\frac{1}{b^n}`} />
+                  <Tex block tex={`${base}^{-${n}} = \\frac{1}{${base}^{${n}}}`} />
+                  <Tex block tex={`\\Rightarrow\\; \\frac{1}{${base}^{${n}}} = \\frac{1}{x}`} />
                 </div>
               </div>
 
@@ -226,9 +228,12 @@ export default function Prisma16({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <div className="mt-3 rounded-md border bg-background p-3">
                   <div className="font-semibold mb-1">🧠 Chequeo rápido</div>
                   <p className="text-muted-foreground">
-                    Si reemplazas <span className="font-mono">x={correctNum}</span>, entonces{' '}
+                    Si <span className="font-mono">x={correctNum}</span>, entonces{' '}
                     <span className="font-mono">1/x = 1/{correctNum}</span> y{' '}
-                    <span className="font-mono">\\(\\log_{base}(1/{correctNum})\\)</span> da <span className="font-semibold">−{n}</span>.
+                    <span className="font-mono">
+                      <Tex tex={`\\log_{${base}}\\left(\\frac{1}{${correctNum}}\\right)`} />
+                    </span>{' '}
+                    da <span className="font-semibold">−{n}</span>.
                   </p>
                 </div>
               </div>
@@ -268,7 +273,7 @@ export default function Prisma16({ temaPeriodoId }: { temaPeriodoId: string }) {
                   .filter(Boolean)
                   .join(' ')}
               >
-                <div className="font-semibold">{op.value === ejercicio.correctStr ? 'Opción' : 'Opción'}</div>
+                <div className="font-semibold">Opción</div>
                 <div className="font-mono text-lg">{op.value}</div>
               </button>
             )

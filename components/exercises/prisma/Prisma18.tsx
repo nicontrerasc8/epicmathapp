@@ -10,10 +10,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 18 — Logaritmos (MathJax)
-   ✅ MathJax (better-react-mathjax) — mismo formato que Prisma 17
+   ✅ MathJax (better-react-mathjax) — mismo formato que Prisma 17/01
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ Dinámico: log_{2^b}(2^n) = n/b (simplificado)
    ✅ Resolución detallada tipo Prisma
+   ✅ Persist: MISMA estructura que Prisma01 (exerciseId/temaId/classroomId/sessionId)
 ============================================================ */
 
 type Option = {
@@ -116,6 +117,7 @@ function generateProblem() {
 
     const set = new Map<string, { latex: string; plain: string }>()
     set.set(correctPlain, { latex: correctLatex, plain: correctPlain })
+
     ;[d1, d2, d3].forEach(x => {
       if (!set.has(x.plain) && set.size < 4) set.set(x.plain, x)
     })
@@ -182,9 +184,19 @@ function generateProblem() {
 }
 
 /* =========================
-   UI
+   UI — PRISMA 18
 ========================= */
-export default function Prisma18({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma18({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -197,21 +209,34 @@ export default function Prisma18({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.plain)
     engine.submit(op.correct)
 
+    // ✅ MISMA ESTRUCTURA QUE PRISMA01
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma18',
-      prompt: 'Calcule el logaritmo.',
-      questionLatex: ex.questionLatex,
-      options: ex.options.map(o => `${o.label}. ${o.latex}`),
-      correctAnswer: ex.correctLatex,
-      userAnswer: op.latex,
-      isCorrect: op.correct,
-      extra: {
-        base: ex.baseVal,
-        number: ex.numVal,
-        n: ex.n,
-        b: ex.b,
-        reduced: ex.rf,
+      exerciseId, // 'Prisma18'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: op.plain,
+        selectedLabel: op.label,
+        correctAnswer: ex.correctPlain,
+        latex: ex.questionLatex,
+        options: ex.options.map(o => ({
+          label: o.label,
+          latex: o.latex,
+          plain: o.plain,
+        })),
+        extra: {
+          base: ex.baseVal,
+          number: ex.numVal,
+          n: ex.n,
+          b: ex.b,
+          reduced: ex.rf,
+          correctLatex: ex.correctLatex,
+          correctPlain: ex.correctPlain,
+        },
       },
     })
   }
@@ -262,44 +287,52 @@ export default function Prisma18({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 2 — Propiedad clave</div>
                 <div className="text-muted-foreground">
-                  Si <span className="font-mono">2^k</span> es potencia de 2, entonces{' '}
-                  <span className="font-mono">log_2(2^k)=k</span>.
+                  Si un número es potencia de 2, entonces <span className="font-mono">\\log_2(2^k)=k</span>.
                 </div>
 
                 <div className="mt-2 space-y-2 rounded-md border bg-background p-3">
-                  <Tex block tex={`\\log_2(${ex.numVal}) = \\log_2(${numAs2}) = ${ex.n}`} />
-                  <Tex block tex={`\\log_2(${ex.baseVal}) = \\log_2(${baseAs2}) = ${ex.b}`} />
+                  <Tex block tex={`\\log_2(${ex.numVal})=\\log_2(${numAs2})=${ex.n}`} />
+                  <Tex block tex={`\\log_2(${ex.baseVal})=\\log_2(${baseAs2})=${ex.b}`} />
                 </div>
               </div>
 
               {/* Paso 3 */}
-              <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Cambio de base a 2 y simplificación</div>
-                <div className="text-muted-foreground">
-                  Usamos: <span className="font-mono">log_b(a) = log_2(a)/log_2(b)</span>
-                </div>
+             <div className="rounded-lg border bg-white p-3">
+  <div className="font-semibold mb-2">
+    ✅ Paso 3 — Cambio de base a 2 y simplificación
+  </div>
 
-                <div className="mt-2 space-y-2 rounded-md border bg-background p-3">
-                  <Tex
-                    block
-                    tex={`\\log_{${ex.baseVal}}\\left(${ex.numVal}\\right) = \\frac{\\log_2(${ex.numVal})}{\\log_2(${ex.baseVal})}`}
-                  />
-                  <Tex block tex={`= \\frac{${ex.n}}{${ex.b}}`} />
-                  <Tex block tex={`= ${ex.correctLatex}`} />
-                </div>
+  <div className="text-muted-foreground">
+    Usamos:
+  </div>
 
-                <div className="mt-3 rounded-lg bg-muted p-3">
-                  <div className="font-semibold">Respuesta:</div>
-                  <div className="text-lg">
-                    <Tex block tex={ex.correctLatex} />
-                  </div>
-                </div>
+  <div className="mt-2 rounded-md border bg-background p-3">
+    <Tex block tex={`\\log_b(a)=\\frac{\\log_2(a)}{\\log_2(b)}`} />
+  </div>
 
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Tip mental: si el número es <span className="font-mono">2^n</span> y la base es{' '}
-                  <span className="font-mono">2^b</span>, el resultado es <span className="font-mono">n/b</span>.
-                </div>
-              </div>
+  <div className="mt-2 space-y-2 rounded-md border bg-background p-3">
+    <Tex
+      block
+      tex={`\\log_{${ex.baseVal}}\\left(${ex.numVal}\\right)=\\frac{\\log_2(${ex.numVal})}{\\log_2(${ex.baseVal})}`}
+    />
+    <Tex block tex={`=\\frac{${ex.n}}{${ex.b}}`} />
+    <Tex block tex={`=${ex.correctLatex}`} />
+  </div>
+
+  <div className="mt-3 rounded-lg bg-muted p-3">
+    <div className="font-semibold">Respuesta:</div>
+    <div className="text-lg">
+      <Tex block tex={ex.correctLatex} />
+    </div>
+  </div>
+
+  <div className="mt-2 text-xs text-muted-foreground">
+    Tip mental: si el número es <span className="font-mono">2^n</span> y la base es{' '}
+    <span className="font-mono">2^b</span>, el resultado es{' '}
+    <span className="font-mono">n/b</span>.
+  </div>
+</div>
+
             </div>
           </SolutionBox>
         }

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import type { TemaPeriodoRow, StudentPeriodoRow } from './types'
 
-export function useTemaPeriodo(temaPeriodoId: string) {
+export function useTemaPeriodo(temaPeriodoId: any) {
   const supabase = createClient()
 
   const [temaPeriodo, setTemaPeriodo] = useState<TemaPeriodoRow | null>(null)

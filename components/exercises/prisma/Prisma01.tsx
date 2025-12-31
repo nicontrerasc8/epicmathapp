@@ -424,7 +424,17 @@ function detailedNarrative(expr: Expr) {
 /* =========================
    PRISMA 01 (UI)
 ========================= */
-export default function Prisma01({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma01({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -446,21 +456,26 @@ export default function Prisma01({ temaPeriodoId }: { temaPeriodoId: string }) {
     engine.submit(op.correct)
 
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma01',
-      prompt: 'Elige la alternativa correcta: la tabla de verdad de la proposición es…',
-      questionLatex: ejercicio.tex,
-      options: ejercicio.options.map(o => o.value),
-      correctAnswer: ejercicio.correct,
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        truthBitsCorrect: ejercicio.correct,
-        selectedBits: op.value,
-        pretty: ejercicio.pretty,
-        tex: ejercicio.tex,
+      exerciseId,        // 'Prisma01'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+
+      answer: {
+        selected: op.value,
+        correctAnswer: ejercicio.correct,
+        latex: ejercicio.tex,
+        options: ejercicio.options.map(o => o.value),
+        extra: {
+          pretty: ejercicio.pretty,
+          truthBitsCorrect: ejercicio.correct,
+        },
       },
     })
+
   }
 
   function siguiente() {
@@ -477,7 +492,7 @@ export default function Prisma01({ temaPeriodoId }: { temaPeriodoId: string }) {
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
-        onVerify={() => {}}
+        onVerify={() => { }}
         onNext={siguiente}
         solution={
           <SolutionBox>

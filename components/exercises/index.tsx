@@ -1,6 +1,6 @@
 'use client'
 
-import { useTemaPeriodo } from '@/lib/exercises/useTemaPeriodo'
+import React from 'react'
 
 import Prisma01 from './prisma/Prisma01'
 import Prisma02 from './prisma/Prisma02'
@@ -38,125 +38,92 @@ import Prisma33 from './prisma/Prisma33'
 import Prisma34 from './prisma/Prisma34'
 import Prisma35 from './prisma/Prisma35'
 
-export const ExerciseRegistry = ({ temaPeriodoId }: { temaPeriodoId: string }) => {
-  const { temaPeriodo, studentPeriodo, studentId, loading } = useTemaPeriodo(temaPeriodoId)
+/* ============================================================
+   REGISTRO GLOBAL DE EJERCICIOS (edu_exercises)
+   - La KEY es edu_exercises.id
+   - El componente NO sabe nada de pedagogía
+   - Solo renderiza el ejercicio correcto
+============================================================ */
 
-  if (loading) return <div className="p-6">Cargando…</div>
+type ExerciseComponentProps = {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}
 
-  if (!temaPeriodo || !studentPeriodo || !studentId) {
-    return <div className="p-6 text-red-500">Error cargando ejercicio</div>
+const EXERCISE_COMPONENTS: Record<
+  string,
+  React.ComponentType<ExerciseComponentProps>
+> = {
+  '50f50e4f-2e59-40c4-b707-87bef079367a': Prisma01,
+  '4146db5e-34cd-4ff4-b75b-5b4351caa176': Prisma02,
+  '81c53526-9b05-410d-ac7c-e01283de617d': Prisma03,
+  '94ba01e4-96c0-49a2-b8d2-014ff5478704': Prisma04,
+  'd21c4e0a-e76d-412e-b7c2-d35c235fb79f': Prisma05,
+  '4394cd25-2ba5-4800-b662-702ab1caa28b': Prisma06,
+  'db07ad87-2fa3-4117-b33b-03285d86380e': Prisma07,
+  '9f79e67a-8db6-43c8-81e5-2c55d146c084': Prisma08,
+  'b67ee80c-07f3-4007-90d9-75eefe227c41': Prisma09,
+  '2e135994-2c86-4fcb-8b20-5ad8d49ab35f': Prisma10,
+
+  '4e66e4a0-9639-422a-8efe-8d8acdf56db1': Prisma11,
+  '96b2405f-6175-482f-b9a8-a0188d1ad93a': Prisma12,
+  'c8017cee-9212-4af7-87b2-0da2b7fa57d3': Prisma13,
+  'e0edd868-684c-4040-8153-6ec8b55792b6': Prisma14,
+  '5d8b73d5-f612-4d24-acfa-885539876142': Prisma15,
+  'aa04025f-38b8-4a34-8804-7f28c4a0938e': Prisma16,
+  '5fc0fcc5-abc4-4918-9e3f-dd95e3d53700': Prisma17,
+  '42654a85-cf0b-4614-b139-5ebe81432268': Prisma18,
+  'eef9c09e-b3ee-4a2a-a232-3a8728df84f0': Prisma19,
+  'c41fb227-c25c-4129-aafe-ebd4d8675629': Prisma20,
+
+  'eec3fdcd-d73a-4648-bee9-7404817a40d5': Prisma21,
+  '16f5942a-1805-4bc4-bee4-43c2a27f8b1f': Prisma22,
+  '4602dcab-9056-4de4-85cf-c365a973aa47': Prisma23,
+  'f1b65df7-cdcb-4de3-9231-f3f9c62ad467': Prisma24,
+  'da0efc30-20eb-4e89-8e2d-60e4ed614a0c': Prisma25,
+  'fe8f1296-0687-4fc1-977b-58bc861f32b5': Prisma26,
+  '2a963696-2fe4-4cb4-bbd8-2de7af0c05e7': Prisma27,
+  '0567060c-aa1e-4e4c-aac9-61b9e4db57cc': Prisma28,
+  '86f07e37-f827-4ca6-ae39-d162875efdce': Prisma29,
+  '3510567c-0576-4651-b470-ccbd5b0876ee': Prisma30,
+
+  'd603e51e-1c68-4f24-baaa-7063cc108482': Prisma31,
+  '3f32b3e4-7170-4fde-9bd8-8ddc04b31b7b': Prisma32,
+  '5ffb7fcb-b4a6-4d01-83c1-4d6eef48a04a': Prisma33,
+  '01e506fd-11d4-4a4a-8de6-19d7a32e6132': Prisma34,
+  '7ed40df0-cc59-48e5-a156-71e9322c9a8f': Prisma35,
+}
+
+/* ============================================================
+   EXERCISE REGISTRY
+============================================================ */
+
+export const ExerciseRegistry = ({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: ExerciseComponentProps) => {
+  const ExerciseComponent = EXERCISE_COMPONENTS[exerciseId]
+console.log('exerciseId recibido:', exerciseId)
+console.log('keys registry:', Object.keys(EXERCISE_COMPONENTS))
+
+  if (!ExerciseComponent) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        Ejercicio no implementado
+      </div>
+    )
   }
 
-  switch (temaPeriodo.tema) {
-    case 'Prisma 1':
-      return <Prisma01 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 2':
-      return <Prisma02 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 3':
-      return <Prisma03 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 4':
-      return <Prisma04 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 5':
-      return <Prisma05 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 6':
-      return <Prisma06 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 7':
-      return <Prisma07 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 8':
-      return <Prisma08 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 9':
-      return <Prisma09 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 10':
-      return <Prisma10 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 11':
-      return <Prisma11 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 12':
-      return <Prisma12 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 13':
-      return <Prisma13 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 14':
-      return <Prisma14 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 15':
-      return <Prisma15 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 16':
-      return <Prisma16 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 17':
-      return <Prisma17 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 18':
-      return <Prisma18 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 19':
-      return <Prisma19 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 20':
-      return <Prisma20 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 21':
-      return <Prisma21 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 22':
-      return <Prisma22 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 23':
-      return <Prisma23 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 24':
-      return <Prisma24 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 25':
-      return <Prisma25 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 26':
-      return <Prisma26 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 27':
-      return <Prisma27 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 28':
-      return <Prisma28 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 29':
-      return <Prisma29 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 30':
-      return <Prisma30 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 31':
-      return <Prisma31 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 32':
-      return <Prisma32 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 33':
-      return <Prisma33 temaPeriodoId={temaPeriodoId} />
-    case 'Prisma 34':
-      return <Prisma34 temaPeriodoId={temaPeriodoId} />
-
-    case 'Prisma 35':
-      return <Prisma35 temaPeriodoId={temaPeriodoId} />
-
-    default:
-      return (
-        <div className="p-6 text-center text-muted-foreground">
-          Ejercicio no implementado: {temaPeriodo.tema}
-        </div>
-      )
-  }
+  return (
+    <ExerciseComponent
+      exerciseId={exerciseId}
+      temaId={temaId}
+      classroomId={classroomId}
+      sessionId={sessionId}
+    />
+  )
 }

@@ -13,9 +13,9 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    P = π(C − S) / R
    Siendo: S = 9k, C = 10k, R = kπ/20
 
-   ✅ Usa "better-react-mathjax" (NO KaTeX)
+   ✅ better-react-mathjax (NO KaTeX)
    ✅ 1 SOLO INTENTO (autocalifica al click)
-   ✅ Explicación paso a paso como el PDF
+   ✅ NUEVO FORMATO persist (como Prisma 29/32)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -54,9 +54,19 @@ function Tex({
 }
 
 /* =========================
-   EJERCICIO (fiel al PDF)
+   HELPERS
+========================= */
+function randInt(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1))
+}
+
+/* =========================
+   EJERCICIO (misma idea del PDF)
+   Ojo: el resultado SIEMPRE es 20 (k se cancela), con k≠0.
 ========================= */
 function buildExercise() {
+  const k = randInt(2, 12)
+
   const correct = 20
   const options: Option[] = [
     { label: 'A', value: 10, correct: false },
@@ -68,13 +78,25 @@ function buildExercise() {
   const exprLatex = `P = \\dfrac{\\pi\\,(C-S)}{R}`
   const givenLatex = `S=9k,\\; C=10k,\\; R=\\dfrac{k\\pi}{20}`
 
-  return { correct, options, exprLatex, givenLatex }
+  const questionLatex = `${exprLatex}\\quad \\text{con}\\quad ${givenLatex}`
+
+  return { k, correct, options, exprLatex, givenLatex, questionLatex }
 }
 
 /* =========================
-   COMPONENT
+   COMPONENT (NUEVO FORMATO)
 ========================= */
-export default function Prisma35({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma35({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -87,18 +109,29 @@ export default function Prisma35({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    const ordered = ej.options.slice().sort((a, b) => a.label.localeCompare(b.label))
+
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma35',
-      prompt: 'Simplifica la expresión P.',
-      questionLatex: `${ej.exprLatex}\\quad \\text{con}\\quad ${ej.givenLatex}`,
-      options: ej.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: String(ej.correct),
-      userAnswer: String(op.value),
-      isCorrect: op.correct,
-      extra: {
-        exprLatex: ej.exprLatex,
-        givenLatex: ej.givenLatex,
+      exerciseId,
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: String(op.value),
+        correctAnswer: String(ej.correct),
+        latex: ej.questionLatex,
+        options: ordered.map(o => String(o.value)),
+        extra: {
+          labeledOptions: ordered.map(o => `${o.label}.\\ ${o.value}`),
+          exprLatex: ej.exprLatex,
+          givenLatex: ej.givenLatex,
+          kUsed: ej.k,
+          rule: 'Sustituir y simplificar: k y π se cancelan',
+          note: 'k ≠ 0',
+        },
       },
     })
   }
@@ -109,9 +142,9 @@ export default function Prisma35({ temaPeriodoId }: { temaPeriodoId: string }) {
     setNonce(n => n + 1)
   }
 
-  // Pasos (igual al PDF)
+  // Pasos (igual idea del PDF)
   const step0 = `P = \\dfrac{\\pi\\,(C-S)}{R}`
-  const step1 = `\\text{Siendo } S=9k,\\; C=10k,\\; R=\\dfrac{k\\pi}{20}`
+  const step1 = `\\text{Siendo } S=9k,\\; C=10k,\\; R=\\dfrac{k\\pi}{20}\\;\\;(k\\neq 0)`
   const step2 = `P = \\dfrac{\\pi\\,(10k-9k)}{\\dfrac{k\\pi}{20}}`
   const step3 = `P = \\dfrac{\\pi\\,k}{\\dfrac{k\\pi}{20}}`
   const step4 = `P = \\pi k\\cdot \\dfrac{20}{k\\pi}`
@@ -131,7 +164,7 @@ export default function Prisma35({ temaPeriodoId }: { temaPeriodoId: string }) {
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Escribir la fórmula y los datos</div>
+                <div className="font-semibold mb-2">✅ Paso 1 — Fórmula y datos</div>
                 <div className="mt-2 space-y-2 rounded-md border bg-background p-3">
                   <Tex block tex={step0} />
                   <Tex block tex={step1} />
@@ -155,9 +188,7 @@ export default function Prisma35({ temaPeriodoId }: { temaPeriodoId: string }) {
 
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-sm font-semibold">Respuesta:</span>
-                  <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
-                    20
-                  </span>
+                  <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">20</span>
                 </div>
               </div>
             </div>

@@ -10,13 +10,14 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 23 — Geometría (doble isósceles + ángulo exterior)
-   Enunciado tipo PDF:
-     AB = BC, BD = BE, ∠ABD = γ°, hallar x (ángulo en D entre DC y DE)
+   Tipo PDF:
+     AB = BC, BD = BE, ∠ABD = γ°, hallar x = ∠EDC
    Resultado: x = γ/2
 
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ Dinámico (γ cambia, misma naturaleza)
-   ✅ Diagrama con 40° (γ) en B y x en D bien colocados
+   ✅ Diagrama SVG con γ en B y x en D bien colocados
+   ✅ Persist estilo Prisma01: (exerciseId, temaId, classroomId, sessionId, correct, answer)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -42,51 +43,44 @@ const MATHJAX_CONFIG = {
     processEscapes: true,
     packages: { '[+]': ['ams'] },
   },
-  options: {
-    renderActions: { addMenu: [] },
-  },
+  options: { renderActions: { addMenu: [] } },
 } as const
 
 function Tex({
-  latex,
-  display = false,
+  tex,
+  block = false,
   className = '',
 }: {
-  latex: string
-  display?: boolean
+  tex: string
+  block?: boolean
   className?: string
 }) {
-  const wrapped = display ? `\\[${latex}\\]` : `\\(${latex}\\)`
+  const wrapped = block ? `\\[${tex}\\]` : `\\(${tex}\\)`
   return (
     <span className={className}>
-      <MathJax dynamic>{wrapped}</MathJax>
+      <MathJax dynamic inline={!block}>
+        {wrapped}
+      </MathJax>
     </span>
   )
 }
 
 /* =========================
-   SVG Diagrama (referencial pero con ángulos en el lugar correcto)
-   - AB = BC (1 tick)
-   - BD = BE (2 ticks)
-   - γ° en B entre BA y BD
-   - x en D entre DC y DE
+   SVG Diagrama
 ========================= */
 function Diagram({ gamma, x }: { gamma: number; x: number }) {
   const W = 460
   const H = 270
 
-  // puntos base (ABC isósceles)
   const A = { x: 90, y: 220 }
   const C = { x: 400, y: 220 }
-  const B = { x: (A.x + C.x) / 2, y: 70 } // centrado
-
-  // D sobre AC (ligeramente a la izquierda del centro, como el PDF)
+  const B = { x: (A.x + C.x) / 2, y: 70 }
   const D = { x: 230, y: 220 }
 
   const deg2rad = (d: number) => (d * Math.PI) / 180
 
-  function angle(p: any, q: any) {
-    return Math.atan2(p.y - q.y, p.x - q.x) // ángulo del vector q->p (en coords SVG)
+  function angle(p: { x: number; y: number }, q: { x: number; y: number }) {
+    return Math.atan2(p.y - q.y, p.x - q.x)
   }
   function norm(a: number) {
     while (a <= -Math.PI) a += 2 * Math.PI
@@ -114,7 +108,6 @@ function Diagram({ gamma, x }: { gamma: number; x: number }) {
     return `M ${x1} ${y1} A ${r} ${r} 0 0 ${sweep} ${x2} ${y2}`
   }
 
-  // ticks (1 o 2 marcas)
   function tickLines(p1: any, p2: any, count: 1 | 2) {
     const dx = p2.x - p1.x
     const dy = p2.y - p1.y
@@ -146,35 +139,32 @@ function Diagram({ gamma, x }: { gamma: number; x: number }) {
     }))
   }
 
-  // --- Construyo E como intersección de la recta BC con el rayo desde D
-  //     que forma ángulo x con DC (DC apunta a la derecha).
-  //     Esto hace que el "x" se vea coherente en el dibujo.
+  // E: intersección aprox entre rayo desde D (que forma x con DC) y el lado BC
   const dir = { x: Math.cos(-deg2rad(x)), y: Math.sin(-deg2rad(x)) } // arriba-derecha
   const vBC = { x: C.x - B.x, y: C.y - B.y }
 
-  // Resolver: D + t*dir = B + u*vBC
+  // D + t*dir = B + u*vBC
   const det = dir.x * (-vBC.y) - dir.y * (-vBC.x)
   let E = { x: B.x + 0.65 * vBC.x, y: B.y + 0.65 * vBC.y } // fallback
   if (Math.abs(det) > 1e-6) {
     const rhs = { x: B.x - D.x, y: B.y - D.y }
     const t = (rhs.x * (-vBC.y) - rhs.y * (-vBC.x)) / det
     const u = (dir.x * rhs.y - dir.y * rhs.x) / det
-    const uClamped = Math.max(0.15, Math.min(0.95, u))
-    E = { x: B.x + uClamped * vBC.x, y: B.y + uClamped * vBC.y }
+    if (Number.isFinite(t) && Number.isFinite(u)) {
+      const uClamped = Math.max(0.18, Math.min(0.92, u))
+      E = { x: B.x + uClamped * vBC.x, y: B.y + uClamped * vBC.y }
+    }
   }
 
   // ángulos para arcos
-  // en B: entre BA y BD
   const aBA = angle(A, B)
   const aBD = angle(D, B)
   const aMidB = midAngle(aBA, aBD)
 
-  // en D: entre DC y DE (x)
-  const aDC = angle(C, D)
+  const aDC = angle(C, D) // DC (hacia C)
   const aDE = angle(E, D)
   const aMidD = midAngle(aDC, aDE)
 
-  // ticks
   const ticksAB = tickLines(A, B, 1)
   const ticksBC = tickLines(B, C, 1)
   const ticksBD = tickLines(B, D, 2)
@@ -194,11 +184,24 @@ function Diagram({ gamma, x }: { gamma: number; x: number }) {
 
         {/* segmentos internos */}
         <line x1={B.x} y1={B.y} x2={D.x} y2={D.y} stroke="black" strokeWidth="3" />
+        <line x1={B.x} y1={B.y} x2={E.x} y2={E.y} stroke="black" strokeWidth="3" />
         <line x1={D.x} y1={D.y} x2={E.x} y2={E.y} stroke="black" strokeWidth="3" />
 
-  
+        {/* ticks AB=BC */}
+        {ticksAB.map((t, i) => (
+          <line key={`ab-${i}`} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke="black" strokeWidth="2" />
+        ))}
+        {ticksBC.map((t, i) => (
+          <line key={`bc-${i}`} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke="black" strokeWidth="2" />
+        ))}
 
-    
+        {/* ticks BD=BE */}
+        {ticksBD.map((t, i) => (
+          <line key={`bd-${i}`} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke="black" strokeWidth="2" />
+        ))}
+        {ticksBE.map((t, i) => (
+          <line key={`be-${i}`} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke="black" strokeWidth="2" />
+        ))}
 
         {/* puntos */}
         {[A, B, C, D, E].map((p, i) => (
@@ -222,7 +225,7 @@ function Diagram({ gamma, x }: { gamma: number; x: number }) {
           E
         </text>
 
-        {/* ===== ángulo en B: γ° (entre BA y BD) ===== */}
+        {/* ángulo en B: γ (entre BA y BD) */}
         <path d={arcPath(B.x, B.y, 26, aBA, aBD)} stroke="black" strokeWidth="2" fill="none" />
         <text
           x={B.x + 38 * Math.cos(aMidB)}
@@ -233,7 +236,7 @@ function Diagram({ gamma, x }: { gamma: number; x: number }) {
           {gamma}°
         </text>
 
-        {/* ===== ángulo en D: x (entre DC y DE) ===== */}
+        {/* ángulo en D: x (entre DC y DE) */}
         <path d={arcPath(D.x, D.y, 24, aDC, aDE)} stroke="black" strokeWidth="2" fill="none" />
         <text
           x={D.x + 40 * Math.cos(aMidD)}
@@ -253,29 +256,23 @@ function Diagram({ gamma, x }: { gamma: number; x: number }) {
 }
 
 /* =========================
-   Generador
-   - elegimos γ par para que x = γ/2 sea entero
-   - respuesta: x = γ/2
+   Generador (γ par → x entero)
 ========================= */
 function generateExercise() {
-  const gammas = [30, 40, 50, 60, 70]
+  const gammas = [30, 40, 50, 60, 70, 80]
 
   for (let tries = 0; tries < 250; tries++) {
     const gamma = choice(gammas)
-    const x = gamma / 2
-
-    const answer = x
+    const answer = gamma / 2
 
     // distractores típicos
-    const d1 = gamma // creen que x = γ
-    const d2 = Math.max(5, x + 5)
-    const d3 = Math.max(5, x - 5)
+    const d1 = gamma
+    const d2 = answer + 5
+    const d3 = Math.max(5, answer - 5)
 
     const set = new Set<number>()
     set.add(answer)
-    ;[d1, d2, d3].forEach(v => {
-      if (Number.isFinite(v) && v > 0) set.add(v)
-    })
+    ;[d1, d2, d3].forEach(v => set.add(v))
     while (set.size < 4) set.add(answer + choice([-10, -5, 5, 10, 15]))
 
     const values = shuffle(Array.from(set)).slice(0, 4)
@@ -291,28 +288,37 @@ function generateExercise() {
       `AB=BC,\\; BD=BE,\\; \\angle ABD=${gamma}^{\\circ}.\\ ` +
       `\\text{Halle } x=\\angle EDC.`
 
-    return { gamma, x, answer, options, questionLatex }
+    return { gamma, answer, options, questionLatex }
   }
 
-  // fallback como el PDF
+  // fallback
   const gamma = 40
-  const x = 20
   const answer = 20
-  const options: Option[] = shuffle([
+  const options: Option[] = [
     { label: 'A', value: 25, correct: false },
     { label: 'B', value: 20, correct: true },
     { label: 'C', value: 40, correct: false },
-    { label: 'D', value: 50, correct: false },
-  ])
+    { label: 'D', value: 10, correct: false },
+  ]
   const questionLatex =
     `\\text{En la figura, } AB=BC,\\; BD=BE,\\; \\angle ABD=40^{\\circ}.\\ \\text{Halle } x.`
-  return { gamma, x, answer, options, questionLatex }
+  return { gamma, answer, options, questionLatex }
 }
 
 /* =========================
    COMPONENT
 ========================= */
-export default function Prisma23({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma23({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -326,17 +332,21 @@ export default function Prisma23({ temaPeriodoId }: { temaPeriodoId: string }) {
     engine.submit(op.correct)
 
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma23',
-      prompt: 'Hallar el valor de x.',
-      questionLatex: ex.questionLatex,
-      options: ex.options.map(o => `${o.label}. ${o.value}°`),
-      correctAnswer: `${ex.answer}`,
-      userAnswer: `${op.value}`,
-      isCorrect: op.correct,
-      extra: {
-        gamma: ex.gamma,
-        x: ex.x,
+      exerciseId, // 'Prisma23'
+      temaId,
+      classroomId,
+      sessionId,
+      correct: op.correct,
+      answer: {
+        selected: `${op.label}. ${op.value}°`,
+        correctAnswer: `${ex.answer}°`,
+        latex: ex.questionLatex,
+        options: ex.options.map(o => `${o.label}. ${o.value}°`),
+        extra: {
+          gamma: ex.gamma,
+          x: ex.answer,
+          rule: 'Siempre x = γ/2',
+        },
       },
     })
   }
@@ -347,13 +357,12 @@ export default function Prisma23({ temaPeriodoId }: { temaPeriodoId: string }) {
     setNonce(n => n + 1)
   }
 
-  // --- Latex de solución (mismo argumento del PDF)
-  const step1 = `\\triangle ABC\\ \\text{isósceles (}AB=BC\\text{)}\\Rightarrow \\angle BAC=\\angle ACB=\\theta.`
-  const step2 = `\\text{En }\\triangle DCE,\\ \\angle DEB \\text{ es exterior }\\Rightarrow \\angle DEB = x+\\theta.`
-  const step3 = `BD=BE\\Rightarrow \\triangle DBE\\ \\text{isósceles}\\Rightarrow \\angle BDE=\\angle DEB = x+\\theta.`
-  const step4a = `\\text{En }\\triangle ABD,\\ \\angle BDC \\text{ es exterior }\\Rightarrow \\angle BDC = \\theta+${ex.gamma}^{\\circ}.`
-  const step4b = `\\angle BDC = \\angle BDE + \\angle EDC = (x+\\theta)+x = 2x+\\theta.`
-  const eq = `\\theta+${ex.gamma} = 2x+\\theta\\Rightarrow ${ex.gamma}=2x\\Rightarrow x=${ex.gamma}/2=${ex.answer}.`
+  // --- Latex de solución
+  const step1 = `\\text{Como } AB=BC,\\ \\triangle ABC \\text{ es isósceles }\\Rightarrow \\angle BAC=\\angle ACB=\\theta.`
+  const step2 = `\\text{En }\\triangle DBE,\\ BD=BE\\Rightarrow \\angle BDE=\\angle DEB.`
+  const step3 = `\\text{En } D,\\ \\angle BDC \\text{ es exterior de }\\triangle ABD\\Rightarrow \\angle BDC=\\theta+${ex.gamma}^{\\circ}.`
+  const step4 = `\\angle BDC=\\angle BDE+\\angle EDC=(x+\\theta)+x=2x+\\theta.`
+  const eq = `\\theta+${ex.gamma}=2x+\\theta\\Rightarrow ${ex.gamma}=2x\\Rightarrow x=${ex.gamma}/2=${ex.answer}.`
 
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
@@ -362,15 +371,16 @@ export default function Prisma23({ temaPeriodoId }: { temaPeriodoId: string }) {
         prompt={
           <div className="space-y-3">
             <div className="text-sm">
-              En la figura, <span className="font-semibold">AB = BC</span> y <span className="font-semibold">BD = BE</span>.
-              Además, <span className="font-semibold">∠ABD = {ex.gamma}°</span>.
-              Halla <span className="font-semibold">x</span>.
+              En la figura, <span className="font-semibold">AB = BC</span> y{' '}
+              <span className="font-semibold">BD = BE</span>. Además,{' '}
+              <span className="font-semibold">∠ABD = {ex.gamma}°</span>. Halla{' '}
+              <span className="font-semibold">x</span>.
             </div>
 
             <Diagram gamma={ex.gamma} x={ex.answer} />
 
             <div className="text-lg">
-              <Tex latex={`\\text{Halle } x`} display />
+              <Tex block tex={`\\text{Halle } x`} />
             </div>
           </div>
         }
@@ -383,26 +393,25 @@ export default function Prisma23({ temaPeriodoId }: { temaPeriodoId: string }) {
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Triángulo ABC isósceles</div>
-                <Tex latex={step1} display />
+                <div className="font-semibold mb-2">✅ Paso 1 — Isósceles en ABC</div>
+                <Tex block tex={step1} />
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Ángulo exterior en E</div>
-                <Tex latex={step2} display />
+                <div className="font-semibold mb-2">✅ Paso 2 — Isósceles en DBE</div>
+                <Tex block tex={step2} />
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Triángulo DBE isósceles</div>
-                <Tex latex={step3} display />
+                <div className="font-semibold mb-2">✅ Paso 3 — Ángulo exterior en D</div>
+                <Tex block tex={step3} />
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Ángulo exterior en D y ecuación</div>
+                <div className="font-semibold mb-2">✅ Paso 4 — Ecuación y resultado</div>
                 <div className="space-y-2">
-                  <Tex latex={step4a} display />
-                  <Tex latex={step4b} display />
-                  <Tex latex={eq} display />
+                  <Tex block tex={step4} />
+                  <Tex block tex={eq} />
                 </div>
 
                 <div className="mt-3 flex items-center gap-2">
@@ -414,7 +423,7 @@ export default function Prisma23({ temaPeriodoId }: { temaPeriodoId: string }) {
               </div>
 
               <div className="text-xs text-muted-foreground">
-                Chequeo rápido: siempre sale <span className="font-mono">x = γ/2</span>.
+                Chequeo rápido: en este tipo de figura siempre queda <span className="font-mono">x = γ/2</span>.
               </div>
             </div>
           </SolutionBox>
@@ -445,7 +454,7 @@ export default function Prisma23({ temaPeriodoId }: { temaPeriodoId: string }) {
               >
                 <div className="font-semibold mb-1">{op.label}.</div>
                 <div className="text-lg">
-                  <Tex latex={`${op.value}^{\\circ}`} />
+                  <Tex tex={`${op.value}^{\\circ}`} />
                 </div>
               </button>
             )

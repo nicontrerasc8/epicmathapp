@@ -15,6 +15,7 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    ✅ Dinámico (A, p, q, n cambian)
    ✅ MathJax PRO (sin KaTeX)
    ✅ Explicación tipo profe (muy clara)
+   ✅ Persist NUEVO (igual Prisma01)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: string; correct: boolean }
@@ -81,7 +82,7 @@ function generateProblem() {
 
     const nBase = randInt(2, 9)
 
-    // Cálculo correcto:
+    // Correcto:
     // n^0=1 ⇒ (p/q)^(-1)=q/p ⇒ A - q/p = t/p ⇒ R=(t/p)^2
     const diff: Frac = reduceFrac({ n: t, d: p })
     const correct: Frac = fracPow2(diff)
@@ -89,7 +90,7 @@ function generateProblem() {
     // Distractores típicos
     const wrong1 = fracPow2(fracSub({ n: A, d: 1 }, { n: p, d: q })) // no invierte por -1
     const wrong2 = diff // olvida elevar al cuadrado
-    const wrong3: Frac = { n: (A - 1) * (A - 1), d: 1 } // cree que n^0=0 ⇒ (p/q)^0=1
+    const wrong3: Frac = { n: (A - 1) * (A - 1), d: 1 } // cree que n^0=0 ⇒ (p/q)^0=1 ⇒ (A-1)^2
 
     const correctStr = fracToStr(correct)
     const set = new Set<string>([correctStr])
@@ -182,7 +183,17 @@ function Tex({
 /* =========================
    UI — PRISMA 11 (MathJax)
 ========================= */
-export default function Prisma11({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma11({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -214,22 +225,32 @@ export default function Prisma11({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // ✅ Persist NUEVO (igual Prisma01)
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma11',
-      prompt: 'Efectúa:',
-      questionLatex: exprLatex,
-      options: ex.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: ex.correctStr,
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        exprLatex,
-        A,
-        p,
-        q,
-        nBase,
-        result: ex.correctStr,
+      exerciseId, // ej: 'Prisma11'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: op.value,
+        correctAnswer: ex.correctStr,
+        latex: exprLatex,
+        options: ex.options.map(o => o.value),
+        extra: {
+          exprLatex,
+          A,
+          p,
+          q,
+          nBase,
+          expValue,
+          reciprocal: fracToStr(reciprocal),
+          diff: fracToStr(diff),
+          squared: fracToStr(squared),
+          result: ex.correctStr,
+        },
       },
     })
   }
@@ -275,7 +296,10 @@ export default function Prisma11({ temaPeriodoId }: { temaPeriodoId: string }) {
                   </div>
 
                   <div className="rounded border bg-white p-3">
-                    <Tex block tex={`R=\\left[${A}-\\left(\\frac{${p}}{${q}}\\right)^{-${expValue}}\\right]^2`} />
+                    <Tex
+                      block
+                      tex={`R=\\left[${A}-\\left(\\frac{${p}}{${q}}\\right)^{-${expValue}}\\right]^2`}
+                    />
                   </div>
 
                   <div className="text-muted-foreground">
@@ -305,7 +329,7 @@ export default function Prisma11({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 4 — Restar número entero con fracción</div>
                 <p className="text-muted-foreground">
-                  Para restar, convertimos <Tex tex={`${A}`} /> a una fracción con denominador <Tex tex={`${p}`} />:
+                  Para restar, convertimos <Tex tex={`${A}`} /> a una fracción con denominador <Tex tex={`${p}`} />:{' '}
                   <Tex tex={`${A}=\\frac{${A}\\cdot ${p}}{${p}}`} />.
                 </p>
 
@@ -337,7 +361,10 @@ export default function Prisma11({ temaPeriodoId }: { temaPeriodoId: string }) {
 
                 <div className="mt-3 space-y-2">
                   <div className="rounded border bg-white p-3">
-                    <Tex block tex={`R=\\left(\\frac{${diff.n}}{${diff.d}}\\right)^2=\\frac{${diff.n}^2}{${diff.d}^2}`} />
+                    <Tex
+                      block
+                      tex={`R=\\left(\\frac{${diff.n}}{${diff.d}}\\right)^2=\\frac{${diff.n}^2}{${diff.d}^2}`}
+                    />
                   </div>
 
                   <div className="rounded border bg-white p-3">
@@ -350,7 +377,10 @@ export default function Prisma11({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-muted p-3">
                 <div className="font-semibold">✅ Respuesta final</div>
                 <div className="mt-2">
-                  <Tex block tex={`R=${ex.correctStr.includes('/') ? `\\frac{${squared.n}}{${squared.d}}` : ex.correctStr}`} />
+                  <Tex
+                    block
+                    tex={`R=${ex.correctStr.includes('/') ? `\\frac{${squared.n}}{${squared.d}}` : ex.correctStr}`}
+                  />
                 </div>
               </div>
             </div>

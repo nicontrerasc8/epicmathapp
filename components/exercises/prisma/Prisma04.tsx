@@ -10,10 +10,10 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 4 — "Si ( ... ) → ( ... ) es FALSA, halla p, q, r"
-   ✅ MathJax (better-react-mathjax) — mismo formato que Prisma 17
+   ✅ MathJax (better-react-mathjax)
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Generación dinámica (sin hardcode de ejercicios)
-   ✅ Explicación tipo profe (pasos + mini-tablas)
+   ✅ Generación dinámica (sin hardcode)
+   ✅ Persist en formato NUEVO (como Prisma01)
 ============================================================ */
 
 /* =========================
@@ -21,7 +21,6 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 ========================= */
 type VarName = 'p' | 'q' | 'r'
 type Literal = { name: VarName; negated: boolean }
-
 type Option = { value: string; correct: boolean }
 
 function coin(p = 0.5) {
@@ -32,7 +31,7 @@ function randInt(min: number, max: number) {
 }
 
 /* =========================
-   MathJax Config (igual Prisma 17)
+   MathJax Config
 ========================= */
 const MATHJAX_CONFIG = {
   loader: { load: ['input/tex', 'output/chtml'] },
@@ -43,7 +42,7 @@ const MATHJAX_CONFIG = {
     packages: { '[+]': ['ams'] },
   },
   options: {
-    renderActions: { addMenu: [] }, // quita el menú contextual
+    renderActions: { addMenu: [] },
   },
 } as const
 
@@ -70,35 +69,15 @@ function Tex({
    FORMATO (LaTeX)
 ========================= */
 function litTex(l: Literal) {
-  // negación bonita: \neg p
   return l.negated ? `\\neg ${l.name}` : `${l.name}`
 }
 
 function exprTex(antP: Literal, antQ: Literal, consR: Literal) {
-  // ((lit(p) ∧ lit(q)) → lit(r))
-  return `\\left(\\left(${litTex(antP)} \\land ${litTex(antQ)}\\right) \\to ${litTex(
-    consR
-  )}\\right)`
+  return `\\left(\\left(${litTex(antP)} \\land ${litTex(antQ)}\\right) \\to ${litTex(consR)}\\right)`
 }
 
 function vf(b: boolean) {
   return b ? 'V' : 'F'
-}
-
-/* =========================
-   LÓGICA: inferencia desde "→ es F"
-   Si A → B es F  =>  A = V  y  B = F
-========================= */
-function valueForLiteralToBeTrue(l: Literal): boolean {
-  // Si literal es p y debe ser verdadero => p = V
-  // Si literal es ~p y debe ser verdadero => p = F
-  return l.negated ? false : true
-}
-
-function valueForLiteralToBeFalse(l: Literal): boolean {
-  // Si literal es p y debe ser falso => p = F
-  // Si literal es ~p y debe ser falso => p = V
-  return l.negated ? true : false
 }
 
 function toBits(p: boolean, q: boolean, r: boolean) {
@@ -106,10 +85,24 @@ function toBits(p: boolean, q: boolean, r: boolean) {
 }
 
 /* =========================
+   LÓGICA: (A → B) es F  =>  A = V  y  B = F
+========================= */
+function valueForLiteralToBeTrue(l: Literal): boolean {
+  // literal verdadero:
+  // p => p=V
+  // ¬p => p=F
+  return l.negated ? false : true
+}
+
+function valueForLiteralToBeFalse(l: Literal): boolean {
+  // literal falso:
+  // p => p=F
+  // ¬p => p=V
+  return l.negated ? true : false
+}
+
+/* =========================
    GENERADOR DINÁMICO
-   Siempre crea:
-     ( (lit(p) ∧ lit(q)) → lit(r) )  es F
-   => respuesta SIEMPRE única para p,q,r.
 ========================= */
 function generateExercise() {
   const antP: Literal = { name: 'p', negated: coin(0.5) }
@@ -119,7 +112,7 @@ function generateExercise() {
   const latex = exprTex(antP, antQ, consR)
 
   // Implicación falsa => antecedente V y consecuente F
-  // Antecedente es (lit(p) ∧ lit(q)) => para que sea V, ambos literales deben ser V
+  // Antecedente: (lit(p) ∧ lit(q)) sea V => ambos literales sean V
   const pVal = valueForLiteralToBeTrue(antP)
   const qVal = valueForLiteralToBeTrue(antQ)
 
@@ -141,13 +134,12 @@ function generateExercise() {
 }
 
 /* =========================
-   OPCIONES (4 alternativas)
+   OPCIONES
 ========================= */
 function generateOptions(correct: string): Option[] {
   const set = new Set<string>()
   set.add(correct)
 
-  // Distractores variando 1 o 2 letras
   while (set.size < 4) {
     const arr = correct.split('')
     const flips = coin(0.7) ? 1 : 2
@@ -166,7 +158,17 @@ function generateOptions(correct: string): Option[] {
 /* =========================
    UI
 ========================= */
-export default function Prisma04({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma04({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
 
   const [nonce, setNonce] = useState(0)
@@ -178,26 +180,44 @@ export default function Prisma04({ temaPeriodoId }: { temaPeriodoId: string }) {
     return { ...ex, options }
   }, [nonce])
 
+  const antecedentTex = `\\left(${litTex(ejercicio.antP)} \\land ${litTex(ejercicio.antQ)}\\right)`
+  const consequentTex = `${litTex(ejercicio.consR)}`
+
   function pickOption(op: Option) {
     if (!engine.canAnswer) return
 
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // ✅ Persist NUEVO (igual estructura que Prisma01)
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma04',
-      prompt: 'Si la implicación es falsa, determina (p,q,r).',
-      questionLatex: ejercicio.latex,
-      options: ejercicio.options.map(o => o.value),
-      correctAnswer: ejercicio.correctBits,
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        target: 'F',
-        antecedentTex: `\\left(${litTex(ejercicio.antP)} \\land ${litTex(ejercicio.antQ)}\\right)`,
-        consequentTex: `${litTex(ejercicio.consR)}`,
-        derived: { p: vf(ejercicio.pVal), q: vf(ejercicio.qVal), r: vf(ejercicio.rVal) },
+      exerciseId, // ej: 'Prisma04'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: op.value,
+        correctAnswer: ejercicio.correctBits,
+        latex: ejercicio.latex,
+        options: ejercicio.options.map(o => o.value),
+        extra: {
+          target: 'F',
+          antecedentTex,
+          consequentTex,
+          derived: {
+            p: vf(ejercicio.pVal),
+            q: vf(ejercicio.qVal),
+            r: vf(ejercicio.rVal),
+          },
+          literals: {
+            antP: { ...ejercicio.antP },
+            antQ: { ...ejercicio.antQ },
+            consR: { ...ejercicio.consR },
+          },
+        },
       },
     })
   }
@@ -207,9 +227,6 @@ export default function Prisma04({ temaPeriodoId }: { temaPeriodoId: string }) {
     engine.reset()
     setNonce(n => n + 1)
   }
-
-  const antecedentTex = `\\left(${litTex(ejercicio.antP)} \\land ${litTex(ejercicio.antQ)}\\right)`
-  const consequentTex = `${litTex(ejercicio.consR)}`
 
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
@@ -228,14 +245,15 @@ export default function Prisma04({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">👀 Paso 0 — Identificar A y B</div>
                 <p className="text-muted-foreground">
-                  La proposición tiene forma <span className="font-semibold">A → B</span>.
-                  Aquí:
+                  La proposición tiene forma <span className="font-semibold">A → B</span>. Aquí:
                 </p>
+
                 <div className="mt-2 space-y-2">
                   <div className="rounded-md border bg-background p-3">
                     <div className="text-muted-foreground mb-1">Expresión del ejercicio:</div>
                     <Tex block tex={ejercicio.latex} />
                   </div>
+
                   <div className="flex flex-wrap gap-2">
                     <span className="inline-block px-2 py-1 rounded bg-muted font-mono">
                       A = {litTex(ejercicio.antP)} ∧ {litTex(ejercicio.antQ)}
@@ -310,8 +328,8 @@ export default function Prisma04({ temaPeriodoId }: { temaPeriodoId: string }) {
 
                 <div className="rounded-md border bg-background p-3">
                   <p className="text-muted-foreground">
-                    El antecedente es una conjunción: <span className="font-semibold">(X ∧ Y)</span>.
-                    Eso es verdadero <span className="font-semibold">solo</span> si ambos son verdaderos.
+                    El antecedente es una conjunción: <span className="font-semibold">(X ∧ Y)</span>. Eso es verdadero{' '}
+                    <span className="font-semibold">solo</span> si ambos son verdaderos.
                   </p>
                   <div className="mt-2">
                     <Tex block tex={`(X \\land Y)=\\text{V} \\;\\Rightarrow\\; X=\\text{V}\\;\\text{y}\\; Y=\\text{V}`} />
@@ -426,7 +444,7 @@ export default function Prisma04({ temaPeriodoId }: { temaPeriodoId: string }) {
           </SolutionBox>
         }
       >
-        {/* Card de expresión (igual estilo Prisma 17) */}
+        {/* Card de expresión */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="font-semibold mb-2">Expresión:</div>
           <Tex block tex={ejercicio.latex} />

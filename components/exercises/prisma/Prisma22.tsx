@@ -13,6 +13,8 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ Dinámico (misma naturaleza del PDF)
    ✅ Paso clave: desigualdad triangular + probar x = 2a o x = 2b
+   ✅ Persist NUEVO (igual Prisma01/Prisma20):
+      { exerciseId, temaId, classroomId, sessionId, correct, answer:{} }
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -38,24 +40,24 @@ const MATHJAX_CONFIG = {
     processEscapes: true,
     packages: { '[+]': ['ams'] },
   },
-  options: {
-    renderActions: { addMenu: [] },
-  },
+  options: { renderActions: { addMenu: [] } },
 } as const
 
 function Tex({
-  latex,
-  display = false,
+  tex,
+  block = false,
   className = '',
 }: {
-  latex: string
-  display?: boolean
+  tex: string
+  block?: boolean
   className?: string
 }) {
-  const wrapped = display ? `\\[${latex}\\]` : `\\(${latex}\\)`
+  const wrapped = block ? `\\[${tex}\\]` : `\\(${tex}\\)`
   return (
     <span className={className}>
-      <MathJax dynamic>{wrapped}</MathJax>
+      <MathJax dynamic inline={!block}>
+        {wrapped}
+      </MathJax>
     </span>
   )
 }
@@ -67,12 +69,10 @@ function Diagram({ a, b }: { a: number; b: number }) {
   const W = 440
   const H = 260
 
-  // puntos
   const A = { x: 90, y: 220 }
   const C = { x: 350, y: 220 }
   const B = { x: 220, y: 80 }
 
-  // util
   function mid(p: any, q: any) {
     return { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }
   }
@@ -108,33 +108,15 @@ function Diagram({ a, b }: { a: number; b: number }) {
         </text>
 
         {/* etiquetas de lados */}
-        <text
-          x={mAB.x - 20}
-          y={mAB.y}
-          fontSize="18"
-          textAnchor="middle"
-          dominantBaseline="middle"
-        >
+        <text x={mAB.x - 20} y={mAB.y} fontSize="18" textAnchor="middle" dominantBaseline="middle">
           {a}
         </text>
 
-        <text
-          x={mBC.x + 20}
-          y={mBC.y}
-          fontSize="18"
-          textAnchor="middle"
-          dominantBaseline="middle"
-        >
+        <text x={mBC.x + 20} y={mBC.y} fontSize="18" textAnchor="middle" dominantBaseline="middle">
           {b}
         </text>
 
-        <text
-          x={mAC.x}
-          y={mAC.y + 22}
-          fontSize="18"
-          textAnchor="middle"
-          dominantBaseline="middle"
-        >
+        <text x={mAC.x} y={mAC.y + 22} fontSize="18" textAnchor="middle" dominantBaseline="middle">
           x
         </text>
       </svg>
@@ -146,8 +128,9 @@ function Diagram({ a, b }: { a: number; b: number }) {
    Generador (misma naturaleza)
    Lados conocidos: a (mayor), b (menor)
    Tercer lado x es doble de uno: x = 2a o x = 2b
-   - Si a>b, 2a NO puede (porque 2a < a+b ⇒ a<b imposible)
-   - Para que 2b sí pueda: a < 3b
+   - Si a>b, 2a NO puede: 2a < a+b ⇒ a<b (contradicción)
+   - Para que 2b sí pueda: 2b < a+b ⇒ b < a (ok)
+     y además: a < b + 2b ⇒ a < 3b  (condición clave)
 ========================= */
 function generateExercise() {
   for (let tries = 0; tries < 300; tries++) {
@@ -155,15 +138,14 @@ function generateExercise() {
     const aMax = Math.min(18, 3 * b - 1)
     const a = randInt(b + 1, aMax) // mayor pero < 3b
 
-    // x válido es 2b (doble del menor)
     const xOk = 2 * b
     const P = a + b + xOk
 
     // distractores típicos
     const xBad = 2 * a
-    const d1 = a + b + xBad // usan el doble del mayor (no existe)
-    const d2 = 2 * (a + b) // creen que x = a + b
-    const d3 = a + b + (a - b) // creen que x = a - b
+    const d1 = a + b + xBad
+    const d2 = 2 * (a + b)
+    const d3 = a + b + (a - b)
 
     const set = new Set<number>([P, d1, d2, d3].filter(v => Number.isFinite(v) && v > 0))
     while (set.size < 4) set.add(P + choice([-4, -3, 3, 4, 5, 6]))
@@ -183,7 +165,7 @@ function generateExercise() {
     return { a, b, xOk, P, options, questionLatex }
   }
 
-  // fallback (como el PDF)
+  // fallback
   const a = 12
   const b = 8
   const xOk = 16
@@ -203,7 +185,17 @@ function generateExercise() {
 /* =========================
    COMPONENT
 ========================= */
-export default function Prisma22({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma22({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -216,19 +208,27 @@ export default function Prisma22({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // ✅ Persist NUEVO (igual Prisma01/Prisma20)
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma22',
-      prompt: 'Hallar el perímetro del triángulo.',
-      questionLatex: ex.questionLatex,
-      options: ex.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: `${ex.P}`,
-      userAnswer: `${op.value}`,
-      isCorrect: op.correct,
-      extra: {
-        a: ex.a,
-        b: ex.b,
-        x: ex.xOk,
+      exerciseId, // ej: 'Prisma22'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: String(op.value),
+        correctAnswer: String(ex.P),
+        latex: ex.questionLatex,
+        options: ex.options.map(o => String(o.value)),
+        extra: {
+          a: ex.a,
+          b: ex.b,
+          x: ex.xOk,
+          perimeter: ex.P,
+          labeledOptions: ex.options.map(o => `${o.label}. ${o.value}`),
+        },
       },
     })
   }
@@ -239,12 +239,14 @@ export default function Prisma22({ temaPeriodoId }: { temaPeriodoId: string }) {
     setNonce(n => n + 1)
   }
 
-  // latex solución
+  // LaTeX solución
   const ineq1 = `|${ex.a}-${ex.b}| < x < ${ex.a}+${ex.b}`
   const ineq2 = `${Math.abs(ex.a - ex.b)} < x < ${ex.a + ex.b}`
   const probar = `x=2\\cdot ${ex.b}=${2 * ex.b}\\;\\;\\text{o}\\;\\; x=2\\cdot ${ex.a}=${2 * ex.a}`
+
   const valida1 = `${Math.abs(ex.a - ex.b)} < ${2 * ex.b} < ${ex.a + ex.b}\\;\\;\\Rightarrow\\;\\; \\text{sí puede}`
   const valida2 = `${Math.abs(ex.a - ex.b)} < ${2 * ex.a} < ${ex.a + ex.b}\\;\\;\\Rightarrow\\;\\; \\text{no puede}`
+
   const per = `P=${ex.a}+${ex.b}+${2 * ex.b}=${ex.P}`
 
   return (
@@ -262,7 +264,7 @@ export default function Prisma22({ temaPeriodoId }: { temaPeriodoId: string }) {
             <Diagram a={ex.a} b={ex.b} />
 
             <div className="text-lg">
-              <Tex latex={`\\text{Halle } P`} display />
+              <Tex block tex={`\\text{Halle } P`} />
             </div>
           </div>
         }
@@ -275,13 +277,13 @@ export default function Prisma22({ temaPeriodoId }: { temaPeriodoId: string }) {
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Teorema de existencia (desigualdad triangular)</div>
+                <div className="font-semibold mb-2">✅ Paso 1 — Desigualdad triangular (existencia)</div>
                 <p className="text-muted-foreground">
                   Para que exista el triángulo, el tercer lado <span className="font-mono">x</span> debe cumplir:
                 </p>
                 <div className="mt-2 space-y-2">
-                  <Tex latex={ineq1} display />
-                  <Tex latex={ineq2} display />
+                  <Tex block tex={ineq1} />
+                  <Tex block tex={ineq2} />
                 </div>
               </div>
 
@@ -289,15 +291,15 @@ export default function Prisma22({ temaPeriodoId }: { temaPeriodoId: string }) {
                 <div className="font-semibold mb-2">✅ Paso 2 — “x es doble de uno de los lados”</div>
                 <p className="text-muted-foreground">Entonces solo hay 2 posibilidades:</p>
                 <div className="mt-2">
-                  <Tex latex={probar} display />
+                  <Tex block tex={probar} />
                 </div>
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Elegir el valor que sí cumple</div>
+                <div className="font-semibold mb-2">✅ Paso 3 — Probar cuál sí cumple</div>
                 <div className="mt-2 space-y-2">
-                  <Tex latex={valida1} display />
-                  <Tex latex={valida2} display />
+                  <Tex block tex={valida1} />
+                  <Tex block tex={valida2} />
                 </div>
                 <p className="text-muted-foreground mt-2">
                   Por lo tanto, el tercer lado correcto es <span className="font-semibold">x = {ex.xOk}</span>.
@@ -306,8 +308,8 @@ export default function Prisma22({ temaPeriodoId }: { temaPeriodoId: string }) {
 
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 4 — Perímetro</div>
-                <div className="mt-2 space-y-2">
-                  <Tex latex={per} display />
+                <div className="mt-2">
+                  <Tex block tex={per} />
                 </div>
 
                 <div className="mt-3 flex items-center gap-2">
@@ -344,7 +346,7 @@ export default function Prisma22({ temaPeriodoId }: { temaPeriodoId: string }) {
               >
                 <div className="font-semibold mb-1">{op.label}.</div>
                 <div className="text-lg">
-                  <Tex latex={`${op.value}`} />
+                  <Tex tex={`${op.value}`} />
                 </div>
               </button>
             )

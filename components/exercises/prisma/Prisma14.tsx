@@ -15,7 +15,8 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ 100% dinámico: genera p, N, M y exponentes
    ✅ Explicación PRO: factorización → elevar → cancelar exponentes → calcular
-   ✅ Usa "better-react-mathjax" (NO KaTeX)
+   ✅ better-react-mathjax (NO KaTeX)
+   ✅ Persist: MISMA estructura que Prisma01 (exerciseId/temaId/classroomId/sessionId)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -31,7 +32,7 @@ function shuffle<T>(arr: T[]) {
 }
 
 /* =========================
-   MathJax Config (igual estilo Prisma 17)
+   MathJax Config (igual estilo Prisma 01/17)
 ========================= */
 const MATHJAX_CONFIG = {
   loader: { load: ['input/tex', 'output/chtml'] },
@@ -96,27 +97,12 @@ function powInt(base: number, exp: number) {
   return r
 }
 
-/* =========================
-   TEXT (UI)
-========================= */
-function termText(p: number, e: number) {
-  if (e <= 0) return ''
-  if (e === 1) return `${p}`
-  return `${p}^${e}`
-}
-function factorText(f: Record<number, number>) {
-  const ps = primesOf(f)
-  const parts = ps.map(p => termText(p, f[p] ?? 0)).filter(Boolean)
-  return parts.length ? parts.join(' × ') : '1'
-}
-function factorPowerText(f: Record<number, number>, k: number) {
-  const ps = primesOf(f)
-  const parts = ps.map(p => termText(p, (f[p] ?? 0) * k)).filter(Boolean)
-  return parts.length ? parts.join(' × ') : '1'
+function computeValueFromExps(finalExps: Record<number, number>) {
+  return Object.entries(finalExps).reduce((acc, [p, e]) => acc * powInt(Number(p), e), 1)
 }
 
 /* =========================
-   LATEX (MathJax)
+   LATEX HELPERS
 ========================= */
 function termTex(p: number, e: number) {
   if (e <= 0) return ''
@@ -147,12 +133,8 @@ function isCompositeNice(n: number) {
 }
 
 /* =========================
-   ARMA EJERCICIO
+   GENERADOR DEL EJERCICIO
 ========================= */
-function computeValueFromExps(finalExps: Record<number, number>) {
-  return Object.entries(finalExps).reduce((acc, [p, e]) => acc * powInt(Number(p), e), 1)
-}
-
 function generateExercise() {
   for (let tries = 0; tries < 260; tries++) {
     const p = CORE_PRIMES[randInt(0, CORE_PRIMES.length - 1)]
@@ -196,7 +178,7 @@ function generateExercise() {
       expFinal[pr] = fin
     }
 
-    // Queremos A entero => todos fin >= 0
+    // A entero => todos fin >= 0
     if (Object.values(expFinal).some(e => e < 0)) continue
     if (Object.values(expFinal).every(e => e === 0)) continue
 
@@ -213,7 +195,7 @@ function generateExercise() {
     const wrong1 = Math.round((powInt(p, pExp) * powInt(N, Math.max(1, NExp - 1))) / powInt(M, MExp))
     if (Number.isFinite(wrong1) && wrong1 > 0) candidates.push(wrong1)
 
-    // mover mal factor
+    // mover mal factor (multiplicar por 2 o 3)
     candidates.push(value * (coin(0.5) ? 2 : 3))
 
     // +/- pequeño
@@ -264,6 +246,7 @@ function generateExercise() {
   const NExp = 4
   const M = 60
   const MExp = 3
+
   const facN = factorize(N)
   const facM = factorize(M)
   const primes = primesOf(facN, facM, { [p]: 1 })
@@ -271,6 +254,7 @@ function generateExercise() {
   const expNum: Record<number, number> = {}
   const expDen: Record<number, number> = {}
   const expFinal: Record<number, number> = {}
+
   for (const pr of primes) {
     const num = (facN[pr] ?? 0) * NExp + (pr === p ? pExp : 0)
     const den = (facM[pr] ?? 0) * MExp
@@ -278,21 +262,33 @@ function generateExercise() {
     expDen[pr] = den
     expFinal[pr] = num - den
   }
+
   const value = computeValueFromExps(expFinal)
 
   const options: Option[] = [
-    { label: 'A', value: 12, correct: true },
-    { label: 'B', value: 20, correct: false },
-    { label: 'C', value: 25, correct: false },
-    { label: 'D', value: 16, correct: false },
+    { label: 'A', value, correct: true },
+    { label: 'B', value: value + 8, correct: false },
+    { label: 'C', value: Math.max(1, value - 6), correct: false },
+    { label: 'D', value: value * 2, correct: false },
   ]
+
   return { p, pExp, N, NExp, M, MExp, facN, facM, primes, expNum, expDen, expFinal, value, options }
 }
 
 /* =========================
    UI — PRISMA 14 (MathJax)
 ========================= */
-export default function Prisma14({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma14({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -319,28 +315,35 @@ export default function Prisma14({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // ✅ MISMA ESTRUCTURA QUE PRISMA01
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma14',
-      prompt: 'Determina el valor de A.',
-      questionLatex: exprTex,
-      options: ej.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: String(ej.value),
-      userAnswer: String(op.value),
-      isCorrect: op.correct,
-      extra: {
-        p: ej.p,
-        pExp: ej.pExp,
-        N: ej.N,
-        NExp: ej.NExp,
-        M: ej.M,
-        MExp: ej.MExp,
-        facN: ej.facN,
-        facM: ej.facM,
-        expNum: ej.expNum,
-        expDen: ej.expDen,
-        expFinal: ej.expFinal,
-        exprTex,
+      exerciseId, // 'Prisma14'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: op.value,
+        selectedLabel: op.label,
+        correctAnswer: ej.value,
+        latex: exprTex,
+        options: ej.options.map(o => ({ label: o.label, value: o.value })),
+        extra: {
+          p: ej.p,
+          pExp: ej.pExp,
+          N: ej.N,
+          NExp: ej.NExp,
+          M: ej.M,
+          MExp: ej.MExp,
+          facN: ej.facN,
+          facM: ej.facM,
+          expNum: ej.expNum,
+          expDen: ej.expDen,
+          expFinal: ej.expFinal,
+          exprTex,
+        },
       },
     })
   }
@@ -368,8 +371,8 @@ export default function Prisma14({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">👀 Paso 0 — Miramos la expresión</div>
                 <p className="text-muted-foreground">
-                  La idea es escribir todo como producto de primos, y luego usar reglas de potencias para
-                  “sumar/restar” exponentes.
+                  La idea es escribir todo como producto de primos y luego usar reglas de potencias para “sumar/restar”
+                  exponentes.
                 </p>
                 <div className="mt-2 rounded-md border bg-background p-3">
                   <Tex block tex={exprTex} />
@@ -379,13 +382,10 @@ export default function Prisma14({ temaPeriodoId }: { temaPeriodoId: string }) {
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 1 — Factorizamos en primos</div>
-
                 <div className="rounded-md border bg-background p-3 space-y-2">
-                  <Tex block tex={`${ej.N}= ${factorTex(ej.facN)}`} />
-                  <Tex block tex={`${ej.M}= ${factorTex(ej.facM)}`} />
+                  <Tex block tex={`${ej.N}=${factorTex(ej.facN)}`} />
+                  <Tex block tex={`${ej.M}=${factorTex(ej.facM)}`} />
                 </div>
-
-          
               </div>
 
               {/* Paso 2 */}
@@ -398,7 +398,7 @@ export default function Prisma14({ temaPeriodoId }: { temaPeriodoId: string }) {
                 </div>
 
                 <div className="mt-2 rounded-md border bg-background p-3">
-                  <Tex block tex={`\\text{Regla:}\\quad (a^m)^k=a^{mk}\\quad\\text{y}\\quad \\frac{a^m}{a^n}=a^{m-n}`} />
+                  <Tex block tex={`\\text{Regla: }(a^m)^k=a^{mk}\\quad\\text{y}\\quad\\frac{a^m}{a^n}=a^{m-n}`} />
                 </div>
               </div>
 
@@ -411,8 +411,8 @@ export default function Prisma14({ temaPeriodoId }: { temaPeriodoId: string }) {
                     <thead>
                       <tr className="bg-muted">
                         <th className="border py-2">Primo</th>
-                        <th className="border py-2">Exp. en numerador</th>
-                        <th className="border py-2">Exp. en denominador</th>
+                        <th className="border py-2">Exp. numerador</th>
+                        <th className="border py-2">Exp. denominador</th>
                         <th className="border py-2">Exp. final</th>
                       </tr>
                     </thead>
@@ -430,7 +430,7 @@ export default function Prisma14({ temaPeriodoId }: { temaPeriodoId: string }) {
                 </div>
 
                 <p className="mt-2 text-muted-foreground">
-                  Para cada primo, restamos: <span className="font-semibold">(exponente del numerador) − (exponente del denominador)</span>.
+                  Para cada primo, hacemos: <span className="font-semibold">num − den</span>.
                 </p>
               </div>
 
@@ -452,12 +452,13 @@ export default function Prisma14({ temaPeriodoId }: { temaPeriodoId: string }) {
           </SolutionBox>
         }
       >
-        {/* Enunciado con MathJax */}
+        {/* Enunciado */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="font-semibold mb-2">Expresión:</div>
           <Tex block tex={exprTex} />
         </div>
 
+        {/* Opciones */}
         <div className="grid grid-cols-2 gap-4">
           {ej.options.map(op => {
             const isSelected = selected === op.value

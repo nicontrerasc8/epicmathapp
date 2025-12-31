@@ -14,6 +14,7 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    ✅ 100% dinámico (genera literales con ¬ y variables)
    ✅ Explicación súper detallada + tabla de comprobación
    ✅ Usa "better-react-mathjax" (NO KaTeX)
+   ✅ Persist con la MISMA firma que Prisma01 (exerciseId/temaId/classroomId/sessionId + correct + answer)
 ============================================================ */
 
 /* =========================
@@ -30,7 +31,6 @@ type ImpExpr = { type: 'imp'; left: Expr; right: Expr }
 type Expr = VarExpr | NotExpr | AndExpr | OrExpr | ImpExpr
 
 type Option = { value: string; correct: boolean }
-
 type Literal = { v: VarName; neg: boolean }
 
 const VARS: VarName[] = ['p', 'q', 'r', 't']
@@ -57,7 +57,7 @@ function VF(x: boolean) {
 }
 
 /* =========================
-   MathJax Config (igual estilo que Prisma 17)
+   MathJax Config
 ========================= */
 const MATHJAX_CONFIG = {
   loader: { load: ['input/tex', 'output/chtml'] },
@@ -147,7 +147,8 @@ function litToLatex(l: Literal) {
    y sabemos "la proposición es FALSA"
    ⇒ antecedente V y consecuente F
 
-   Para que haya una única respuesta tipo “qué proposiciones SON VERDADERAS”
+   Para que haya una única respuesta tipo
+   “qué proposiciones SON VERDADERAS”
    forzamos que queden EXACTAMENTE 2 variables verdaderas.
 ========================= */
 function buildScenario() {
@@ -182,7 +183,6 @@ function buildScenario() {
     if (result !== false) continue
 
     const latex = toLatex(expr)
-
     const correctPair = `${trueVars[0]}; ${trueVars[1]}`
 
     // Opciones: pares posibles (6). Elegimos 4 (1 correcta + 3 distractores)
@@ -245,6 +245,7 @@ function buildScenario() {
     { value: 'q; t', correct: false },
     { value: 'r; t', correct: false },
   ])
+
   return {
     expr,
     latex,
@@ -266,11 +267,20 @@ function buildScenario() {
 }
 
 /* =========================
-   PRISMA 05 (UI) + MathJax
+   PRISMA 05 (UI)
 ========================= */
-export default function Prisma05({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma05({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
-
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
@@ -283,24 +293,29 @@ export default function Prisma05({ temaPeriodoId }: { temaPeriodoId: string }) {
     engine.submit(op.correct)
 
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma05',
-      prompt: 'Si la proposición compuesta es falsa, indicar las proposiciones que son verdaderas:',
-      questionLatex: ejercicio.latex,
-      options: ejercicio.options.map(o => o.value),
-      correctAnswer: ejercicio.correctPair,
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        valuation: ejercicio.val,
-        trueVars: ejercicio.trueVars,
-        literals: {
-          L1: { ...ejercicio.literals.L1, latex: litToLatex(ejercicio.literals.L1) },
-          L2: { ...ejercicio.literals.L2, latex: litToLatex(ejercicio.literals.L2) },
-          L3: { ...ejercicio.literals.L3, latex: litToLatex(ejercicio.literals.L3) },
-          L4: { ...ejercicio.literals.L4, latex: litToLatex(ejercicio.literals.L4) },
+      exerciseId, // ej: 'Prisma05'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: op.value,
+        correctAnswer: ejercicio.correctPair,
+        latex: ejercicio.latex,
+        options: ejercicio.options.map(o => o.value),
+        extra: {
+          valuation: ejercicio.val,
+          trueVars: ejercicio.trueVars,
+          literals: {
+            L1: { ...ejercicio.literals.L1, latex: litToLatex(ejercicio.literals.L1) },
+            L2: { ...ejercicio.literals.L2, latex: litToLatex(ejercicio.literals.L2) },
+            L3: { ...ejercicio.literals.L3, latex: litToLatex(ejercicio.literals.L3) },
+            L4: { ...ejercicio.literals.L4, latex: litToLatex(ejercicio.literals.L4) },
+          },
+          check: ejercicio.check,
         },
-        check: ejercicio.check,
       },
     })
   }
@@ -341,13 +356,12 @@ export default function Prisma05({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 1 — Regla clave de la implicación</div>
                 <p className="text-muted-foreground">
-                  Una implicación <span className="font-semibold">A → B</span> solo es <span className="font-semibold">FALSA</span> en un caso:
+                  Una implicación <span className="font-semibold">A → B</span> solo es{' '}
+                  <span className="font-semibold">FALSA</span> en un caso:
                 </p>
                 <div className="mt-2 rounded-md border bg-background p-3">
                   <Tex block tex={`A\\to B\\text{ es F} \\iff A=V\\ \\text{y}\\ B=F`} />
-                  <div className="mt-2 text-muted-foreground">
-                    (Es el único caso donde la implicación “falla”.)
-                  </div>
+                  <div className="mt-2 text-muted-foreground">(Es el único caso donde la implicación “falla”.)</div>
                 </div>
               </div>
 
@@ -369,9 +383,7 @@ export default function Prisma05({ temaPeriodoId }: { temaPeriodoId: string }) {
                 </div>
 
                 <div className="mt-3 rounded-lg border bg-white p-3">
-                  <div className="font-semibold">
-                    Como la proposición completa es F, entonces:
-                  </div>
+                  <div className="font-semibold">Como la proposición completa es F, entonces:</div>
                   <div className="mt-1">
                     <Tex block tex={`A=V\\ \\text{y}\\ B=F`} />
                   </div>
@@ -382,15 +394,19 @@ export default function Prisma05({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 3 — Hacemos que el antecedente sea V</div>
                 <p className="text-muted-foreground">
-                  El antecedente es una conjunción: <span className="font-semibold">(X ∧ Y)</span>. Para que sea <span className="font-semibold">V</span>, ambos deben ser verdaderos.
+                  El antecedente es una conjunción: <span className="font-semibold">(X ∧ Y)</span>. Para que sea{' '}
+                  <span className="font-semibold">V</span>, ambos deben ser verdaderos.
                 </p>
 
                 <div className="mt-2 rounded-md border bg-background p-3">
-                  <Tex block tex={`${A_latex}=V\\ \\Rightarrow\\ ${litToLatex(L1)}=V\\ \\text{y}\\ ${litToLatex(L2)}=V`} />
+                  <Tex
+                    block
+                    tex={`${A_latex}=V\\ \\Rightarrow\\ ${litToLatex(L1)}=V\\ \\text{y}\\ ${litToLatex(L2)}=V`}
+                  />
                 </div>
 
                 <div className="mt-2 text-muted-foreground">
-                  Tip: si <Tex tex={`${litToLatex({ v: 'p', neg: true })}=V`} /> entonces <Tex tex={`p=F`} /> (porque ¬p es verdadera).
+                  Tip: si <Tex tex={`\\neg p=V`} /> entonces <Tex tex={`p=F`} /> (porque ¬p es verdadera).
                 </div>
               </div>
 
@@ -398,11 +414,15 @@ export default function Prisma05({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 4 — Hacemos que el consecuente sea F</div>
                 <p className="text-muted-foreground">
-                  El consecuente es una disyunción: <span className="font-semibold">(X ∨ Y)</span>. Para que sea <span className="font-semibold">F</span>, ambos deben ser falsos.
+                  El consecuente es una disyunción: <span className="font-semibold">(X ∨ Y)</span>. Para que sea{' '}
+                  <span className="font-semibold">F</span>, ambos deben ser falsos.
                 </p>
 
                 <div className="mt-2 rounded-md border bg-background p-3">
-                  <Tex block tex={`${B_latex}=F\\ \\Rightarrow\\ ${litToLatex(L3)}=F\\ \\text{y}\\ ${litToLatex(L4)}=F`} />
+                  <Tex
+                    block
+                    tex={`${B_latex}=F\\ \\Rightarrow\\ ${litToLatex(L3)}=F\\ \\text{y}\\ ${litToLatex(L4)}=F`}
+                  />
                 </div>
 
                 <div className="mt-2 text-muted-foreground">
@@ -450,7 +470,9 @@ export default function Prisma05({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 6 — Comprobación rápida</div>
                 <p className="text-muted-foreground">
-                  Confirmamos con la tabla: queda <span className="font-semibold">A = V</span> y <span className="font-semibold">B = F</span>, por lo tanto <span className="font-semibold">A → B = F</span>.
+                  Confirmamos: queda <span className="font-semibold">A = V</span> y{' '}
+                  <span className="font-semibold">B = F</span>, por lo tanto{' '}
+                  <span className="font-semibold">A → B = F</span>.
                 </p>
 
                 <div className="mt-2 overflow-x-auto">
@@ -503,7 +525,7 @@ export default function Prisma05({ temaPeriodoId }: { temaPeriodoId: string }) {
           </SolutionBox>
         }
       >
-        {/* Enunciado con MathJax (como Prisma 17) */}
+        {/* Enunciado */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="font-semibold mb-2">Proposición:</div>
           <Tex block tex={ejercicio.latex} />
@@ -535,7 +557,7 @@ export default function Prisma05({ temaPeriodoId }: { temaPeriodoId: string }) {
                   .filter(Boolean)
                   .join(' ')}
               >
-                {op.value}
+                <span className="font-mono">{op.value}</span>
               </button>
             )
           })}

@@ -11,11 +11,12 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 15 — Reduce (potencias) — estilo Prisma + MathJax
    Forma: M = (3^x · 9^(x+a) · 27^(x+b)) / 3^(6x+c)
+
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ Dinámico (a,b,c cambian)
-   ✅ Resolución paso a paso tipo profe (base 3, pot. de pot.,
-      suma exponentes, división resta exponentes)
-   ✅ MathJax (better-react-mathjax) como Prisma 17
+   ✅ Resolución paso a paso tipo profe
+   ✅ MathJax (better-react-mathjax)
+   ✅ Persist NUEVO estilo Prisma01 (exerciseId, temaId, classroomId...)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: string; correct: boolean }
@@ -72,7 +73,7 @@ function generateProblem() {
 
     // Distractores típicos
     const wrong1 = pow3ToStr(2 * a + 3 * b + c) // resta mal (pone +c)
-    const wrong2 = choice(['3', '1/3', '9', '1/9']) // olvida potencia de potencia (se desordena)
+    const wrong2 = choice(['3', '1/3', '9', '1/9']) // olvida potencia de potencia
     const wrong3 = pow3ToStr(kFinal + choice([-2, -1, 1, 2])) // error en suma/coeficientes
 
     const pool = new Set<string>()
@@ -145,7 +146,17 @@ function Tex({
 /* =========================
    UI — PRISMA 15 (MathJax)
 ========================= */
-export default function Prisma15({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma15({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -160,7 +171,6 @@ export default function Prisma15({ temaPeriodoId }: { temaPeriodoId: string }) {
   const kFinal = upConst - c
   const answer = pow3ToStr(kFinal)
 
-  // LaTeX (bonito)
   const exprLatex = `M=\\frac{3^x\\cdot 9^{x+${a}}\\cdot 27^{x+${b}}}{3^{6x+${c}}}`
 
   function pickOption(op: Option) {
@@ -169,22 +179,28 @@ export default function Prisma15({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    const correctPretty = ex.correct
+    const selectedPretty = op.value
+
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma15',
-      prompt: 'Reduce:',
-      questionLatex: exprLatex,
-      options: ex.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: ex.correct,
-      userAnswer: op.value,
-      isCorrect: op.correct,
-      extra: {
-        exprLatex,
-        a,
-        b,
-        c,
-        k: kFinal,
-        answer,
+      exerciseId, // 'Prisma15'
+      temaId,
+      classroomId,
+      sessionId,
+      correct: op.correct,
+      answer: {
+        selected: selectedPretty,
+        correctAnswer: correctPretty,
+        latex: exprLatex,
+        options: ex.options.map(o => `${o.label}. ${o.value}`),
+        extra: {
+          exprLatex,
+          a,
+          b,
+          c,
+          k: kFinal,
+          answer,
+        },
       },
     })
   }
@@ -212,7 +228,7 @@ export default function Prisma15({ temaPeriodoId }: { temaPeriodoId: string }) {
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 1 — Pasamos todo a base 3</div>
                 <p className="text-muted-foreground">
-                  La idea es escribir <Tex tex={`9`} /> y <Tex tex={`27`} /> como potencias de <Tex tex={`3`} />:
+                  Escribimos <Tex tex={`9`} /> y <Tex tex={`27`} /> como potencias de <Tex tex={`3`} />:
                 </p>
 
                 <div className="mt-3 space-y-2">
@@ -227,7 +243,7 @@ export default function Prisma15({ temaPeriodoId }: { temaPeriodoId: string }) {
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Reemplazamos y usamos “potencia de potencia”</div>
+                <div className="font-semibold mb-2">✅ Paso 2 — Potencia de potencia</div>
                 <p className="text-muted-foreground">
                   Regla: <Tex tex={`(a^m)^n=a^{m\\cdot n}`} />.
                 </p>
@@ -238,24 +254,18 @@ export default function Prisma15({ temaPeriodoId }: { temaPeriodoId: string }) {
                   </div>
 
                   <div className="rounded border bg-white p-3">
-                    <Tex
-                      block
-                      tex={`M=\\frac{3^x\\cdot (3^2)^{x+${a}}\\cdot (3^3)^{x+${b}}}{3^{6x+${c}}}`}
-                    />
+                    <Tex block tex={`M=\\frac{3^x\\cdot (3^2)^{x+${a}}\\cdot (3^3)^{x+${b}}}{3^{6x+${c}}}`} />
                   </div>
 
                   <div className="rounded border bg-white p-3">
-                    <Tex
-                      block
-                      tex={`M=\\frac{3^x\\cdot 3^{2(x+${a})}\\cdot 3^{3(x+${b})}}{3^{6x+${c}}}`}
-                    />
+                    <Tex block tex={`M=\\frac{3^x\\cdot 3^{2(x+${a})}\\cdot 3^{3(x+${b})}}{3^{6x+${c}}}`} />
                   </div>
                 </div>
               </div>
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Sumamos exponentes del numerador</div>
+                <div className="font-semibold mb-2">✅ Paso 3 — Sumar exponentes del numerador</div>
                 <p className="text-muted-foreground">
                   Regla: <Tex tex={`3^u\\cdot 3^v=3^{u+v}`} />.
                 </p>
@@ -274,14 +284,14 @@ export default function Prisma15({ temaPeriodoId }: { temaPeriodoId: string }) {
                   </div>
 
                   <div className="text-muted-foreground">
-                    Entonces el numerador queda como: <Tex tex={`3^{6x+${upConst}}`} />.
+                    Entonces el numerador queda: <Tex tex={`3^{6x+${upConst}}`} />.
                   </div>
                 </div>
               </div>
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Dividimos potencias (resta de exponentes)</div>
+                <div className="font-semibold mb-2">✅ Paso 4 — Dividir potencias</div>
                 <p className="text-muted-foreground">
                   Regla: <Tex tex={`\\frac{3^u}{3^v}=3^{u-v}`} />.
                 </p>
@@ -300,7 +310,7 @@ export default function Prisma15({ temaPeriodoId }: { temaPeriodoId: string }) {
                   </div>
 
                   <div className="text-muted-foreground">
-                    Se cancela <Tex tex={`6x`} /> y solo queda la parte numérica.
+                    Se cancela <Tex tex={`6x`} /> y queda el exponente numérico.
                   </div>
                 </div>
               </div>

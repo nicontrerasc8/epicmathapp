@@ -11,8 +11,9 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 21 — Geometría (Isósceles + Ángulo exterior) (MathJax)
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico (misma “naturaleza” del ejercicio de tu imagen)
-   ✅ Explicación tipo profe: isósceles → exterior → suma triángulo
+   ✅ Dinámico (misma “naturaleza”)
+   ✅ Explicación tipo profe: isósceles → suplementario → suma triángulo
+   ✅ Persist con firma: (exerciseId, temaId, classroomId, sessionId)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -51,36 +52,32 @@ const MATHJAX_CONFIG = {
     processEscapes: true,
     packages: { '[+]': ['ams'] },
   },
-  options: {
-    renderActions: { addMenu: [] },
-  },
+  options: { renderActions: { addMenu: [] } },
 } as const
 
 function Tex({
-  latex,
-  display = false,
+  tex,
+  block = false,
   className = '',
 }: {
-  latex: string
-  display?: boolean
+  tex: string
+  block?: boolean
   className?: string
 }) {
-  const wrapped = display ? `\\[${latex}\\]` : `\\(${latex}\\)`
+  const wrapped = block ? `\\[${tex}\\]` : `\\(${tex}\\)`
   return (
     <span className={className}>
-      <MathJax dynamic>{wrapped}</MathJax>
+      <MathJax dynamic inline={!block}>
+        {wrapped}
+      </MathJax>
     </span>
   )
 }
 
 /* =========================
    SVG mini-diagrama (simple)
-   (No es un editor, pero ayuda a “ver” el ejercicio)
 ========================= */
 function Diagram({ k, alpha }: { k: number; alpha: number }) {
-  /* =====================
-     PUNTOS (FIJOS)
-  ====================== */
   const A = { x: 80, y: 220 }
   const D = { x: 260, y: 220 }
   const C = { x: 360, y: 220 }
@@ -89,30 +86,21 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
   const W = 440
   const H = 260
 
-  /* =====================
-     UTILIDADES
-  ====================== */
   function angle(p: any, q: any) {
     return Math.atan2(p.y - q.y, p.x - q.x)
   }
-
   function norm(a: number) {
-    // (-pi, pi]
     while (a <= -Math.PI) a += 2 * Math.PI
     while (a > Math.PI) a -= 2 * Math.PI
     return a
   }
-
   function midAngle(a1: number, a2: number) {
-    // punto medio por el camino "corto"
     a1 = norm(a1)
     a2 = norm(a2)
-    let d = norm(a2 - a1)
+    const d = norm(a2 - a1)
     return norm(a1 + d / 2)
   }
-
   function arcPath(cx: number, cy: number, r: number, a1: number, a2: number) {
-    // arco por el camino "corto"
     a1 = norm(a1)
     a2 = norm(a2)
     const d = norm(a2 - a1)
@@ -123,13 +111,10 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
     const x2 = cx + r * Math.cos(end)
     const y2 = cy + r * Math.sin(end)
 
-    // short-arc siempre: largeArcFlag = 0
-    // sweepFlag depende del signo del delta
+    // camino corto
     const sweep = d >= 0 ? 1 : 0
-
     return `M ${x1} ${y1} A ${r} ${r} 0 0 ${sweep} ${x2} ${y2}`
   }
-
   function tick(p1: any, p2: any, len = 12) {
     const mx = (p1.x + p2.x) / 2
     const my = (p1.y + p2.y) / 2
@@ -146,15 +131,12 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
     }
   }
 
-  /* =====================
-     ÁNGULOS (CORREGIDOS)
-  ====================== */
   // ∠A = kx (entre AB y AD)
   const aAB = angle(B, A)
   const aAD = angle(D, A)
   const aMidA = midAngle(aAB, aAD)
 
-  // ✅ ∠ADB = alpha (entre DA y DB)  <-- ESTO era lo que estaba mal
+  // ∠ADB = alpha (entre DA y DB)
   const aDA = angle(A, D)
   const aDB = angle(B, D)
   const aMidD = midAngle(aDA, aDB)
@@ -164,9 +146,7 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
   const aCD = angle(D, C)
   const aMidC = midAngle(aCB, aCD)
 
-  /* =====================
-     TICKS ISÓSCELES
-  ====================== */
+  // TICKS: AB = BD y BD = DC
   const tAB = tick(A, B)
   const tBD = tick(B, D)
   const tDC = tick(D, C)
@@ -184,7 +164,7 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
         <line x1={B.x} y1={B.y} x2={D.x} y2={D.y} stroke="black" strokeWidth="3" />
         <line x1={B.x} y1={B.y} x2={C.x} y2={C.y} stroke="black" strokeWidth="3" />
 
-        {/* RAYITAS (marcas) */}
+        {/* MARCAS */}
         <line {...tAB} stroke="black" strokeWidth="3" />
         <line {...tBD} stroke="black" strokeWidth="3" />
         <line {...tDC} stroke="black" strokeWidth="3" />
@@ -195,12 +175,20 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
         ))}
 
         {/* LETRAS */}
-        <text x={A.x - 14} y={A.y + 20} fontSize="16">A</text>
-        <text x={D.x - 4} y={D.y + 20} fontSize="16">D</text>
-        <text x={C.x + 6} y={C.y + 20} fontSize="16">C</text>
-        <text x={B.x - 6} y={B.y - 10} fontSize="16">B</text>
+        <text x={A.x - 14} y={A.y + 20} fontSize="16">
+          A
+        </text>
+        <text x={D.x - 4} y={D.y + 20} fontSize="16">
+          D
+        </text>
+        <text x={C.x + 6} y={C.y + 20} fontSize="16">
+          C
+        </text>
+        <text x={B.x - 6} y={B.y - 10} fontSize="16">
+          B
+        </text>
 
-        {/* ===== ÁNGULO EN A = kx ===== */}
+        {/* ÁNGULO EN A = kx */}
         <path d={arcPath(A.x, A.y, 28, aAB, aAD)} stroke="black" strokeWidth="2" fill="none" />
         <text
           x={A.x + 38 * Math.cos(aMidA)}
@@ -211,7 +199,7 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
           {k}x
         </text>
 
-        {/* ===== ✅ ÁNGULO EN D = alpha (∠ADB) ===== */}
+        {/* ÁNGULO EN D = alpha */}
         <path d={arcPath(D.x, D.y, 30, aDA, aDB)} stroke="black" strokeWidth="2" fill="none" />
         <text
           x={D.x + 44 * Math.cos(aMidD)}
@@ -222,7 +210,7 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
           {alpha}°
         </text>
 
-        {/* ===== ÁNGULO EN C = y (igual estilo que kx) ===== */}
+        {/* ÁNGULO EN C = y */}
         <path d={arcPath(C.x, C.y, 26, aCB, aCD)} stroke="black" strokeWidth="2" fill="none" />
         <text
           x={C.x + 36 * Math.cos(aMidC)}
@@ -241,16 +229,12 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
   )
 }
 
-
-
-
-
 /* =========================
-   Generador (misma naturaleza)
+   Generador
    - ∠A = kx
    - ∠ADB = α
    - AB = BD  ⇒ ∠A = ∠ADB
-   - BD = DC  ⇒ triángulo BDC isósceles ⇒ ∠DBC = ∠BCD = y
+   - BD = DC  ⇒ ∠DBC = ∠BCD = y
    - A,D,C colineales ⇒ ∠BDC = 180-α
    - y+y+(180-α)=180 ⇒ 2y=α ⇒ y=α/2
 ========================= */
@@ -261,7 +245,7 @@ function generateExercise() {
     const k = choice(ks)
     const step = lcm(k, 2)
 
-    // α múltiplo de step y < 90 para que el triángulo isósceles “exista”
+    // α múltiplo de step y < 90
     const alpha = step * randInt(3, Math.floor(88 / step))
     if (alpha <= 0 || alpha >= 90) continue
     if (alpha % k !== 0) continue
@@ -271,17 +255,16 @@ function generateExercise() {
     const y = alpha / 2
     const answer = x + y
 
-    // Distractores típicos
-    const d1 = alpha // creen que x+y = α
-    const d2 = x + alpha // creen que y = α
-    const d3 = x + (180 - alpha) / 2 // se confunden con el “otro ángulo” en D
+    // distractores típicos
+    const d1 = alpha
+    const d2 = x + alpha
+    const d3 = x + (180 - alpha) / 2
 
     const set = new Set<number>()
     set.add(answer)
     ;[d1, d2, d3].forEach(v => {
       if (Number.isFinite(v) && v > 0) set.add(v)
     })
-    // fallback
     while (set.size < 4) {
       set.add(answer + choice([-10, -5, 5, 10, 15, -15]))
     }
@@ -299,7 +282,7 @@ function generateExercise() {
     return { k, alpha, x, y, answer, options, questionLatex }
   }
 
-  // fallback (tu mismo caso)
+  // fallback
   const k = 4
   const alpha = 60
   const x = 15
@@ -311,7 +294,6 @@ function generateExercise() {
     { label: 'C', value: 50, correct: false },
     { label: 'D', value: 55, correct: false },
   ])
-
   const questionLatex = `\\text{Datos: } AB=BD,\\; BD=DC,\\; \\angle A=4x,\\; \\angle ADB=60^{\\circ},\\; \\angle C=y.\\;\\; \\text{Halle } x+y.`
   return { k, alpha, x, y, answer, options, questionLatex }
 }
@@ -319,7 +301,17 @@ function generateExercise() {
 /* =========================
    COMPONENT
 ========================= */
-export default function Prisma21({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma21({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -333,19 +325,23 @@ export default function Prisma21({ temaPeriodoId }: { temaPeriodoId: string }) {
     engine.submit(op.correct)
 
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma21',
-      prompt: 'Calcular x + y.',
-      questionLatex: ex.questionLatex,
-      options: ex.options.map(o => `${o.label}. ${o.value}°`),
-      correctAnswer: `${ex.answer}`,
-      userAnswer: `${op.value}`,
-      isCorrect: op.correct,
-      extra: {
-        k: ex.k,
-        alpha: ex.alpha,
-        x: ex.x,
-        y: ex.y,
+      exerciseId, // 'Prisma21'
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+      answer: {
+        selected: String(op.value),
+        correctAnswer: String(ex.answer),
+        latex: ex.questionLatex,
+        options: ex.options.map(o => `${o.label}. ${o.value}°`),
+        extra: {
+          k: ex.k,
+          alpha: ex.alpha,
+          x: ex.x,
+          y: ex.y,
+        },
       },
     })
   }
@@ -356,7 +352,7 @@ export default function Prisma21({ temaPeriodoId }: { temaPeriodoId: string }) {
     setNonce(n => n + 1)
   }
 
-  // Latex útil para la solución
+  // TeX para solución
   const kxEq = `${ex.k}x = ${ex.alpha}`
   const xVal = `x = \\frac{${ex.alpha}}{${ex.k}} = ${ex.x}`
   const bdc = `\\angle BDC = 180^{\\circ} - ${ex.alpha}^{\\circ} = ${180 - ex.alpha}^{\\circ}`
@@ -372,15 +368,15 @@ export default function Prisma21({ temaPeriodoId }: { temaPeriodoId: string }) {
         prompt={
           <div className="space-y-3">
             <div className="text-sm">
-              En la figura se cumple <span className="font-semibold">AB = BD</span> y <span className="font-semibold">BD = DC</span>.
-              Además, <span className="font-semibold">∠A = {ex.k}x</span>, <span className="font-semibold">∠ADB = {ex.alpha}°</span> y <span className="font-semibold">∠C = y</span>.
-              Halla <span className="font-semibold">x + y</span>.
+              En la figura: <span className="font-semibold">AB = BD</span> y <span className="font-semibold">BD = DC</span>. Además,
+              <span className="font-semibold"> ∠A = {ex.k}x</span>, <span className="font-semibold">∠ADB = {ex.alpha}°</span> y{' '}
+              <span className="font-semibold">∠C = y</span>. Halla <span className="font-semibold">x + y</span>.
             </div>
 
             <Diagram k={ex.k} alpha={ex.alpha} />
 
             <div className="text-lg">
-              <Tex latex={`\\text{Halle } x+y`} display />
+              <Tex tex={`\\text{Halle } x+y`} block />
             </div>
           </div>
         }
@@ -392,68 +388,55 @@ export default function Prisma21({ temaPeriodoId }: { temaPeriodoId: string }) {
         solution={
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
-              {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 1 — Triángulo ABD isósceles</div>
                 <p className="text-muted-foreground">
-                  Como <span className="font-mono">AB = BD</span>, el triángulo <span className="font-semibold">ABD</span> es isósceles
-                  y por tanto <span className="font-semibold">sus ángulos de la base son iguales</span>:
-                  <span className="font-semibold"> ∠A = ∠ADB</span>.
+                  Como <span className="font-mono">AB = BD</span>, el triángulo <span className="font-semibold">ABD</span> es isósceles y
+                  sus ángulos de la base son iguales: <span className="font-semibold">∠A = ∠ADB</span>.
                 </p>
                 <div className="mt-2 space-y-2">
-                  <Tex latex={kxEq} display />
-                  <Tex latex={xVal} display />
+                  <Tex tex={kxEq} block />
+                  <Tex tex={xVal} block />
                 </div>
               </div>
 
-              {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Ángulo suplementario en D</div>
+                <div className="font-semibold mb-2">✅ Paso 2 — Suplementario en D</div>
                 <p className="text-muted-foreground">
-                  Como <span className="font-semibold">A, D y C están en línea recta</span>, los ángulos con vértice en D que comparten la recta
-                  suman <span className="font-semibold">180°</span>. Entonces el ángulo del triángulo <span className="font-semibold">BDC</span> en D es:
+                  Como <span className="font-semibold">A, D y C</span> están alineados, el ángulo del triángulo <span className="font-semibold">BDC</span> en D es:
                 </p>
                 <div className="mt-2">
-                  <Tex latex={bdc} display />
+                  <Tex tex={bdc} block />
                 </div>
               </div>
 
-              {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 3 — Triángulo BDC isósceles</div>
                 <p className="text-muted-foreground">
                   Como <span className="font-mono">BD = DC</span>, el triángulo <span className="font-semibold">BDC</span> es isósceles,
-                  así que <span className="font-semibold">∠DBC = ∠BCD</span>. Pero <span className="font-semibold">∠C = y</span>, entonces:
-                  <span className="font-semibold"> ∠DBC = y</span>.
+                  así que <span className="font-semibold">∠DBC = ∠BCD</span>. Pero <span className="font-semibold">∠C = y</span>, entonces ambos son y.
                 </p>
 
                 <div className="mt-2 rounded-md border bg-background p-3">
-                  <div className="font-semibold mb-1">Suma de ángulos del triángulo BDC</div>
+                  <div className="font-semibold mb-1">Suma de ángulos en BDC</div>
                   <div className="space-y-2">
-                    <Tex latex={triSum} display />
-                    <Tex latex={twoY} display />
-                    <Tex latex={yVal} display />
+                    <Tex tex={triSum} block />
+                    <Tex tex={twoY} block />
+                    <Tex tex={yVal} block />
                   </div>
                 </div>
               </div>
 
-              {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">✅ Paso 4 — Respuesta</div>
-                <div className="mt-2 space-y-2">
-                  <Tex latex={ans} display />
+                <div className="mt-2">
+                  <Tex tex={ans} block />
                 </div>
 
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-sm font-semibold">Respuesta:</span>
-                  <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
-                    {ex.answer}°
-                  </span>
+                  <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">{ex.answer}°</span>
                 </div>
-              </div>
-
-              <div className="text-xs text-muted-foreground">
-                Chequeo mental: de la construcción sale siempre <span className="font-mono">y = α/2</span> y <span className="font-mono">x = α/k</span>.
               </div>
             </div>
           </SolutionBox>
@@ -483,9 +466,7 @@ export default function Prisma21({ temaPeriodoId }: { temaPeriodoId: string }) {
                   .join(' ')}
               >
                 <div className="font-semibold mb-1">{op.label}.</div>
-                <div className="text-lg">
-                  <Tex latex={`${op.value}^{\\circ}`} />
-                </div>
+                <div className="font-mono text-lg">{op.value}°</div>
               </button>
             )
           })}

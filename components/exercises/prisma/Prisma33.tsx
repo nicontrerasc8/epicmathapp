@@ -10,15 +10,20 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 33 — Sistema sexagesimal (°) vs centesimal (g) + MathJax
-   Estilo (como la imagen):
+   Estilo:
      (x - a)° = (x + b)g   → hallar x
+
    ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
    ✅ 100% dinámico: a,b cambian siempre
-   ✅ Explicación tipo profe: convertir g→° → plantear ecuación → resolver
+   ✅ Explicación tipo profe: convertir g→° → ecuación → resolver
+   ✅ Persist: NUEVO FORMATO (como tu Prisma 29)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
 
+/* =========================
+   HELPERS
+========================= */
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
@@ -27,7 +32,7 @@ function shuffle<T>(arr: T[]) {
 }
 
 /* =========================
-   MathJax Config (igual que Prisma 17/19)
+   MathJax Config
 ========================= */
 const MATHJAX_CONFIG = {
   loader: { load: ['input/tex', 'output/chtml'] },
@@ -64,9 +69,9 @@ function Tex({
 /* =========================
    Generator
    (x-a)° = (x+b)g
-   Como 100g = 90°  =>  1g = 0.9°
-   Entonces: (x+b)g = (9(x+b))/10 °
-   Ecuación: x-a = 9(x+b)/10  =>  x = 10a + 9b  (siempre entero)
+   100g = 90° ⇒ 1g = 0.9° = 9/10°
+   ⇒ (x+b)g = 9(x+b)/10 °
+   Ecuación: x-a = 9(x+b)/10  ⇒ x = 10a + 9b
 ========================= */
 function generateExercise() {
   for (let tries = 0; tries < 220; tries++) {
@@ -74,7 +79,7 @@ function generateExercise() {
     const b = randInt(1, 6)
 
     const x = 10 * a + 9 * b
-    if (x < 25 || x > 80) continue // rango “bonito” (como el ejemplo)
+    if (x < 25 || x > 80) continue // rango “bonito”
 
     const correct = x
 
@@ -88,8 +93,10 @@ function generateExercise() {
       correct - 3,
       correct + 4,
       correct - 4,
-      10 * a + 10 * b, // error típico: usar 1g=1°
+      10 * a + 10 * b, // error típico: asumir 1g=1°
       9 * a + 9 * b, // otro error típico
+      10 * a + 8 * b,
+      8 * a + 9 * b,
     ]).filter(v => Number.isFinite(v) && v > 0 && v !== correct)
 
     const set = new Set<number>()
@@ -111,16 +118,13 @@ function generateExercise() {
       correct: v === correct,
     }))
 
-    // latex del enunciado
     const exprLatex = `(x-${a})^{\\circ}=(x+${b})^{g}`
-
-    // conversión (x+b)^g a grados
-    const convertedLatex = `(x+${b})^{g}\\cdot\\frac{90^{\\circ}}{100^{g}}=\\frac{9x+${9 * b}}{10}^{\\circ}`
+    const convertedLatex = `(x+${b})^{g}\\cdot\\frac{90^{\\circ}}{100^{g}}=\\frac{9(x+${b})}{10}^{\\circ}`
 
     return { a, b, correct, options, exprLatex, convertedLatex }
   }
 
-  // fallback igual al ejemplo de la imagen (a=b=3 => x=57)
+  // fallback: a=b=3 → x=57
   const a = 3
   const b = 3
   const correct = 57
@@ -131,14 +135,24 @@ function generateExercise() {
     { label: 'D', value: 57, correct: true },
   ]
   const exprLatex = `(x-${a})^{\\circ}=(x+${b})^{g}`
-  const convertedLatex = `(x+${b})^{g}\\cdot\\frac{90^{\\circ}}{100^{g}}=\\frac{9x+${9 * b}}{10}^{\\circ}`
+  const convertedLatex = `(x+${b})^{g}\\cdot\\frac{90^{\\circ}}{100^{g}}=\\frac{9(x+${b})}{10}^{\\circ}`
   return { a, b, correct, options, exprLatex, convertedLatex }
 }
 
 /* =========================
-   UI — PRISMA 33
+   UI — PRISMA 33 (NUEVO FORMATO)
 ========================= */
-export default function Prisma33({ temaPeriodoId }: { temaPeriodoId: string }) {
+export default function Prisma33({
+  exerciseId,
+  temaId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  temaId: string
+  classroomId: string
+  sessionId?: string
+}) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
@@ -151,21 +165,34 @@ export default function Prisma33({ temaPeriodoId }: { temaPeriodoId: string }) {
     setSelected(op.value)
     engine.submit(op.correct)
 
+    const ordered = ej.options.slice().sort((a, b) => a.label.localeCompare(b.label))
+
     persistExerciseOnce({
-      temaPeriodoId,
-      exerciseKey: 'Prisma33',
-      prompt: 'Convierte g a grados y resuelve la ecuación para hallar x.',
-      questionLatex: ej.exprLatex,
-      options: ej.options.map(o => `${o.label}. ${o.value}`),
-      correctAnswer: String(ej.correct),
-      userAnswer: String(op.value),
-      isCorrect: op.correct,
-      extra: {
-        a: ej.a,
-        b: ej.b,
-        exprLatex: ej.exprLatex,
-        convertedLatex: ej.convertedLatex,
-        rule: '100g = 90° ⇒ 1g = 0.9°',
+      exerciseId,
+      temaId,
+      classroomId,
+      sessionId,
+
+      correct: op.correct,
+
+      answer: {
+        selected: String(op.value),
+        correctAnswer: String(ej.correct),
+
+        // lo que quieres que quede como “enunciado” LaTeX en el registro
+        latex: `\\text{Hallar }x\\text{ si }(x-${ej.a})^{\\circ}=(x+${ej.b})^{g}.`,
+
+        // SOLO valores (ordenados), como tu Prisma 29
+        options: ordered.map(o => String(o.value)),
+
+        extra: {
+          a: ej.a,
+          b: ej.b,
+          exprLatex: ej.exprLatex,
+          convertedLatex: ej.convertedLatex,
+          rule: '100g = 90° ⇒ 1g = 0.9° = 9/10°',
+          labeledOptions: ordered.map(o => `${o.label}.\\ ${o.value}`),
+        },
       },
     })
   }
@@ -177,6 +204,14 @@ export default function Prisma33({ temaPeriodoId }: { temaPeriodoId: string }) {
   }
 
   const { a, b } = ej
+
+  // pasos para solución
+  const s0 = `100^{g}=90^{\\circ}\\Rightarrow 1^{g}=\\frac{9}{10}^{\\circ}`
+  const s1 = `(x+${b})^{g}=\\frac{9(x+${b})}{10}^{\\circ}`
+  const s2 = `(x-${a})^{\\circ}=\\frac{9(x+${b})}{10}^{\\circ}`
+  const s3 = `x-${a}=\\frac{9(x+${b})}{10}`
+  const s4 = `10x-10\\cdot ${a}=9x+9\\cdot ${b}`
+  const s5 = `x=10\\cdot ${a}+9\\cdot ${b}=${ej.correct}`
 
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
@@ -191,54 +226,39 @@ export default function Prisma33({ temaPeriodoId }: { temaPeriodoId: string }) {
         solution={
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
-              {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Identifica unidades</div>
-                <p className="text-muted-foreground">
-                  A la izquierda está en <span className="font-semibold">grados (°)</span> y a la derecha en{' '}
-                  <span className="font-semibold">grados centesimales (g)</span>.
-                  <br />
-                  Para igualar, convertimos todo a la misma unidad (usaremos °).
-                </p>
-              </div>
-
-              {/* Paso 1 */}
-              <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Regla de conversión</div>
-                <div className="rounded-md border bg-background p-3">
-                  <Tex block tex={`100^{g}=90^{\\circ}\\;\\Rightarrow\\;1^{g}=0.9^{\\circ}=\\frac{9}{10}^{\\circ}`} />
-                </div>
-                <div className="mt-2 text-muted-foreground">
-                  Entonces convertimos <span className="font-semibold">(x+{b})</span> g a grados:
-                </div>
-                <div className="mt-2">
-                  <Tex block tex={ej.convertedLatex} />
+                <div className="font-semibold mb-2">✅ Paso 1 — Conversión g → °</div>
+                <div className="rounded-md border bg-background p-3 space-y-2">
+                  <Tex block tex={s0} />
+                  <Tex block tex={s1} />
                 </div>
               </div>
 
-              {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Planteamos la ecuación en °</div>
-                <Tex block tex={`(x-${a})^{\\circ}=\\frac{9x+${9 * b}}{10}^{\\circ}`} />
-                <p className="text-muted-foreground mt-2">Como ambos están en °, igualamos los valores.</p>
-              </div>
-
-              {/* Paso 3 */}
-              <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Resolución</div>
-                <div className="space-y-2">
-                  <Tex block tex={`x-${a}=\\frac{9x+${9 * b}}{10}`} />
-                  <Tex block tex={`10x-10\\cdot ${a}=9x+${9 * b}`} />
-                  <Tex block tex={`10x-${10 * a}=9x+${9 * b}`} />
-                  <Tex block tex={`x=${10 * a}+${9 * b}`} />
-                  <Tex block tex={`x=${ej.correct}`} />
+                <div className="font-semibold mb-2">✅ Paso 2 — Ecuación en grados</div>
+                <div className="rounded-md border bg-background p-3 space-y-2">
+                  <Tex block tex={s2} />
+                  <Tex block tex={s3} />
                 </div>
               </div>
 
-              {/* Cierre */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Respuesta</div>
-                <div className="inline-block rounded bg-muted px-3 py-2 font-mono text-base">{ej.correct}</div>
+                <div className="font-semibold mb-2">✅ Paso 3 — Resolver</div>
+                <div className="rounded-md border bg-background p-3 space-y-2">
+                  <Tex block tex={s4} />
+                  <Tex block tex={s5} />
+                </div>
+
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="font-semibold">Respuesta:</span>
+                  <span className="inline-block rounded bg-muted px-3 py-2 font-mono text-base">
+                    {ej.correct}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-xs text-muted-foreground">
+                Nota: se iguala en la misma unidad (°) y recién se resuelve la ecuación.
               </div>
             </div>
           </SolutionBox>
