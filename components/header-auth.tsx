@@ -45,19 +45,7 @@ export default async function AuthButton() {
       .single();
 
     // Si no existe en students, buscar en teachers
-    if (student) {
-      nombre = student.nombres?.split(" ")[0] || "";
-    } else {
-      const { data: teacher } = await supabase
-        .from("teachers")
-        .select("full_name")
-        .eq("id", user.id)
-        .single();
-
-      if (teacher) {
-        nombre = teacher.full_name?.split(" ")[0] || "";
-      }
-    }
+  
 
     return (
       <div className="flex items-center gap-4">

@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Mail, Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react'
-import Link from 'next/link'
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
 
 export default function SignInPage() {
   const router = useRouter()
@@ -34,33 +33,61 @@ export default function SignInPage() {
       return
     }
 
-    // 2) Asegurar que la sesión esté lista antes de consultar tablas (evita el "tengo que refrescar")
+    // 2) Asegurar sesión lista (evita “tengo que refrescar”)
     await supabase.auth.getSession()
 
-    // 3) Consultar roles en paralelo
     const userId = sign.user.id
-    const [teacherRes, studentRes] = await Promise.all([
-      supabase.from('teachers').select('id').eq('id', userId).maybeSingle(),
-      supabase.from('students').select('id, nombres, username').eq('id', userId).maybeSingle(),
-    ])
+
+    // 3) Rol global desde edu_profiles
+    const { data: profile, error: profErr } = await supabase
+      .from('edu_profiles')
+      .select('id, first_name, last_name, global_role, active')
+      .eq('id', userId)
+      .single()
 
     setLoading(false)
 
-    // 4) Router por rol
-    if (teacherRes.data) {
+    if (profErr || !profile) {
+      setError('No se encontró tu perfil (edu_profiles). Contacta al administrador.')
+      return
+    }
+
+    if (profile.active === false) {
+      setError('Tu cuenta está desactivada. Contacta al administrador.')
+      return
+    }
+
+    const role = profile.global_role // 'student' | 'teacher' | 'admin' | null
+
+    // 4) Router por rol global
+    if (role === 'admin') {
+      router.push('/dashboard/admin') // o '/superadmin' si prefieres
+      return
+    }
+
+    if (role === 'teacher') {
       router.push('/dashboard/teacher')
       return
     }
-    if (studentRes.data) {
+
+    if (role === 'student') {
       // opcional: guardar para navbar u otros
       try {
-        localStorage.setItem('student', JSON.stringify(studentRes.data))
+        localStorage.setItem(
+          'profile',
+          JSON.stringify({
+            id: profile.id,
+            first_name: profile.first_name,
+            last_name: profile.last_name,
+            global_role: profile.global_role,
+          })
+        )
       } catch {}
       router.push('/dashboard/student/play')
       return
     }
 
-    setError('Tu cuenta no tiene rol asignado. Contacta al administrador.')
+    setError('Tu cuenta no tiene rol asignado (global_role). Contacta al administrador.')
   }
 
   return (
@@ -76,7 +103,6 @@ export default function SignInPage() {
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
               Inicia sesión en <span className="text-primary">Ludus</span>
             </h1>
-         
           </div>
 
           {/* Form */}
@@ -122,19 +148,11 @@ export default function SignInPage() {
               </div>
             )}
 
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full h-11 text-base font-semibold"
-            >
+            <Button type="submit" disabled={loading} className="w-full h-11 text-base font-semibold">
               {loading ? 'Ingresando…' : 'Entrar'}
             </Button>
-
-          
           </form>
         </div>
-
-    
       </div>
     </div>
   )

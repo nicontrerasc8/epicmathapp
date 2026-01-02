@@ -15,10 +15,10 @@ export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
 
   if (!email || !password) {
-    return encodedRedirect("error", "/sign-up", "Email and password are required");
+    return encodedRedirect("error", "/sign-up", "Email y contraseña son requeridos.");
   }
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -27,14 +27,21 @@ export const signUpAction = async (formData: FormData) => {
   });
 
   if (error) {
-    console.error(error.code + " " + error.message);
+    console.error(error.code, error.message);
     return encodedRedirect("error", "/sign-up", error.message);
   }
+
+  /**
+   * ⚠️ IMPORTANTE
+   * El perfil (edu_profiles) se crea:
+   * - por trigger en la BD, o
+   * - manualmente desde SuperAdmin
+   */
 
   return encodedRedirect(
     "success",
     "/sign-up",
-    "Thanks for signing up! Please check your email for a verification link."
+    "Registro exitoso. Revisa tu correo para verificar tu cuenta."
   );
 };
 
@@ -51,41 +58,59 @@ export const signInAction = async (formData: FormData) => {
     password,
   });
 
-  if (error) {
-    console.error(error.message);
-    return encodedRedirect("error", "/sign-in", "Credenciales incorrectas o usuario no encontrado.");
+  if (error || !data.user) {
+    console.error(error?.message);
+    return encodedRedirect(
+      "error",
+      "/sign-in",
+      "Credenciales incorrectas o usuario no encontrado."
+    );
   }
 
   const user = data.user;
-  if (!user) return redirect("/sign-in");
 
-  // Buscar rol en la BD
-  const { data: teacher } = await supabase
-    .from("teachers")
-    .select("id")
+  // 🔎 Buscar perfil y rol global
+  const { data: profile, error: profileErr } = await supabase
+    .from("edu_profiles")
+    .select("id, global_role, active")
     .eq("id", user.id)
     .single();
 
-  if (teacher) {
-    return redirect("/dashboard/teacher");
+  if (profileErr || !profile) {
+    console.error(profileErr);
+    return encodedRedirect(
+      "error",
+      "/sign-in",
+      "Tu perfil no existe. Contacta al administrador."
+    );
   }
 
-  const { data: student } = await supabase
-    .from("students")
-    .select("id")
-    .eq("id", user.id)
-    .single();
-
-  if (student) {
-    return redirect("/dashboard/student");
+  if (!profile.active) {
+    return encodedRedirect(
+      "error",
+      "/sign-in",
+      "Tu cuenta está desactivada. Contacta al administrador."
+    );
   }
 
-  // Si no tiene rol definido
-  return encodedRedirect(
-    "error",
-    "/sign-in",
-    "Tu cuenta no tiene un rol asignado (profesor o estudiante). Contacta al administrador."
-  );
+  // 🚦 Redirect por rol GLOBAL
+  switch (profile.global_role) {
+    case "admin":
+      return redirect("/dashboard/admin");
+
+    case "teacher":
+      return redirect("/dashboard/teacher");
+
+    case "student":
+      return redirect("/dashboard/student/play");
+
+    default:
+      return encodedRedirect(
+        "error",
+        "/sign-in",
+        "Tu cuenta no tiene un rol asignado. Contacta al administrador."
+      );
+  }
 };
 
 /* ===========================
@@ -98,7 +123,7 @@ export const forgotPasswordAction = async (formData: FormData) => {
   const callbackUrl = formData.get("callbackUrl")?.toString();
 
   if (!email) {
-    return encodedRedirect("error", "/forgot-password", "Email is required");
+    return encodedRedirect("error", "/forgot-password", "Email requerido");
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -107,7 +132,11 @@ export const forgotPasswordAction = async (formData: FormData) => {
 
   if (error) {
     console.error(error.message);
-    return encodedRedirect("error", "/forgot-password", "Could not reset password");
+    return encodedRedirect(
+      "error",
+      "/forgot-password",
+      "No se pudo enviar el correo de recuperación."
+    );
   }
 
   if (callbackUrl) {
@@ -117,7 +146,7 @@ export const forgotPasswordAction = async (formData: FormData) => {
   return encodedRedirect(
     "success",
     "/forgot-password",
-    "Check your email for a link to reset your password."
+    "Revisa tu correo para restablecer tu contraseña."
   );
 };
 
@@ -130,20 +159,36 @@ export const resetPasswordAction = async (formData: FormData) => {
   const confirmPassword = formData.get("confirmPassword") as string;
 
   if (!password || !confirmPassword) {
-    return encodedRedirect("error", "/protected/reset-password", "Password and confirm password are required");
+    return encodedRedirect(
+      "error",
+      "/protected/reset-password",
+      "Contraseña y confirmación son requeridas."
+    );
   }
 
   if (password !== confirmPassword) {
-    return encodedRedirect("error", "/protected/reset-password", "Passwords do not match");
+    return encodedRedirect(
+      "error",
+      "/protected/reset-password",
+      "Las contraseñas no coinciden."
+    );
   }
 
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
-    return encodedRedirect("error", "/protected/reset-password", "Password update failed");
+    return encodedRedirect(
+      "error",
+      "/protected/reset-password",
+      "Error al actualizar la contraseña."
+    );
   }
 
-  return encodedRedirect("success", "/protected/reset-password", "Password updated");
+  return encodedRedirect(
+    "success",
+    "/protected/reset-password",
+    "Contraseña actualizada correctamente."
+  );
 };
 
 /* ===========================
