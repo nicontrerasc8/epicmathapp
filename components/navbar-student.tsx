@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { User, LogOut, BookOpen, GraduationCap, Sparkles } from 'lucide-react'
 
-type Role = 'student' | 'teacher' | null
+type Role = 'student' | 'teacher' | 'admin' | null
 
 type EduProfile = {
   id: string
@@ -18,7 +18,7 @@ type EduProfile = {
 
 type EduMember = {
   id: string
-  role: 'student' | 'teacher'
+  role: 'student' | 'teacher' | 'admin'
   institution_id: string | null
   classroom_id: string | null
   active: boolean
@@ -170,6 +170,40 @@ export default function NavbarUser() {
   // Navbar para PROFESOR
   // =============================
   if (role === 'teacher' && profile) {
+    return (
+      <div className="flex items-center gap-3">
+        <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-full border border-primary/20">
+          <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-sm font-medium text-foreground">
+            Bienvenido, {displayName}
+          </span>
+        </div>
+
+        <Link
+          href="/dashboard/teacher"
+          className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white hover:bg-accent/20 rounded-lg border border-border hover:border-accent transition-all duration-200 group"
+        >
+          <BookOpen className="w-4 h-4 text-muted-foreground group-hover:text-accent-foreground" />
+          <span className="text-sm font-medium text-foreground group-hover:text-accent-foreground">
+            Dashboard
+          </span>
+        </Link>
+
+        <Button
+          onClick={logout}
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all duration-200"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline">Cerrar sesión</span>
+        </Button>
+      </div>
+    )
+  }
+  if (role === 'admin' && profile) {
     return (
       <div className="flex items-center gap-3">
         <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-full border border-primary/20">

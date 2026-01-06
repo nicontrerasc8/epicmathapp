@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import * as XLSX from 'xlsx'
 import { AnimatePresence, motion } from 'framer-motion'
+import { PageHeader } from '@/components/dashboard/core'
 
 /* ============================================================
    TYPES
@@ -228,7 +229,7 @@ export default function PerformancePage() {
         const nextW = prevW + w
         const next = (prev * prevW + t * w) / nextW
         curr.avg_time_s = next
-        ;(curr as any).__timeW = nextW
+          ; (curr as any).__timeW = nextW
       }
 
       map.set(r.student_id, curr)
@@ -297,7 +298,7 @@ export default function PerformancePage() {
         const nextW = prevW + w
         const next = (prev * prevW + t * w) / nextW
         curr.avg_time_s = next
-        ;(curr as any).__timeW = nextW
+          ; (curr as any).__timeW = nextW
       }
 
       map.set(key, curr)
@@ -548,7 +549,7 @@ export default function PerformancePage() {
   ============================================================ */
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 p-8">
+      <div className="p-8">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="h-10 w-80 bg-muted rounded-2xl animate-pulse" />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -567,8 +568,16 @@ export default function PerformancePage() {
   const lowTopics = topicsAgg.slice().sort((a, b) => a.accuracy_30d - b.accuracy_30d).slice(0, 4)
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 p-6 md:p-8 text-foreground">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6 text-foreground">
+      <PageHeader
+        title="Rendimiento"
+        breadcrumbs={[
+          { label: "Mis Clases", href: "/dashboard/teacher" },
+          { label: "Aula", href: `/dashboard/teacher/classroom/${classroomId}` },
+          { label: "Rendimiento" },
+        ]}
+      />
+      <div className="space-y-6">
         {/* HERO / HEADER */}
         <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
           <div className="absolute inset-0 bg-[radial-gradient(800px_circle_at_20%_15%,hsl(var(--primary)/0.18),transparent_55%),radial-gradient(700px_circle_at_85%_25%,hsl(var(--accent)/0.20),transparent_55%)]" />
@@ -582,7 +591,7 @@ export default function PerformancePage() {
                   Panel de Rendimiento del Aula
                 </h1>
                 <p className="text-sm md:text-base text-muted-foreground">
-                  Reporte docente — ventana móvil de <b>30 días</b> 
+                  Reporte docente — ventana móvil de <b>30 días</b>
                 </p>
               </div>
             </div>
@@ -854,7 +863,7 @@ export default function PerformancePage() {
                     />
                   </div>
 
-          
+
 
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground">Ordenar por</label>
@@ -965,9 +974,8 @@ export default function PerformancePage() {
                                 <div className="text-right">
                                   <div className="text-xs text-muted-foreground">Precisión</div>
                                   <div
-                                    className={`text-xl font-extrabold ${
-                                      acc >= 0.7 ? 'text-primary' : acc >= 0.55 ? 'text-foreground' : 'text-destructive'
-                                    }`}
+                                    className={`text-xl font-extrabold ${acc >= 0.7 ? 'text-primary' : acc >= 0.55 ? 'text-foreground' : 'text-destructive'
+                                      }`}
                                   >
                                     {fmtPct(acc, 0)}
                                   </div>
@@ -1168,11 +1176,10 @@ function SegmentTab({ active, onClick, children }: any) {
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-xl font-semibold border transition shadow-sm ${
-        active
+      className={`px-4 py-2 rounded-xl font-semibold border transition shadow-sm ${active
           ? 'bg-primary text-white border-primary'
           : 'bg-white text-foreground border-border hover:bg-muted'
-      }`}
+        }`}
     >
       {children}
     </button>
@@ -1214,10 +1221,10 @@ function Badge({ children, tone }: { children: any; tone: 'danger' | 'warn' | 'o
     tone === 'danger'
       ? 'bg-destructive/10 text-destructive border-destructive/20'
       : tone === 'warn'
-      ? 'bg-amber-500/10 text-amber-700 border-amber-500/20'
-      : tone === 'ok'
-      ? 'bg-primary/10 text-primary border-primary/20'
-      : 'bg-muted text-foreground border-border'
+        ? 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+        : tone === 'ok'
+          ? 'bg-primary/10 text-primary border-primary/20'
+          : 'bg-muted text-foreground border-border'
 
   return (
     <span className={`text-xs px-2.5 py-1 rounded-full border font-semibold ${cls}`}>
@@ -1230,8 +1237,8 @@ function ProgressBar({ value }: { value: number }) {
   const pct = clamp((Number(value) || 0) * 100, 0, 100)
   const tone =
     pct >= 75 ? 'bg-primary'
-    : pct >= 55 ? 'bg-accent'
-    : 'bg-destructive'
+      : pct >= 55 ? 'bg-accent'
+        : 'bg-destructive'
 
   return (
     <div className="w-full h-3 rounded-full bg-muted overflow-hidden border border-border">

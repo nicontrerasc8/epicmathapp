@@ -1,8 +1,15 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { useEffect, useState } from "react"
+import { useRouter, useParams } from "next/navigation"
+import { createClient } from "@/utils/supabase/client"
+import { Plus, FileText } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  PageHeader,
+  DataTable,
+  type ColumnDef
+} from "@/components/dashboard/core"
 
 interface Quiz {
   id: string
@@ -11,69 +18,78 @@ interface Quiz {
   created_at: string
 }
 
-export default function ExamsPage() {
-  const supabase = createClient()
+const columns: ColumnDef<Quiz>[] = [
+  {
+    key: "title",
+    header: "Título",
+    render: (_, row) => (
+      <div>
+        <div className="font-medium">{row.title}</div>
+        <div className="text-sm text-muted-foreground truncate max-w-md">
+          {row.description}
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: "created_at",
+    header: "Fecha de Creación",
+    sortable: true,
+    render: (val) => new Date(val).toLocaleDateString(),
+  },
+]
+
+export default function TeacherClassroomExamsPage() {
   const router = useRouter()
   const params = useParams()
-  const classroomId = params?.id as string
-
-  const [quizzes, setQuizzes] = useState<Quiz[]>([])
+  const classroomId = params.id as string
   const [loading, setLoading] = useState(true)
+  const [quizzes, setQuizzes] = useState<Quiz[]>([])
 
   useEffect(() => {
     const fetchQuizzes = async () => {
-      const { data, error } = await supabase
-        .from('quizzes')
-        .select('id, title, description, created_at')
-        .eq('classroom_id', classroomId)
-        .order('created_at', { ascending: false })
+      const supabase = createClient()
+      const { data } = await supabase
+        .from("quizzes")
+        .select("id, title, description, created_at")
+        .eq("classroom_id", classroomId)
+        .order("created_at", { ascending: false })
 
-      if (!error && data) {
+      if (data) {
         setQuizzes(data)
       }
-
       setLoading(false)
     }
-
-    if (classroomId) {
-      fetchQuizzes()
-    }
-  }, [classroomId, supabase])
+    fetchQuizzes()
+  }, [classroomId])
 
   return (
-    <div className="min-h-screen p-6 bg-background text-foreground">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-primary">Exámenes del salón</h1>
-        <button
-          onClick={() => router.push(`/dashboard/teacher/classroom/${classroomId}/exams/new`)}
-          className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition"
-        >
-          ➕ Nuevo examen
-        </button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Exámenes"
+        breadcrumbs={[
+          { label: "Mis Clases", href: "/dashboard/teacher" },
+          { label: "Aula", href: `/dashboard/teacher/classroom/${classroomId}` },
+          { label: "Exámenes" },
+        ]}
+        actions={
+          <Button onClick={() => router.push(`/dashboard/teacher/classroom/${classroomId}/exams/new`)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo Examen
+          </Button>
+        }
+      />
 
-      {loading ? (
-        <p>Cargando exámenes...</p>
-      ) : quizzes.length > 0 ? (
-        <div className="space-y-4">
-          {quizzes.map((quiz) => (
-            <div
-              key={quiz.id}
-              className="bg-card border border-border rounded-lg p-4 shadow-sm"
-            >
-              <h2 className="text-lg font-semibold">{quiz.title}</h2>
-              <p className="text-muted-foreground text-sm mb-2">
-                {quiz.description}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Creado el {new Date(quiz.created_at).toLocaleDateString()}
-              </p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-muted-foreground">Aún no hay exámenes creados.</p>
-      )}
+      <DataTable
+        columns={columns}
+        data={quizzes}
+        loading={loading}
+        emptyState={{
+          title: "exámenes",
+          description: "No hay exámenes creados."
+        }}
+        onRowClick={(row) => console.log("View quiz", row.id)}
+      />
     </div>
   )
 }

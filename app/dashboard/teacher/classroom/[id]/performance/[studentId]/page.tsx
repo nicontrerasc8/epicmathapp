@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -11,7 +11,7 @@ const supabase = createClient()
 type AnyRec = Record<string, any>
 
 export default function StudentPerformanceDetailPage() {
-  const { classroomId, studentId } = useParams() as any
+  const { studentId } = useParams() as any
 
   // ---- estado base
   const [loading, setLoading] = useState(true)
@@ -26,20 +26,17 @@ export default function StudentPerformanceDetailPage() {
   const [dateTo, setDateTo] = useState<string>(todayISO)
   const [temaFilter, setTemaFilter] = useState<string>('__ALL__')
   const [resultFilter, setResultFilter] = useState<'__ALL__' | 'true' | 'false'>('__ALL__')
-  const [search, setSearch] = useState('')
 
-  // ---- paginación intentos
+  // ---- paginaciÃ³n intentos
   const [page, setPage] = useState(1)
   const pageSize = 15
 
-  // ---- resumen rápido
+  // ---- resumen rÃ¡pido
   const resumen = useMemo(() => {
     const total = rows.length
     const correctos = rows.filter((r: AnyRec) => !!r.es_correcto).length
     const incorrectos = total - correctos
-    const tiempo_total = rows.reduce((a: number, r: AnyRec) => a + (r.tiempo_segundos || 0), 0)
-    const tiempo_prom = total ? tiempo_total / total : 0
-    return { total, correctos, incorrectos, tiempo_total, tiempo_prom }
+    return { total, correctos, incorrectos }
   }, [rows])
 
   // ---- opciones de tema
@@ -54,9 +51,8 @@ export default function StudentPerformanceDetailPage() {
     const agg: AnyRec = {}
     rows.forEach((r: AnyRec) => {
       const tema = r.tema || 'Desconocido'
-      if (!agg[tema]) agg[tema] = { correctos: 0, incorrectos: 0, total: 0, tiempo_total: 0 }
+      if (!agg[tema]) agg[tema] = { correctos: 0, incorrectos: 0, total: 0 }
       agg[tema].total++
-      agg[tema].tiempo_total += r.tiempo_segundos || 0
       if (r.es_correcto) agg[tema].correctos++
       else agg[tema].incorrectos++
     })
@@ -87,23 +83,17 @@ export default function StudentPerformanceDetailPage() {
 
   // ---- filtrado para tabla de intentos
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
     return rows.filter((r: AnyRec) => {
       const okTema = temaFilter === '__ALL__' || (r.tema || 'Desconocido') === temaFilter
       const okRes =
         resultFilter === '__ALL__' ||
         (resultFilter === 'true' && !!r.es_correcto) ||
         (resultFilter === 'false' && !r.es_correcto)
-      const okSearch =
-        q.length === 0 ||
-        String(r.contexto || '')
-          .toLowerCase()
-          .includes(q)
-      return okTema && okRes && okSearch
+      return okTema && okRes
     })
-  }, [rows, temaFilter, resultFilter, search])
+  }, [rows, temaFilter, resultFilter])
 
-  // ---- orden y paginación simple para recientes
+  // ---- orden y paginaciÃ³n simple para recientes
   const recentSorted = useMemo(() => {
     const arr = [...filtered]
     arr.sort((a: AnyRec, b: AnyRec) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -127,13 +117,11 @@ export default function StudentPerformanceDetailPage() {
         const toISO = new Date(dateTo + 'T23:59:59.999Z').toISOString()
 
         const { data, error } = await supabase
-          .from('student_responses')
+          .from('edu_student_exercises')
           .select(`
-            es_correcto,
-            tiempo_segundos,
+            correct,
             created_at,
-            ejercicio_data,
-            tema_periodo:tema_periodo_id ( tema )
+            tema:tema_id ( name )
           `)
           .eq('student_id', studentId)
           .gte('created_at', fromISO)
@@ -142,11 +130,11 @@ export default function StudentPerformanceDetailPage() {
         if (error) throw error
 
         const norm = (data ?? []).map((r: AnyRec) => {
-          const tema = Array.isArray(r.tema_periodo) ? r.tema_periodo?.[0]?.tema : r.tema_periodo?.tema
+          const temaName = Array.isArray(r.tema) ? r.tema?.[0]?.name : r.tema?.name
           return {
             ...r,
-            tema: tema || 'Desconocido',
-            contexto: r.ejercicio_data?.contexto || '',
+            es_correcto: r.correct,
+            tema: temaName || 'Desconocido',
           }
         })
         setRows(norm as any[])
@@ -168,9 +156,7 @@ export default function StudentPerformanceDetailPage() {
     const detalle = filtered.map((r: any) => ({
       fecha: new Date(r.created_at).toLocaleString(),
       tema: r.tema,
-      correcto: r.es_correcto ? 'Sí' : 'No',
-      tiempo_segundos: r.tiempo_segundos || 0,
-      contexto: r.contexto || '',
+      correcto: r.es_correcto ? 'SÃ­' : 'No',
     }))
 
     // 2) Resumen por tema
@@ -179,7 +165,6 @@ export default function StudentPerformanceDetailPage() {
       total: s.total,
       correctos: s.correctos,
       incorrectos: s.incorrectos,
-      tiempo_promedio: s.total ? Number(s.tiempo_total / s.total).toFixed(1) : '0.0',
     }))
 
     const wb = XLSX.utils.book_new()
@@ -188,15 +173,15 @@ export default function StudentPerformanceDetailPage() {
     XLSX.utils.book_append_sheet(wb, ws1, 'Detalle')
     XLSX.utils.book_append_sheet(wb, ws2, 'Resumen_tema')
 
-    // anchos básicos
-    ws1['!cols'] = [{ wch: 19 }, { wch: 22 }, { wch: 10 }, { wch: 16 }, { wch: 60 }]
-    ws2['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 16 }]
+    // anchos bÃ¡sicos
+    ws1['!cols'] = [{ wch: 19 }, { wch: 22 }, { wch: 10 }]
+    ws2['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 12 }]
 
-    // ✅ descarga sin file-saver
+    // âœ… descarga sin file-saver
     try {
       XLSX.writeFile(wb, `reporte_estudiante_${studentId}.xlsx`)
     } catch {
-      // fallback por si algún navegador bloquea writeFile
+      // fallback por si algÃºn navegador bloquea writeFile
       const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
       const blob = new Blob([buf], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -240,7 +225,7 @@ export default function StudentPerformanceDetailPage() {
         {/* Header */}
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-1">📝 Detalle de ejercicios</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-1">ðŸ“ Detalle de ejercicios</h1>
             <p className="text-muted-foreground text-sm">Rendimiento del estudiante por tema</p>
           </div>
           <div className="flex gap-2">
@@ -249,7 +234,7 @@ export default function StudentPerformanceDetailPage() {
               onClick={exportExcel}
               className="px-4 py-2 rounded-xl border bg-accent text-accent-foreground hover:brightness-105"
             >
-              ⬇️ Exportar Excel
+              â¬‡ï¸ Exportar Excel
             </button>
           </div>
         </div>
@@ -307,24 +292,14 @@ export default function StudentPerformanceDetailPage() {
                 <option value="false">Incorrectos</option>
               </select>
             </div>
-
-            <div>
-              <label className="text-xs text-muted-foreground">Buscar en contexto</label>
-              <input
-                placeholder="pizza, libro…"
-                className="w-full px-3 py-2 rounded-lg border bg-white"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
           </div>
 
-          {/* accesos rápidos */}
+          {/* accesos rÃ¡pidos */}
           <div className="flex flex-wrap gap-2 mt-3">
             {[
-              { label: '7 días', d: 6 },
-              { label: '14 días', d: 13 },
-              { label: '30 días', d: 29 },
+              { label: '7 dÃ­as', d: 6 },
+              { label: '14 dÃ­as', d: 13 },
+              { label: '30 dÃ­as', d: 29 },
             ].map((q) => (
               <button
                 key={q.label}
@@ -349,12 +324,10 @@ export default function StudentPerformanceDetailPage() {
           <div className="text-center py-12 text-red-600">{errorMsg}</div>
         ) : (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-              <Card icon="📊" label="Ejercicios" value={resumen.total} />
-              <Card icon="✅" label="Correctos" value={resumen.correctos} color="text-green-600" />
-              <Card icon="❌" label="Incorrectos" value={resumen.incorrectos} color="text-red-500" />
-              <Card icon="⏱️" label="Tiempo total (s)" value={resumen.tiempo_total} />
-              <Card icon="⚖️" label="Tiempo promedio (s)" value={resumen.tiempo_prom.toFixed(1)} />
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+              <Card icon="ðŸ“Š" label="Ejercicios" value={resumen.total} />
+              <Card icon="âœ…" label="Correctos" value={resumen.correctos} color="text-green-600" />
+              <Card icon="âŒ" label="Incorrectos" value={resumen.incorrectos} color="text-red-500" />
             </div>
 
 
@@ -367,7 +340,6 @@ export default function StudentPerformanceDetailPage() {
                     <th className="px-6 py-4 text-center">Total</th>
                     <th className="px-6 py-4 text-center">Correctos</th>
                     <th className="px-6 py-4 text-center">Incorrectos</th>
-                    <th className="px-6 py-4 text-center">Tiempo Promedio (s)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -379,9 +351,6 @@ export default function StudentPerformanceDetailPage() {
                         <td className="px-6 py-4 text-center">{s.total}</td>
                         <td className="px-6 py-4 text-center text-green-700">{s.correctos}</td>
                         <td className="px-6 py-4 text-center text-red-600">{s.incorrectos}</td>
-                        <td className="px-6 py-4 text-center">
-                          {s.total ? (s.tiempo_total / s.total).toFixed(1) : '0.0'}
-                        </td>
                       </tr>
                     ))}
                 </tbody>
@@ -393,7 +362,7 @@ export default function StudentPerformanceDetailPage() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-foreground">Intentos recientes</h3>
                 <div className="text-xs text-muted-foreground">
-                  {recentSorted.length} resultados • página {page} de {totalPages}
+                  {recentSorted.length} resultados â€¢ pÃ¡gina {page} de {totalPages}
                 </div>
               </div>
 
@@ -407,8 +376,6 @@ export default function StudentPerformanceDetailPage() {
                         <th className="px-4 py-3">Fecha</th>
                         <th className="px-4 py-3">Tema</th>
                         <th className="px-4 py-3">Resultado</th>
-                        <th className="px-4 py-3">Tiempo (s)</th>
-                        <th className="px-4 py-3">Contexto</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -421,11 +388,7 @@ export default function StudentPerformanceDetailPage() {
                               {r.es_correcto ? 'Correcto' : 'Incorrecto'}
                             </span>
                           </td>
-                          <td className="px-4 py-3">{r.tiempo_segundos ?? 0}</td>
-                          {/* Celdas de contexto modificada */}
-                          <td className="px-4 py-3 max-w-[440px] whitespace-normal">
-                            {r.contexto || '—'}
-                          </td>
+                          
                         </tr>
                       ))}
                     </tbody>
@@ -433,14 +396,14 @@ export default function StudentPerformanceDetailPage() {
                 </div>
               )}
 
-              {/* paginación */}
+              {/* paginaciÃ³n */}
               <div className="flex items-center justify-between mt-3">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   className="px-3 py-1.5 rounded-lg border bg-white hover:bg-input disabled:opacity-50"
                   disabled={page <= 1}
                 >
-                  ← Anterior
+                  â† Anterior
                 </button>
                 <div className="text-xs text-muted-foreground">
                   Mostrando {pageRows.length} de {recentSorted.length}
@@ -450,7 +413,7 @@ export default function StudentPerformanceDetailPage() {
                   className="px-3 py-1.5 rounded-lg border bg-white hover:bg-input disabled:opacity-50"
                   disabled={page >= totalPages}
                 >
-                  Siguiente →
+                  Siguiente â†’
                 </button>
               </div>
             </div>
@@ -460,3 +423,9 @@ export default function StudentPerformanceDetailPage() {
     </div>
   )
 }
+
+
+
+
+
+

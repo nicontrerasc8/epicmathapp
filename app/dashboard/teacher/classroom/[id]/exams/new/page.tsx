@@ -1,149 +1,131 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { createClient } from "@/utils/supabase/client"
+import { PageHeader } from "@/components/dashboard/core"
+import { Button } from "@/components/ui/button"
+import { Save } from "lucide-react"
 
 interface Tema {
   id: string
-  tema: string
-}
-
-interface Classroom {
-  id: string
-  grade: number
-  school_id: string
+  areaName: string
+  subblockName: string
 }
 
 export default function NewExamPage() {
   const supabase = createClient()
   const router = useRouter()
   const params = useParams()
-  const classroomId = params?.id as string
+  const classroomId = params.id as string
 
-  const [classroom, setClassroom] = useState<Classroom | null>(null)
-  const [periodoId, setPeriodoId] = useState<string | null>(null)
   const [temas, setTemas] = useState<Tema[]>([])
-  const [selectedTemaId, setSelectedTemaId] = useState('')
-  const [description, setDescription] = useState('')
+  const [selectedTemaId, setSelectedTemaId] = useState("")
+  const [description, setDescription] = useState("")
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    const fetchClassroomAndTemas = async () => {
-      // 1. Obtener classroom
-      const { data: classroomData, error: classroomError } = await supabase
-        .from('classrooms')
-        .select('id, grade, school_id')
-        .eq('id', classroomId)
-        .single()
+    const fetchData = async () => {
+      // Fetch temas assigned to this classroom
+      const { data } = await supabase
+        .from("edu_classroom_temas")
+        .select(`
+          tema:edu_temas (
+            id,
+            area:edu_areas ( name ),
+            subblock:edu_academic_subblocks ( name )
+          )
+        `)
+        .eq("classroom_id", classroomId)
+        .eq("active", true)
 
-      if (classroomError || !classroomData) {
-        console.error('Error al traer el classroom:', classroomError)
-        setLoading(false)
-        return
+      if (data) {
+        setTemas(data.map((t: any) => ({
+          id: t.tema.id,
+          areaName: t.tema.area?.name || "Area",
+          subblockName: t.tema.subblock?.name || "Sub-bloque",
+        })))
       }
-
-      setClassroom(classroomData)
-
-      // 2. Obtener periodo activo (último insertado por ahora)
-      const { data: periodos } = await supabase
-        .from('periodo')
-        .select('id')
-        .order('fecha_inicio', { ascending: false })
-        .limit(1)
-
-      const currentPeriodoId = periodos?.[0]?.id
-      setPeriodoId(currentPeriodoId)
-
-      // 3. Obtener temas válidos para ese grado, colegio y periodo
-      const { data: temasData, error: temasError } = await supabase
-        .from('tema_periodo')
-        .select('id, tema')
-        .eq('school_id', classroomData.school_id)
-        .eq('grado', classroomData.grade)
-        .eq('periodo_id', currentPeriodoId)
-
-      if (temasError) {
-        console.error('Error al traer temas:', temasError)
-      } else {
-        setTemas(temasData || [])
-      }
-
       setLoading(false)
     }
-
-    fetchClassroomAndTemas()
-  }, [classroomId, supabase])
+    fetchData()
+  }, [classroomId])
 
   const handleCreate = async () => {
     if (!selectedTemaId) return
+    setSaving(true)
 
-    const tema = temas.find((t) => t.id === selectedTemaId)
-    if (!tema) return
+    const tema = temas.find(t => t.id === selectedTemaId)
 
-    const { error } = await supabase.from('quizzes').insert([
+    // Fetch classroom grade if needed for quizzes table
+    const { data: cls } = await supabase
+      .from("edu_classrooms")
+      .select("grade")
+      .eq("id", classroomId)
+      .single()
+
+    const { error } = await supabase.from("quizzes").insert([
       {
-        title: tema.tema,
-        description: description,
+        title: tema ? `${tema.areaName} - ${tema.subblockName}` : "Examen",
+        description,
         classroom_id: classroomId,
-        grade_target: classroom?.grade,
-      },
+        grade_target: cls?.grade
+      }
     ])
 
-    if (error) {
-      setMessage('❌ Error al crear examen')
+    if (!error) {
+      router.push(`/dashboard/teacher/classroom/${classroomId}/exams`)
     } else {
-      setMessage('✅ Examen creado correctamente')
-      setTimeout(() => {
-        router.push(`/classroom/${classroomId}/exams`)
-      }, 1500)
+      console.error(error)
+      setSaving(false)
     }
   }
 
-  if (loading) {
-    return <div className="p-6">Cargando...</div>
-  }
-
   return (
-    <div className="min-h-screen p-6 bg-background text-foreground max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6 text-primary">Nuevo Examen</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="Nuevo Examen"
+        breadcrumbs={[
+          { label: "Mis Clases", href: "/dashboard/teacher" },
+          { label: "Aula", href: `/dashboard/teacher/classroom/${classroomId}` },
+          { label: "Exámenes", href: `/dashboard/teacher/classroom/${classroomId}/exams` },
+          { label: "Nuevo" },
+        ]}
+      />
 
-      <div className="space-y-4">
-        <label className="block">
-          <span className="text-sm text-muted-foreground">Selecciona un tema</span>
+      <div className="max-w-xl bg-card border rounded-xl p-6 space-y-6">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Area</label>
           <select
             value={selectedTemaId}
             onChange={(e) => setSelectedTemaId(e.target.value)}
-            className="w-full p-2 border border-border rounded-lg bg-input mt-1"
+            className="w-full p-2 rounded-md border bg-background"
+            disabled={loading}
           >
-            <option value="">-- Elige un tema --</option>
-            {temas.map((tema) => (
-              <option key={tema.id} value={tema.id}>
-                {tema.tema}
-              </option>
+            <option value="">Selecciona un area</option>
+            {temas.map((t) => (
+              <option key={t.id} value={t.id}>{t.areaName} - {t.subblockName}</option>
             ))}
           </select>
-        </label>
+        </div>
 
-        <label className="block">
-          <span className="text-sm text-muted-foreground">Descripción del examen (opcional)</span>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Descripción (Opcional)</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full p-2 border border-border rounded-lg bg-input mt-1"
+            className="w-full p-2 rounded-md border bg-background min-h-[100px]"
+            placeholder="Instrucciones para el examen..."
           />
-        </label>
+        </div>
 
-        <button
-          onClick={handleCreate}
-          disabled={!selectedTemaId}
-          className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition"
-        >
-          ✅ Crear examen
-        </button>
-
-        {message && <p className="text-sm mt-2">{message}</p>}
+        <div className="flex justify-end">
+          <Button onClick={handleCreate} disabled={!selectedTemaId || saving}>
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? "Guardando..." : "Crear Examen"}
+          </Button>
+        </div>
       </div>
     </div>
   )

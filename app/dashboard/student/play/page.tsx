@@ -21,7 +21,6 @@ type Row = {
   subblock_order: number
 
   tema_id: string
-  tema_name: string
   tema_order: number
 
   exercise_id: string
@@ -35,7 +34,8 @@ type Exercise = {
 
 type Tema = {
   id: string
-  name: string
+  areaName: string
+  subblockName: string
   exercises: Exercise[]
 }
 
@@ -86,6 +86,24 @@ export default function StudentDashboardPage() {
         return
       }
 
+      const temaIds = Array.from(new Set(data.map((r: Row) => r.tema_id)))
+      const { data: temasData } = await supabase
+        .from('edu_temas')
+        .select(`
+          id,
+          area:edu_areas ( name ),
+          subblock:edu_academic_subblocks ( name )
+        `)
+        .in('id', temaIds)
+
+      const temaMeta = new Map<string, { areaName: string; subblockName: string }>()
+      temasData?.forEach((t: any) => {
+        temaMeta.set(t.id, {
+          areaName: t.area?.name || 'Area',
+          subblockName: t.subblock?.name || 'Sub-bloque',
+        })
+      })
+
       const blockMap = new Map<string, Block>()
 
       data.forEach((r: Row) => {
@@ -121,9 +139,11 @@ export default function StudentDashboardPage() {
         ========================= */
         let tema = sub.temas.find(t => t.id === r.tema_id)
         if (!tema) {
+          const meta = temaMeta.get(r.tema_id)
           tema = {
             id: r.tema_id,
-            name: r.tema_name,
+            areaName: meta?.areaName || 'Area',
+            subblockName: meta?.subblockName || r.subblock_name,
             exercises: [],
           }
           sub.temas.push(tema)
@@ -212,7 +232,10 @@ export default function StudentDashboardPage() {
                     key={tema.id}
                     className="rounded-xl border bg-background p-4 space-y-4"
                   >
-                    <h4 className="font-semibold">{tema.name}</h4>
+                    <div className="space-y-1">
+                      <h4 className="font-semibold">{tema.areaName}</h4>
+                      <p className="text-sm text-muted-foreground">{tema.subblockName}</p>
+                    </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                       {tema.exercises.map(ex => (

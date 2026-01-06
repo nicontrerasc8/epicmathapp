@@ -65,16 +65,6 @@ export function ExerciseShell({
 
         {/* Botones */}
         <div className="flex items-center justify-center gap-4">
-          {!isFinished && onVerify && (
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={onVerify}
-              className="px-6 py-2 rounded-lg shadow bg-primary text-primary-foreground hover:opacity-90"
-            >
-              Verificar
-            </motion.button>
-          )}
-
           {isFinished && onNext && (
             <motion.button
               whileTap={{ scale: 0.97 }}
