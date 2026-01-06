@@ -20,6 +20,9 @@ interface ClassroomTema {
     area?: {
       name: string
     } | null
+    subblock?: {
+      name: string
+    } | null
   }
 }
 
@@ -63,7 +66,8 @@ export default function ClassroomTemasPage() {
           tema:edu_temas (
             name,
             description,
-            area:edu_areas ( name )
+            area:edu_areas ( name ),
+            subblock:edu_academic_subblocks ( name )
           )
         `)
         .eq("classroom_id", classroomId)
@@ -116,7 +120,7 @@ export default function ClassroomTemasPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por area o tema..."
+              placeholder="Buscar por area o sub-bloque..."
             />
           </div>
           <div className="flex items-center gap-2">

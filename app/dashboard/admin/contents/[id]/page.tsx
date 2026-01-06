@@ -22,6 +22,12 @@ export default async function TemaDetailPage({
 
     if (!tema) notFound()
 
+    const normalizedTema = {
+        ...tema,
+        area: Array.isArray(tema.area) ? tema.area[0] : tema.area,
+        subblock: Array.isArray(tema.subblock) ? tema.subblock[0] : tema.subblock,
+    }
+
     const { data: exercises } = await supabase
         .from("edu_exercise_assignments")
         .select(`
@@ -43,5 +49,5 @@ export default async function TemaDetailPage({
         }
     })
 
-    return <ExercisesClient tema={tema} exercises={rows} />
+    return <ExercisesClient tema={normalizedTema} exercises={rows} />
 }
