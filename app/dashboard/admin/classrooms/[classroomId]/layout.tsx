@@ -1,14 +1,15 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
-export default function ClassroomLayout({
+export default async function ClassroomLayout({
   children,
   params,
 }: {
   children: React.ReactNode
-  params: { classroomId: string }
+  params: Promise<{ classroomId: string }>
 }) {
-  const base = `/dashboard/admin/classrooms/${params.classroomId}`
+  const { classroomId } = await params
+  const base = `/dashboard/admin/classrooms/${classroomId}`
 
   return (
     <div className="space-y-4">
