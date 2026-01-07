@@ -509,7 +509,7 @@ export default function ContentsAdminClient({
                                     return
                                 }
                                 if (!Number.isFinite(year)) {
-                                    setBlockMessage({ type: "error", text: "El anio academico es obligatorio." })
+                                    setBlockMessage({ type: "error", text: "El año academico es obligatorio." })
                                     return
                                 }
                                 try {
@@ -569,7 +569,7 @@ export default function ContentsAdminClient({
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">Anio academico</label>
+                                <label className="text-sm font-medium">Año academico</label>
                                 <Input
                                     type="number"
                                     value={blockForm.academic_year}

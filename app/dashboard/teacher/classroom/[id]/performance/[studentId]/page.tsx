@@ -27,11 +27,11 @@ export default function StudentPerformanceDetailPage() {
   const [temaFilter, setTemaFilter] = useState<string>('__ALL__')
   const [resultFilter, setResultFilter] = useState<'__ALL__' | 'true' | 'false'>('__ALL__')
 
-  // ---- paginaciÃ³n intentos
+  // ---- paginacií³n intentos
   const [page, setPage] = useState(1)
   const pageSize = 15
 
-  // ---- resumen rÃ¡pido
+  // ---- resumen rí¡pido
   const resumen = useMemo(() => {
     const total = rows.length
     const correctos = rows.filter((r: AnyRec) => !!r.es_correcto).length
@@ -93,7 +93,7 @@ export default function StudentPerformanceDetailPage() {
     })
   }, [rows, temaFilter, resultFilter])
 
-  // ---- orden y paginaciÃ³n simple para recientes
+  // ---- orden y paginacií³n simple para recientes
   const recentSorted = useMemo(() => {
     const arr = [...filtered]
     arr.sort((a: AnyRec, b: AnyRec) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -156,7 +156,7 @@ export default function StudentPerformanceDetailPage() {
     const detalle = filtered.map((r: any) => ({
       fecha: new Date(r.created_at).toLocaleString(),
       tema: r.tema,
-      correcto: r.es_correcto ? 'SÃ­' : 'No',
+      correcto: r.es_correcto ? 'Sí' : 'No',
     }))
 
     // 2) Resumen por tema
@@ -173,7 +173,7 @@ export default function StudentPerformanceDetailPage() {
     XLSX.utils.book_append_sheet(wb, ws1, 'Detalle')
     XLSX.utils.book_append_sheet(wb, ws2, 'Resumen_tema')
 
-    // anchos bÃ¡sicos
+    // anchos bí¡sicos
     ws1['!cols'] = [{ wch: 19 }, { wch: 22 }, { wch: 10 }]
     ws2['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 12 }]
 
@@ -181,7 +181,7 @@ export default function StudentPerformanceDetailPage() {
     try {
       XLSX.writeFile(wb, `reporte_estudiante_${studentId}.xlsx`)
     } catch {
-      // fallback por si algÃºn navegador bloquea writeFile
+      // fallback por si algíºn navegador bloquea writeFile
       const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
       const blob = new Blob([buf], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -225,7 +225,7 @@ export default function StudentPerformanceDetailPage() {
         {/* Header */}
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-1">ðŸ“ Detalle de ejercicios</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-1">Detalle de ejercicios</h1>
             <p className="text-muted-foreground text-sm">Rendimiento del estudiante por tema</p>
           </div>
           <div className="flex gap-2">
@@ -234,7 +234,7 @@ export default function StudentPerformanceDetailPage() {
               onClick={exportExcel}
               className="px-4 py-2 rounded-xl border bg-accent text-accent-foreground hover:brightness-105"
             >
-              â¬‡ï¸ Exportar Excel
+              Exportar Excel
             </button>
           </div>
         </div>
@@ -294,12 +294,12 @@ export default function StudentPerformanceDetailPage() {
             </div>
           </div>
 
-          {/* accesos rÃ¡pidos */}
+          {/* accesos rí¡pidos */}
           <div className="flex flex-wrap gap-2 mt-3">
             {[
-              { label: '7 dÃ­as', d: 6 },
-              { label: '14 dÃ­as', d: 13 },
-              { label: '30 dÃ­as', d: 29 },
+              { label: '7 días', d: 6 },
+              { label: '14 días', d: 13 },
+              { label: '30 días', d: 29 },
             ].map((q) => (
               <button
                 key={q.label}
@@ -325,9 +325,9 @@ export default function StudentPerformanceDetailPage() {
         ) : (
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-              <Card icon="ðŸ“Š" label="Ejercicios" value={resumen.total} />
-              <Card icon="âœ…" label="Correctos" value={resumen.correctos} color="text-green-600" />
-              <Card icon="âŒ" label="Incorrectos" value={resumen.incorrectos} color="text-red-500" />
+              <Card icon="" label="Ejercicios" value={resumen.total} />
+              <Card icon="" label="Correctos" value={resumen.correctos} color="text-green-600" />
+              <Card icon="" label="Incorrectos" value={resumen.incorrectos} color="text-red-500" />
             </div>
 
 
@@ -362,7 +362,7 @@ export default function StudentPerformanceDetailPage() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-foreground">Intentos recientes</h3>
                 <div className="text-xs text-muted-foreground">
-                  {recentSorted.length} resultados â€¢ pÃ¡gina {page} de {totalPages}
+                  {recentSorted.length} resultados página {page} de {totalPages}
                 </div>
               </div>
 
@@ -396,14 +396,14 @@ export default function StudentPerformanceDetailPage() {
                 </div>
               )}
 
-              {/* paginaciÃ³n */}
+              {/* paginacií³n */}
               <div className="flex items-center justify-between mt-3">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   className="px-3 py-1.5 rounded-lg border bg-white hover:bg-input disabled:opacity-50"
                   disabled={page <= 1}
                 >
-                  â† Anterior
+                  Anterior
                 </button>
                 <div className="text-xs text-muted-foreground">
                   Mostrando {pageRows.length} de {recentSorted.length}
@@ -413,7 +413,7 @@ export default function StudentPerformanceDetailPage() {
                   className="px-3 py-1.5 rounded-lg border bg-white hover:bg-input disabled:opacity-50"
                   disabled={page >= totalPages}
                 >
-                  Siguiente â†’
+                  Siguiente
                 </button>
               </div>
             </div>

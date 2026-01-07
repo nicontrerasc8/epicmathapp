@@ -74,7 +74,7 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
         <div className="space-y-8">
             <PageHeader
                 title={gradeLabel}
-                description={`${classroom.institution.name} - Ano ${classroom.academic_year}`}
+                description={`${classroom.institution.name} - Año ${classroom.academic_year}`}
                 badge={{
                     label: classroom.active ? "Activo" : "Inactivo",
                     variant: classroom.active ? "success" : "default",
