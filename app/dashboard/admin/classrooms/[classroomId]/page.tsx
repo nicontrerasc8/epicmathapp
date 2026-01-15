@@ -13,9 +13,13 @@ async function getClassroomData(classroomId: string) {
       id,
       grade,
       section,
+      grade_id,
+      section_id,
       academic_year,
       active,
-      edu_institutions ( id, name, type )
+      edu_institutions ( id, name, type ),
+      edu_institution_grades ( id, name, level, grade_num, code ),
+      edu_grade_sections ( id, name, code )
     `)
     .eq("id", classroomId)
     .single()
