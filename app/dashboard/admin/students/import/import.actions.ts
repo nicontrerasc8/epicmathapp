@@ -26,13 +26,34 @@ export async function importUsersAction(rows: Row[]) {
 
   for (const row of rows) {
     try {
-      const password =
-        row.password || crypto.randomBytes(6).toString("hex")
+      const email = row.email?.trim().toLowerCase()
+      const firstName = row.first_name?.trim()
+      const lastName = row.last_name?.trim()
+      const role = row.role?.trim().toLowerCase() as Row["role"] | undefined
+      const institutionId = row.institution_id?.trim()
+
+      if (!email || !firstName || !lastName || !institutionId || !role) {
+        report.failed.push({
+          email: row.email,
+          error: "Campos requeridos faltantes",
+        })
+        continue
+      }
+
+      if (role !== "student" && role !== "teacher") {
+        report.failed.push({
+          email,
+          error: "Role invalido (student o teacher)",
+        })
+        continue
+      }
+
+      const password = row.password || crypto.randomBytes(6).toString("hex")
 
       // 1️⃣ Crear Auth user
       const { data: auth, error: authErr } =
         await supabaseAdmin.auth.admin.createUser({
-          email: row.email,
+          email,
           password,
           email_confirm: true,
         })
@@ -42,23 +63,25 @@ export async function importUsersAction(rows: Row[]) {
       const userId = auth.user.id
 
       // 2️⃣ Perfil
-      await supabaseAdmin.from("edu_profiles").insert({
+      const { error: profileErr } = await supabaseAdmin.from("edu_profiles").insert({
         id: userId,
-        first_name: row.first_name,
-        last_name: row.last_name,
-        global_role: row.role,
+        first_name: firstName,
+        last_name: lastName,
+        global_role: role,
       })
+      if (profileErr) throw profileErr
 
       // 3️⃣ Membresía
-      await supabaseAdmin.from("edu_institution_members").insert({
+      const { error: memberErr } = await supabaseAdmin.from("edu_institution_members").insert({
         profile_id: userId,
-        institution_id: row.institution_id,
+        institution_id: institutionId,
         classroom_id: row.classroom_id ?? null,
-        role: row.role,
+        role,
       })
+      if (memberErr) throw memberErr
 
       report.created.push({
-        email: row.email,
+        email,
         password,
       })
     } catch (err: any) {

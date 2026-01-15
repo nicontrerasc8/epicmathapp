@@ -120,8 +120,11 @@ const columns: ColumnDef<Classroom>[] = [
     header: "Institución",
     sortable: true,
     render: (_, row) => (
-      <div className="font-medium">
-        {getInstitutionName(row)}
+      <div>
+        <div className="font-medium">{getInstitutionName(row)}</div>
+        <div className="text-xs text-muted-foreground font-mono">
+          {row.institution_id || "Sin ID"}
+        </div>
       </div>
     ),
   },
@@ -148,6 +151,16 @@ const columns: ColumnDef<Classroom>[] = [
     sortable: true,
     render: (value) => (
       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted">
+        {value}
+      </span>
+    ),
+  },
+  {
+    key: "id",
+    header: "ID",
+    width: "220px",
+    render: (value) => (
+      <span className="text-xs text-muted-foreground font-mono">
         {value}
       </span>
     ),
@@ -616,3 +629,4 @@ export default function ClassroomsTable() {
     </div>
   )
 }
+
