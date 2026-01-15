@@ -25,9 +25,19 @@ type EduMember = {
   created_at: string
 }
 
+type StudentSession = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  username: string | null
+  classroom_id: string | null
+  institution_id: string | null
+}
+
 export default function NavbarUser() {
   const [profile, setProfile] = useState<EduProfile | null>(null)
   const [member, setMember] = useState<EduMember | null>(null)
+  const [studentSession, setStudentSession] = useState<StudentSession | null>(null)
   const [role, setRole] = useState<Role>(null)
   const [loading, setLoading] = useState(true)
 
@@ -41,6 +51,29 @@ export default function NavbarUser() {
     const fetchUser = async () => {
       setLoading(true)
 
+      const studentRes = await fetch('/api/student/session', {
+        method: 'GET',
+        credentials: 'include',
+      })
+
+      if (studentRes.ok) {
+        const data = await studentRes.json()
+        const student = data.student as StudentSession | null
+        if (student) {
+          setStudentSession(student)
+          setProfile({
+            id: student.id,
+            first_name: student.first_name ?? '',
+            last_name: student.last_name ?? '',
+            global_role: 'student',
+          })
+          setMember(null)
+          setRole('student')
+          setLoading(false)
+          return
+        }
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -48,8 +81,8 @@ export default function NavbarUser() {
       if (!user) {
         setProfile(null)
         setMember(null)
+        setStudentSession(null)
         setRole(null)
-        localStorage.removeItem('student')
         setLoading(false)
         return
       }
@@ -86,23 +119,7 @@ export default function NavbarUser() {
       setProfile((p as EduProfile) ?? null)
       setMember((m as EduMember) ?? null)
       setRole(resolvedRole)
-
-      // ✅ Guardar “student” en localStorage (como lo usas en otras partes)
-      if (resolvedRole === 'student') {
-        localStorage.setItem(
-          'student',
-          JSON.stringify({
-            id: user.id,
-            first_name: p?.first_name ?? '',
-            last_name: p?.last_name ?? '',
-            classroom_id: m?.classroom_id ?? null,
-            institution_id: m?.institution_id ?? null,
-          })
-        )
-      } else {
-        localStorage.removeItem('student')
-      }
-
+      setStudentSession(null)
       setLoading(false)
     }
 
@@ -111,10 +128,14 @@ export default function NavbarUser() {
   }, [pathname])
 
   const logout = async () => {
-    await supabase.auth.signOut()
-    localStorage.removeItem('student')
+    if (role === 'student') {
+      await fetch('/api/student/logout', { method: 'POST' })
+    } else {
+      await supabase.auth.signOut()
+    }
     setProfile(null)
     setMember(null)
+    setStudentSession(null)
     setRole(null)
     router.push('/sign-in')
   }

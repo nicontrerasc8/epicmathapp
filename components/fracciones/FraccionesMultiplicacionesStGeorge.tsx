@@ -13,6 +13,7 @@ import { insertStudentResponse } from '../insertStudentResponse'
 import { updateNivelStudentPeriodo } from '../updateNivelStudentPeriodo'
 import { getNivelStudentPeriodo } from '../getNivelStudent'
 import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
+import { fetchStudentSession } from '@/lib/student-session-client'
 
 const supabase = createClient()
 const temaPeriodoId = '4f098735-8cea-416a-be52-12e91adbba23'
@@ -409,49 +410,27 @@ export function FraccionesMultiplicacionStGeorgeGame() {
 useEffect(() => {
   const supabase = createClient()
 
-  const syncStudentFromAuth = async () => {
-  const { data } = await supabase.auth.getUser()
-  const user = data?.user
-  if (!user) return
+  const syncStudentFromSession = async () => {
+    const session = await fetchStudentSession()
+    if (!session?.id) return
 
-  // Guardamos el user en estado (por si lo necesitas después)
-  setStudent(user)
+    const { data: studentData, error: studentError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('id', session.id)
+      .maybeSingle()
 
-  // 🔥 Buscar el registro del estudiante vinculado al auth.user.id
-  const { data: studentData, error: studentError } = await supabase
-    .from('students')
-    .select('*')
-    .eq('id', user.id) // <-- cambio clave aquí
-    .maybeSingle()
-
-  if (studentError) {
-    console.error('❌ Error obteniendo student:', studentError)
-    return
-  }
-
-  if (studentData) {
-    setStudent(studentData)
-    console.log('✅ Student sincronizado desde Supabase Auth:', studentData)
-  } else {
-    console.warn('⚠️ No se encontró registro en students para este user.id')
-  }
-}
-
-
-  syncStudentFromAuth()
-
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    if (session?.user) {
-      setStudent(session.user)
-      syncStudentFromAuth()
-    } else {
-      setStudent(null)
+    if (studentError) {
+      console.error('Error obteniendo student:', studentError)
+      return
     }
-  })
 
-  return () => subscription.unsubscribe()
+    if (studentData) {
+      setStudent(studentData)
+    }
+  }
+
+  syncStudentFromSession()
 }, [])
 useEffect(() => {
   if (!student?.id) return
@@ -827,3 +806,4 @@ const decidirNivel = (
     </>
   )
 }
+

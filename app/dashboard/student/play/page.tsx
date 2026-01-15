@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { fetchStudentSession } from '@/lib/student-session-client'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 
@@ -65,8 +66,8 @@ export default function StudentDashboardPage() {
     const load = async () => {
       setLoading(true)
 
-      const { data: auth } = await supabase.auth.getUser()
-      if (!auth?.user) {
+      const studentSession = await fetchStudentSession()
+      if (!studentSession?.id) {
         setLoading(false)
         return
       }
@@ -74,7 +75,7 @@ export default function StudentDashboardPage() {
       const { data, error } = await supabase
         .from('edu_v_student_practice_screen')
         .select('*')
-        .eq('profile_id', auth.user.id)
+        .eq('profile_id', studentSession.id)
         .order('block_order')
         .order('subblock_order')
         .order('tema_order')

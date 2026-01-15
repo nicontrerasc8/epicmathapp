@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { fetchStudentSession } from '@/lib/student-session-client'
 import type { TemaPeriodoRow, StudentPeriodoRow } from './types'
 
 export function useTemaPeriodo(temaPeriodoId: any) {
@@ -18,14 +19,13 @@ export function useTemaPeriodo(temaPeriodoId: any) {
     ;(async () => {
       setLoading(true)
 
-      const { data: userRes } = await supabase.auth.getUser()
-      const user = userRes?.user
-      if (!user) {
+      const studentSession = await fetchStudentSession()
+      if (!studentSession) {
         setLoading(false)
         return
       }
 
-      setStudentId(user.id)
+      setStudentId(studentSession.id)
 
       const { data: tp } = await supabase
         .from('tema_periodo')
@@ -38,7 +38,7 @@ export function useTemaPeriodo(temaPeriodoId: any) {
       let { data: sp } = await supabase
         .from('student_periodo')
         .select('*')
-        .eq('student_id', user.id)
+        .eq('student_id', studentSession.id)
         .eq('tema_periodo_id', temaPeriodoId)
         .maybeSingle()
 
@@ -46,7 +46,7 @@ export function useTemaPeriodo(temaPeriodoId: any) {
         const { data: created } = await supabase
           .from('student_periodo')
           .insert({
-            student_id: user.id,
+            student_id: studentSession.id,
             tema_periodo_id: temaPeriodoId,
             nivel: 1,
             theta: 0,

@@ -9,6 +9,7 @@ import { insertStudentResponse } from '../insertStudentResponse'
 import { updateNivelStudentPeriodo } from '../updateNivelStudentPeriodo'
 import { getNivelStudentPeriodo } from '../getNivelStudent'
 import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
+import { fetchStudentSession } from '@/lib/student-session-client'
 
 const supabase = createClient()
 const temaPeriodoId = '4a389b1d-22c6-4a1a-b786-ae4ccaa7899f' // ⚡ Ecuaciones
@@ -124,9 +125,9 @@ export function EcuacionesParametrosGame() {
 
   useEffect(() => {
     const init = async () => {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user?.user) return
-      const st = await supabase.from('students').select('*').eq('id', user.user.id).single()
+      const session = await fetchStudentSession()
+      if (!session?.id) return
+      const st = await supabase.from('students').select('*').eq('id', session.id).single()
       if (!st.data) return
       setStudent(st.data)
       const nivelDB = await getNivelStudentPeriodo(st.data.id, temaPeriodoId)

@@ -8,6 +8,7 @@ import { insertStudentResponse } from '../insertStudentResponse'
 import { updateNivelStudentPeriodo } from '../updateNivelStudentPeriodo'
 import { getNivelStudentPeriodo } from '../getNivelStudent'
 import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
+import { fetchStudentSession } from '@/lib/student-session-client'
 
 const supabase = createClient()
 const temaPeriodoId = '064afa72-0bcf-4b82-9f81-8f88e502f26f' // ⚡ Trabajo y Energía
@@ -137,313 +138,21 @@ function DiagramaCanvas({ canvas }: { canvas: Pregunta['meta']['canvas'] }) {
   const W = 540, H = 240, pad = 36
 
   useEffect(() => {
-    if (!canvas) return
-    const cvs = ref.current
-    if (!cvs) return
-    const ctx = cvs.getContext('2d')
-    if (!ctx) return
-
-    ctx.clearRect(0, 0, W, H)
-    ctx.fillStyle = '#F9FAFB'
-    ctx.fillRect(0, 0, W, H)
-
-    if (canvas.kind === 'horizontal') {
-      // Dibujar plano horizontal
-      const floorY = H - pad - 20
-      
-      // Suelo
-      ctx.strokeStyle = '#64748B'
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.moveTo(pad, floorY)
-      ctx.lineTo(W - pad, floorY)
-      ctx.stroke()
-
-      // Bloque
-      const blockX = pad + 80
-      const blockY = floorY - 40
-      ctx.fillStyle = '#3B82F6'
-      ctx.fillRect(blockX, blockY, 50, 40)
-      ctx.strokeStyle = '#1E40AF'
-      ctx.lineWidth = 2
-      ctx.strokeRect(blockX, blockY, 50, 40)
-
-      // Fuerza (flecha)
-      ctx.strokeStyle = '#EF4444'
-      ctx.fillStyle = '#EF4444'
-      ctx.lineWidth = 3
-      const arrowX = blockX + 50
-      const arrowY = blockY + 20
-      const arrowLen = 80
-      
-      // Línea
-      ctx.beginPath()
-      ctx.moveTo(arrowX, arrowY)
-      ctx.lineTo(arrowX + arrowLen, arrowY)
-      ctx.stroke()
-      
-      // Punta
-      ctx.beginPath()
-      ctx.moveTo(arrowX + arrowLen, arrowY)
-      ctx.lineTo(arrowX + arrowLen - 10, arrowY - 6)
-      ctx.lineTo(arrowX + arrowLen - 10, arrowY + 6)
-      ctx.closePath()
-      ctx.fill()
-
-      // Etiquetas
-      ctx.fillStyle = '#111827'
-      ctx.font = 'bold 14px system-ui'
-      ctx.fillText('F', arrowX + arrowLen + 10, arrowY + 5)
-      
-      ctx.font = '13px system-ui'
-      ctx.fillText(`F = ${canvas.F} N`, W - 120, pad + 20)
-      ctx.fillText(`d = ${canvas.d} m`, W - 120, pad + 40)
-      ctx.fillText(`m = ${canvas.m} kg`, W - 120, pad + 60)
-
-      // Flecha de distancia (abajo)
-      ctx.strokeStyle = '#6B7280'
-      ctx.fillStyle = '#6B7280'
-      ctx.lineWidth = 1
-      const distY = floorY + 25
-      ctx.beginPath()
-      ctx.moveTo(blockX, distY)
-      ctx.lineTo(blockX + 200, distY)
-      ctx.stroke()
-      // Marcas
-      ctx.beginPath()
-      ctx.moveTo(blockX, distY - 5)
-      ctx.lineTo(blockX, distY + 5)
-      ctx.moveTo(blockX + 200, distY - 5)
-      ctx.lineTo(blockX + 200, distY + 5)
-      ctx.stroke()
-      ctx.font = '12px system-ui'
-      ctx.fillText('d', blockX + 95, distY - 8)
-
-    } else if (canvas.kind === 'rampa') {
-      // Dibujar rampa inclinada
-      const θ = canvas.θ ?? 30
-      const rad = toRad(θ)
-      const rampLen = 280
-      const startX = pad + 40
-      const startY = H - pad - 20
-      const endX = startX + rampLen * Math.cos(rad)
-      const endY = startY - rampLen * Math.sin(rad)
-
-      // Rampa
-      ctx.strokeStyle = '#64748B'
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.moveTo(startX, startY)
-      ctx.lineTo(endX, endY)
-      ctx.stroke()
-
-      // Suelo
-      ctx.beginPath()
-      ctx.moveTo(pad, startY)
-      ctx.lineTo(W - pad, startY)
-      ctx.stroke()
-
-      // Bloque en la rampa
-      const blockPos = 0.35
-      const blockX = startX + rampLen * blockPos * Math.cos(rad)
-      const blockY = startY - rampLen * blockPos * Math.sin(rad)
-      
-      ctx.save()
-      ctx.translate(blockX, blockY)
-      ctx.rotate(-rad)
-      ctx.fillStyle = '#3B82F6'
-      ctx.fillRect(-20, -20, 40, 40)
-      ctx.strokeStyle = '#1E40AF'
-      ctx.lineWidth = 2
-      ctx.strokeRect(-20, -20, 40, 40)
-      ctx.restore()
-
-      // Peso (vector hacia abajo)
-      ctx.strokeStyle = '#EF4444'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.moveTo(blockX, blockY)
-      ctx.lineTo(blockX, blockY + 45)
-      ctx.stroke()
-      // Punta
-      ctx.fillStyle = '#EF4444'
-      ctx.beginPath()
-      ctx.moveTo(blockX, blockY + 45)
-      ctx.lineTo(blockX - 4, blockY + 38)
-      ctx.lineTo(blockX + 4, blockY + 38)
-      ctx.closePath()
-      ctx.fill()
-
-      ctx.fillStyle = '#111827'
-      ctx.font = '12px system-ui'
-      ctx.fillText('mg', blockX + 8, blockY + 35)
-
-      // Fricción si aplica
-      if ((canvas.μ ?? 0) > 0) {
-        ctx.strokeStyle = '#F59E0B'
-        ctx.lineWidth = 2
-        ctx.save()
-        ctx.translate(blockX, blockY)
-        ctx.rotate(-rad)
-        ctx.beginPath()
-        ctx.moveTo(20, 0)
-        ctx.lineTo(-20, 0)
-        ctx.stroke()
-        ctx.restore()
-        
-        ctx.fillStyle = '#92400E'
-        ctx.font = '11px system-ui'
-        ctx.fillText('f', blockX - 35, blockY - 8)
-      }
-
-      // Altura (línea vertical punteada)
-      ctx.strokeStyle = '#9CA3AF'
-      ctx.lineWidth = 1
-      ctx.setLineDash([4, 4])
-      ctx.beginPath()
-      ctx.moveTo(endX, endY)
-      ctx.lineTo(endX, startY)
-      ctx.stroke()
-      ctx.setLineDash([])
-      
-      ctx.fillStyle = '#6B7280'
-      ctx.font = '12px system-ui'
-      ctx.fillText('h', endX + 5, (endY + startY) / 2)
-
-      // Ángulo
-      ctx.strokeStyle = '#6B7280'
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      ctx.arc(startX, startY, 30, -rad, 0)
-      ctx.stroke()
-      ctx.fillText(`${θ}°`, startX + 35, startY - 8)
-
-      // Info
-      ctx.fillStyle = '#111827'
-      ctx.font = '13px system-ui'
-      ctx.fillText(`θ = ${θ}°`, W - 110, pad + 20)
-      if ((canvas.μ ?? 0) > 0) {
-        ctx.fillText(`μ = ${canvas.μ}`, W - 110, pad + 40)
-      }
-      ctx.fillText(`m = ${canvas.m} kg`, W - 110, pad + 60)
-      ctx.fillText(`g = ${canvas.g} m/s²`, W - 110, pad + 80)
-    }
-  }, [canvas])
-
-  if (!canvas) return null
-  return <canvas ref={ref} width={W} height={H} className="rounded-lg border border-border bg-gradient-to-br from-gray-50 to-gray-100 shadow-sm" />
-}
-
-// ===== Barras de energía mejoradas =====
-type Energies = {
-  Ep_i: number
-  Ec_i: number
-  Em_i: number
-  Ep_f: number
-  Ec_f: number
-  Em_f: number
-  W_f?: number
-  W_aplicado?: number
-}
-
-function computeEnergies(meta: Pregunta['meta']): Energies {
-  if (meta.tipo === 'horizontal') {
-    const W = (meta.F ?? 0) * (meta.d ?? 0)
-    return { 
-      Ep_i: 0, 
-      Ec_i: 0, 
-      Em_i: 0, 
-      Ep_f: 0, 
-      Ec_f: W, 
-      Em_f: W, 
-      W_aplicado: W 
-    }
+  const init = async () => {
+    const session = await fetchStudentSession()
+    if (!session?.id) return
+    const st = await supabase.from('students').select('*').eq('id', session.id).single()
+    if (!st.data) return
+    setStudent(st.data)
+    const nivelDB = await getNivelStudentPeriodo(st.data.id, temaPeriodoId)
+    const n = (nivelDB ?? 1) as Nivel
+    setNivel(n)
+    setPregunta(generarPregunta(n))
+    reset(); start()
   }
-  if (meta.tipo === 'sin_friccion') {
-    const m = meta.m ?? 0
-    const h = meta.h ?? 0
-    const g = meta.g ?? 10
-    const Ep_i = m * g * h
-    return { 
-      Ep_i, 
-      Ec_i: 0, 
-      Em_i: Ep_i, 
-      Ep_f: 0, 
-      Ec_f: Ep_i, 
-      Em_f: Ep_i 
-    }
-  }
-  const m = meta.m ?? 0
-  const h = meta.h ?? 0
-  const g = meta.g ?? 10
-  const θ = toRad(meta.θ ?? 0)
-  const μ = meta.μ ?? 0
-  const d = meta.d ?? 0
-  const Ep_i = m * g * h
-  const Wf = μ * m * g * Math.cos(θ) * d
-  const Ec_f = Math.max(0, Ep_i - Wf)
-  return { 
-    Ep_i, 
-    Ec_i: 0, 
-    Em_i: Ep_i, 
-    Ep_f: 0, 
-    Ec_f, 
-    Em_f: Ec_f, 
-    W_f: Wf 
-  }
-}
-
-function EnergyBars({ Ep_i, Ec_i, Em_i, Ep_f, Ec_f, Em_f, W_f, W_aplicado }: Energies) {
-  const [show, setShow] = useState(false)
-  
-  useEffect(() => {
-    setShow(false)
-    const t = setTimeout(() => setShow(true), 100)
-    return () => clearTimeout(t)
-  }, [Ep_i, Ec_i, Ep_f, Ec_f])
-
-  const max = Math.max(Em_i, Em_f, 10)
-  const pct = (v: number) => Math.max(2, Math.min(100, (v / max) * 100))
-
-  return (
-    <div className="w-full max-w-2xl mx-auto">
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Inicial */}
-       
-
-        {/* Final */}
-       
-      </div>
-    </div>
-  )
-}
-
-// ===== Componente principal =====
-export function TrabajoEnergiaGame() {
-  const [nivel, setNivel] = useState<Nivel>(1)
-  const [pregunta, setPregunta] = useState<Pregunta | null>(null)
-  const [respuesta, setRespuesta] = useState('')
-  const [aciertos, setAciertos] = useState(0)
-  const [errores, setErrores] = useState(0)
-  const { elapsedSeconds, start, reset } = useQuestionTimer()
-  const [student, setStudent] = useState<any>(null)
-
-  useEffect(() => {
-    const init = async () => {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user?.user) return
-      const st = await supabase.from('students').select('*').eq('id', user.user.id).single()
-      if (!st.data) return
-      setStudent(st.data)
-      const nivelDB = await getNivelStudentPeriodo(st.data.id, temaPeriodoId)
-      const n = (nivelDB ?? 1) as Nivel
-      setNivel(n)
-      setPregunta(generarPregunta(n))
-      reset(); start()
-    }
-    init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  init()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [])
 
   useEffect(() => {
     if (elapsedSeconds >= MAX_TIME && pregunta) {
@@ -630,3 +339,4 @@ export function TrabajoEnergiaGame() {
     </div>
   )
 }
+

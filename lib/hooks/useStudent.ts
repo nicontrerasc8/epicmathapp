@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { fetchStudentSession } from '@/lib/student-session-client'
 
 type Student = {
   id: string
@@ -19,23 +20,43 @@ export function useStudent(redirectIfNotFound = false) {
   const router = useRouter()
 
   useEffect(() => {
-    const stored = localStorage.getItem('student')
-    if (stored) {
+    let active = true
+
+    const loadSession = async () => {
       try {
-        const parsed = JSON.parse(stored)
-        setStudent(parsed)
+        const session = await fetchStudentSession()
+        if (!active) return
+        if (session) {
+          setStudent(session)
+        } else {
+          setStudent(null)
+          if (redirectIfNotFound) {
+            router.push('/sign-in')
+          }
+        }
       } catch (err) {
-        console.error('Error parsing student from localStorage', err)
-        localStorage.removeItem('student')
+        if (active) {
+          setStudent(null)
+          if (redirectIfNotFound) {
+            router.push('/sign-in')
+          }
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
       }
-    } else if (redirectIfNotFound) {
-      router.push('/sign-in') // o la ruta que uses
     }
-    setLoading(false)
+
+    loadSession()
+
+    return () => {
+      active = false
+    }
   }, [redirectIfNotFound, router])
 
-  const logout = () => {
-    localStorage.removeItem('student')
+  const logout = async () => {
+    await fetch('/api/student/logout', { method: 'POST' })
     setStudent(null)
     router.push('/sign-in')
   }

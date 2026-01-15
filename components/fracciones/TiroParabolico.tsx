@@ -8,6 +8,7 @@ import { insertStudentResponse } from '../insertStudentResponse'
 import { updateNivelStudentPeriodo } from '../updateNivelStudentPeriodo'
 import { getNivelStudentPeriodo } from '../getNivelStudent'
 import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
+import { fetchStudentSession } from '@/lib/student-session-client'
 
 const supabase = createClient()
 const temaPeriodoId = '1258053b-b9ef-49f8-86b5-e175e0445e36' // ⚡ Proyectiles
@@ -358,21 +359,21 @@ export function TiroParabolicoGame() {
   const [student, setStudent] = useState<any>(null)
 
   useEffect(() => {
-    const init = async () => {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user?.user) return
-      const st = await supabase.from('students').select('*').eq('id', user.user.id).single()
-      if (!st.data) return
-      setStudent(st.data)
-      const nivelDB = await getNivelStudentPeriodo(st.data.id, temaPeriodoId)
-      const n = (nivelDB ?? 1) as Nivel
-      setNivel(n); setPregunta(generarPregunta(n))
-      setShowProc(false); setPendingNextLevel(null)
-      reset(); start()
-    }
-    init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const init = async () => {
+    const session = await fetchStudentSession()
+    if (!session?.id) return
+    const st = await supabase.from('students').select('*').eq('id', session.id).single()
+    if (!st.data) return
+    setStudent(st.data)
+    const nivelDB = await getNivelStudentPeriodo(st.data.id, temaPeriodoId)
+    const n = (nivelDB ?? 1) as Nivel
+    setNivel(n); setPregunta(generarPregunta(n))
+    setShowProc(false); setPendingNextLevel(null)
+    reset(); start()
+  }
+  init()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [])
 
   useEffect(() => {
     if (elapsedSeconds >= MAX_TIME && pregunta) {
@@ -575,3 +576,4 @@ const ok = !wasTimeout && close(val, pregunta.respuesta)
     </div>
   )
 }
+

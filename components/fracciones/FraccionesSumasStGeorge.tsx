@@ -13,6 +13,7 @@ import { insertStudentResponse } from '../insertStudentResponse'
 import { updateNivelStudentPeriodo } from '../updateNivelStudentPeriodo'
 import { getNivelStudentPeriodo } from '../getNivelStudent'
 import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
+import { fetchStudentSession } from '@/lib/student-session-client'
 
 const supabase = createClient()
 const temaPeriodoId = 'ea5de085-2e52-40ac-b975-8931d08b9e44' // SUMAS
@@ -430,46 +431,43 @@ export function FraccionesSumasStGeorgeGameGame() {
   const initRef = useRef(false)
 
   useEffect(() => {
-    const fetchStudentAndInit = async () => {
-      // 1️⃣ Obtener usuario actual autenticado
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-      if (userError || !userData.user) {
-        console.error('Usuario no autenticado', userError)
-        setLoadingStudent(false)
-        return
-      }
-
-      const userId = userData.user.id
-
-      // 2️⃣ Buscar estudiante vinculado al Auth UID
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('id', userId) // ⚠️ usa el campo real de tu tabla
-        .single()
-
-      if (studentError || !studentData) {
-        console.error('No se encontró el estudiante en la tabla students.', studentError)
-        setLoadingStudent(false)
-        return
-      }
-
-      setStudent(studentData)
+  const fetchStudentAndInit = async () => {
+    const session = await fetchStudentSession()
+    if (!session?.id) {
+      console.error('Usuario no autenticado')
       setLoadingStudent(false)
-
-      // 3️⃣ Inicializar nivel y modelo
-      const nivelBD = await getNivelStudentPeriodo(studentData.id, temaPeriodoId)
-      const nivelInicial = (nivelBD ?? 1) as Nivel
-      setNivelActual(nivelInicial)
-      setPregunta(generarPregunta(nivelInicial))
-      setHintIndex(0)
-      start()
-
-      await cargarModelo(setDecisionTree)
+      return
     }
 
-    fetchStudentAndInit()
-  }, [])
+    const userId = session.id
+
+    const { data: studentData, error: studentError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (studentError || !studentData) {
+      console.error('No se encontro el estudiante en la tabla students.', studentError)
+      setLoadingStudent(false)
+      return
+    }
+
+    setStudent(studentData)
+    setLoadingStudent(false)
+
+    const nivelBD = await getNivelStudentPeriodo(studentData.id, temaPeriodoId)
+    const nivelInicial = (nivelBD ?? 1) as Nivel
+    setNivelActual(nivelInicial)
+    setPregunta(generarPregunta(nivelInicial))
+    setHintIndex(0)
+    start()
+
+    await cargarModelo(setDecisionTree)
+  }
+
+  fetchStudentAndInit()
+}, [])
 
 
   if (!pregunta) return null
@@ -822,3 +820,4 @@ export function FraccionesSumasStGeorgeGameGame() {
     </>
   )
 }
+

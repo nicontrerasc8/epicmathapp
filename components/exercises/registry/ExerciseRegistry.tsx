@@ -7,6 +7,7 @@ import { resolveExerciseComponent } from './resolveExerciseComponent'
 
 import { ExerciseShellLoading } from '../base/ExerciseShellLoading'
 import { StudentPeriodoRow, TemaPeriodoRow } from '@/lib/exercises/types'
+import { fetchStudentSession } from '@/lib/student-session-client'
 
 export function ExerciseRegistry({ temaPeriodoId }: { temaPeriodoId: string }) {
   const supabase = createClient()
@@ -20,13 +21,13 @@ export function ExerciseRegistry({ temaPeriodoId }: { temaPeriodoId: string }) {
     ;(async () => {
       setLoading(true)
 
-      const { data: userRes } = await supabase.auth.getUser()
-      if (!userRes?.user?.id) {
-        toast.error('Inicia sesión para guardar tu progreso')
+      const studentSession = await fetchStudentSession()
+      if (!studentSession?.id) {
+        toast.error('Inicia sesion para guardar tu progreso')
         setLoading(false)
         return
       }
-      setUserId(userRes.user.id)
+      setUserId(studentSession.id)
 
       const { data: tp, error: tpErr } = await supabase
         .from('tema_periodo')
@@ -44,7 +45,7 @@ export function ExerciseRegistry({ temaPeriodoId }: { temaPeriodoId: string }) {
       const { data: sp0 } = await supabase
         .from('student_periodo')
         .select('*')
-        .eq('student_id', userRes.user.id)
+        .eq('student_id', studentSession.id)
         .eq('tema_periodo_id', temaPeriodoId)
         .maybeSingle()
 
@@ -54,7 +55,7 @@ export function ExerciseRegistry({ temaPeriodoId }: { temaPeriodoId: string }) {
         const { data: created, error: createErr } = await supabase
           .from('student_periodo')
           .insert({
-            student_id: userRes.user.id,
+            student_id: studentSession.id,
             tema_periodo_id: temaPeriodoId,
             nivel: 1,
             theta: 0,

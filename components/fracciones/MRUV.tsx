@@ -8,6 +8,7 @@ import { insertStudentResponse } from '../insertStudentResponse'
 import { updateNivelStudentPeriodo } from '../updateNivelStudentPeriodo'
 import { getNivelStudentPeriodo } from '../getNivelStudent'
 import { useQuestionTimer } from '@/app/hooks/useQuestionTimer'
+import { fetchStudentSession } from '@/lib/student-session-client'
 
 const supabase = createClient()
 const temaPeriodoId = 'eecf95a6-3b5c-4a3a-bd58-b5587dd86cdb' // ⚡ MRUV (tu UUID)
@@ -204,121 +205,22 @@ function VTGraph({ v0, a, t }: { v0: number; a: number; t: number }) {
   const tmax = t * 1.1
 
   useEffect(() => {
-    const canvas = ref.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const { w, h, pad } = dims
-    ctx.clearRect(0, 0, w, h)
-
-    const X = (time: number) => pad + (time / tmax) * (w - 2 * pad)
-    const Y = (vel: number) => h - pad - (vel / vmax) * (h - 2 * pad)
-
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, w, h)
-
-    ctx.strokeStyle = '#CBD5E1'
-    ctx.lineWidth = 1
-    // eje tiempo (x)
-    ctx.beginPath()
-    ctx.moveTo(pad, h - pad)
-    ctx.lineTo(w - pad, h - pad)
-    ctx.stroke()
-    // eje velocidad (y)
-    ctx.beginPath()
-    ctx.moveTo(pad, h - pad)
-    ctx.lineTo(pad, pad)
-    ctx.stroke()
-
-    // ticks
-    ctx.fillStyle = '#6B7280'
-    ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto'
-    for (let i = 0; i <= 5; i++) {
-      const tt = (i / 5) * tmax
-      const x = X(tt)
-      ctx.beginPath()
-      ctx.moveTo(x, h - pad - 4)
-      ctx.lineTo(x, h - pad + 4)
-      ctx.stroke()
-      ctx.fillText(tt.toFixed(0), x - 6, h - pad + 16)
-    }
-    for (let i = 0; i <= 5; i++) {
-      const vv = (i / 5) * vmax
-      const y = Y(vv)
-      ctx.beginPath()
-      ctx.moveTo(pad - 4, y)
-      ctx.lineTo(pad + 4, y)
-      ctx.stroke()
-      ctx.fillText(vv.toFixed(0), pad - 28, y + 4)
-    }
-
-    // línea v(t)
-    ctx.strokeStyle = '#3B82F6'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(X(0), Y(v0))
-    ctx.lineTo(X(t), Y(v0 + a * t))
-    ctx.stroke()
-
-    // área (desplazamiento)
-    const grad = ctx.createLinearGradient(0, Y(v0 + a * t), 0, h - pad)
-    grad.addColorStop(0, 'rgba(59,130,246,0.28)')
-    grad.addColorStop(1, 'rgba(250,204,21,0.18)')
-    ctx.fillStyle = grad
-    ctx.beginPath()
-    ctx.moveTo(X(0), h - pad)
-    ctx.lineTo(X(0), Y(v0))
-    ctx.lineTo(X(t), Y(v0 + a * t))
-    ctx.lineTo(X(t), h - pad)
-    ctx.closePath()
-    ctx.fill()
-
-    // labels
-    ctx.fillStyle = '#111827'
-    ctx.fillText('tiempo (s)', w - pad - 30, h - pad + 28)
-    ctx.save()
-    ctx.translate(pad - 28, pad)
-    ctx.rotate(-Math.PI / 2)
-    ctx.fillText('velocidad (m/s)', 0, 0)
-    ctx.restore()
-  }, [v0, a, t, vmax, tmax])
-
-  return (
-    <div className="flex items-center justify-center">
-      <canvas ref={ref} width={dims.w} height={dims.h} className="rounded-lg border border-border bg-white shadow-sm" />
-    </div>
-  )
-}
-
-// ===== Componente principal =====
-export function MRUVGame() {
-  const [nivel, setNivel] = useState<Nivel>(1)
-  const [pregunta, setPregunta] = useState<Pregunta | null>(null)
-  const [respuesta, setRespuesta] = useState('')
-  const [historial, setHistorial] = useState<boolean[]>([])
-  const [aciertos, setAciertos] = useState(0)
-  const [errores, setErrores] = useState(0)
-  const { elapsedSeconds, start, reset } = useQuestionTimer()
-  const [student, setStudent] = useState<any>(null)
-
-  useEffect(() => {
-    const init = async () => {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user?.user) return
-      const st = await supabase.from('students').select('*').eq('id', user.user.id).single()
-      if (!st.data) return
-      setStudent(st.data)
-      const nivelDB = await getNivelStudentPeriodo(st.data.id, temaPeriodoId)
-      const n = (nivelDB ?? 1) as Nivel
-      setNivel(n)
-      setPregunta(generarPregunta(n))
-      reset()
-      start()
-    }
-    init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const init = async () => {
+    const session = await fetchStudentSession()
+    if (!session?.id) return
+    const st = await supabase.from('students').select('*').eq('id', session.id).single()
+    if (!st.data) return
+    setStudent(st.data)
+    const nivelDB = await getNivelStudentPeriodo(st.data.id, temaPeriodoId)
+    const n = (nivelDB ?? 1) as Nivel
+    setNivel(n)
+    setPregunta(generarPregunta(n))
+    reset()
+    start()
+  }
+  init()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [])
 
   useEffect(() => {
     if (elapsedSeconds >= MAX_TIME && pregunta) {
@@ -474,3 +376,4 @@ export function MRUVGame() {
     </div>
   )
 }
+

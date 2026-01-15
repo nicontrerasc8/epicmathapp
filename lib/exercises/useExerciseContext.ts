@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { fetchStudentSession } from '@/lib/student-session-client'
 
 type ExerciseContext = {
   temaId: string | null
@@ -44,17 +45,14 @@ export function useExerciseContext(
            1️⃣ AUTH → studentId
         ========================= */
         console.group('1️⃣ AUTH')
-        const { data: auth, error: authErr } =
-          await supabase.auth.getUser()
+        const studentSession = await fetchStudentSession()
+        const studentId = studentSession?.id
 
-        console.log('auth:', auth)
-        console.log('authErr:', authErr)
+        console.log('studentSession:', studentSession)
 
-        if (authErr || !auth.user) {
+        if (!studentId) {
           throw new Error('Usuario no autenticado')
         }
-
-        const studentId = auth.user.id
         console.log('studentId:', studentId)
         console.groupEnd()
 
