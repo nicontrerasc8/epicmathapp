@@ -568,7 +568,9 @@ export default function PerformancePage() {
   const lowTopics = topicsAgg.slice().sort((a, b) => a.accuracy_30d - b.accuracy_30d).slice(0, 4)
 
   return (
-    <div className="space-y-6 text-foreground">
+    <div className="relative min-h-screen overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(900px_500px_at_12%_-10%,rgba(56,189,248,0.18),transparent),radial-gradient(800px_420px_at_90%_-20%,rgba(244,114,182,0.18),transparent),linear-gradient(to_bottom,rgba(248,250,252,0.95),rgba(255,255,255,0.96),rgba(241,245,249,0.98))]" />
+      <div className="relative space-y-6 text-foreground p-6 md:p-8">
       <PageHeader
         title="Rendimiento"
         breadcrumbs={[
@@ -579,11 +581,11 @@ export default function PerformancePage() {
       />
       <div className="space-y-6">
         {/* HERO / HEADER */}
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-          <div className="absolute inset-0 bg-[radial-gradient(800px_circle_at_20%_15%,hsl(var(--primary)/0.18),transparent_55%),radial-gradient(700px_circle_at_85%_25%,hsl(var(--accent)/0.20),transparent_55%)]" />
+        <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-[0_18px_45px_-30px_rgba(15,23,42,0.45)]">
+          <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(56,189,248,0.12),rgba(99,102,241,0.08),rgba(244,114,182,0.12))]" />
           <div className="relative p-6 md:p-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary text-white grid place-items-center text-xl shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-primary text-white grid place-items-center text-xl shadow-md shadow-primary/20">
                 📊
               </div>
               <div>
@@ -609,7 +611,7 @@ export default function PerformancePage() {
 
               <button
                 onClick={exportExcel}
-                className="ml-0 lg:ml-2 px-4 py-2 rounded-xl bg-accent text-accent-foreground font-semibold hover:brightness-105 transition border border-border shadow-sm"
+                className="ml-0 lg:ml-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-400 text-slate-900 font-semibold hover:brightness-105 transition border border-amber-200 shadow-md shadow-amber-200/40"
               >
                 Exportar Excel
               </button>
@@ -618,7 +620,7 @@ export default function PerformancePage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <KPICard title="Estudiantes" value={kpis.studentsCount} icon="👥" />
           <KPICard title="Temas" value={kpis.topicsCount} icon="📚" />
           <KPICard title="Intentos (30d)" value={fmtNum(kpis.attempts)} icon="⚡" />
@@ -644,73 +646,11 @@ export default function PerformancePage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+              className=""
             >
-              {/* Alertas / Riesgo */}
-              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm lg:col-span-1">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold">Alertas de seguimiento</h3>
-                    <p className="text-sm text-muted-foreground">Alumnos con señales de refuerzo</p>
-                  </div>
-                  <Badge tone={riskStudents.length ? 'danger' : 'ok'}>
-                    {riskStudents.length ? `${riskStudents.length} con alerta` : 'Sin alertas'}
-                  </Badge>
-                </div>
-
-                {riskStudents.length === 0 ? (
-                  <div className="rounded-xl border border-border bg-white p-4 text-sm text-muted-foreground">
-                    No hay alertas significativas en este periodo. Mantén el ritmo y revisa temas con precisión baja.
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-[440px] overflow-auto pr-1">
-                    {riskStudents
-                      .slice()
-                      .sort((a, b) => {
-                        const sev = (x: StudentAgg['risk']['severity']) =>
-                          x === 'high' ? 3 : x === 'med' ? 2 : x === 'low' ? 1 : 0
-                        return sev(b.risk.severity) - sev(a.risk.severity) || b.incorrect_30d - a.incorrect_30d
-                      })
-                      .slice(0, 10)
-                      .map(s => (
-                        <button
-                          key={s.student_id}
-                          onClick={() => {
-                            setView('students')
-                            setOpenStudentId(s.student_id)
-                            setShowOnlyRisk(true)
-                          }}
-                          className="w-full text-left rounded-xl border border-border bg-white p-4 hover:bg-muted transition"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <div className="w-9 h-9 rounded-xl border border-border bg-muted grid place-items-center text-xs font-bold">
-                                  {getInitials(s.nombres)}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="font-semibold truncate">{s.nombres}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    Precisión: <b className="text-foreground">{fmtPct(s.accuracy_30d, 0)}</b> • Errores: <b className="text-foreground">{s.incorrect_30d}</b>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            <Badge tone={s.risk.severity === 'high' ? 'danger' : s.risk.severity === 'med' ? 'warn' : 'neutral'}>
-                              {s.risk.severity === 'high' ? 'Alta' : s.risk.severity === 'med' ? 'Media' : 'Baja'}
-                            </Badge>
-                          </div>
-                          <div className="mt-2 text-xs text-muted-foreground line-clamp-2">
-                            {s.risk.reasons.join(' • ')}
-                          </div>
-                        </button>
-                      ))}
-                  </div>
-                )}
-              </div>
-
+       
               {/* Rendimiento por tema */}
-              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm lg:col-span-2 space-y-5">
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] lg:col-span-2 space-y-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-bold">Rendimiento por tema</h3>
@@ -723,7 +663,7 @@ export default function PerformancePage() {
 
                 {/* Top & Low */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-2xl border border-border bg-white p-4">
+                  <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
                       <div className="font-semibold">Top temas</div>
                       <div className="text-xs text-muted-foreground">mejor precisión</div>
@@ -736,7 +676,7 @@ export default function PerformancePage() {
                             setTemaFilter(t.tema)
                             setView('students')
                           }}
-                          className="w-full text-left rounded-xl border border-border p-3 hover:bg-muted transition"
+                          className="w-full text-left rounded-xl border border-border p-3 hover:bg-muted/70 transition shadow-[0_10px_25px_-22px_rgba(15,23,42,0.5)]"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
@@ -758,7 +698,7 @@ export default function PerformancePage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-border bg-white p-4">
+                  <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
                       <div className="font-semibold">Temas a reforzar</div>
                       <div className="text-xs text-muted-foreground">prioridad docente</div>
@@ -771,7 +711,7 @@ export default function PerformancePage() {
                             setTemaFilter(t.tema)
                             setView('students')
                           }}
-                          className="w-full text-left rounded-xl border border-border p-3 hover:bg-muted transition"
+                          className="w-full text-left rounded-xl border border-border p-3 hover:bg-muted/70 transition shadow-[0_10px_25px_-22px_rgba(15,23,42,0.5)]"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
@@ -795,7 +735,7 @@ export default function PerformancePage() {
                 </div>
 
                 {/* Tabla compacta */}
-                <div className="rounded-2xl border border-border bg-white overflow-hidden">
+                <div className="rounded-2xl border border-border bg-white overflow-hidden shadow-sm">
                   <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                     <div className="font-semibold">Listado completo</div>
                     <div className="text-xs text-muted-foreground">click para filtrar alumnos por tema</div>
@@ -809,7 +749,7 @@ export default function PerformancePage() {
                             setTemaFilter(t.tema)
                             setView('students')
                           }}
-                          className="w-full text-left px-4 py-3 hover:bg-muted transition"
+                          className="w-full text-left px-4 py-3 hover:bg-muted/70 transition"
                         >
                           <div className="flex items-center justify-between gap-4">
                             <div className="min-w-0">
@@ -851,26 +791,39 @@ export default function PerformancePage() {
               className="space-y-4"
             >
               {/* FILTER BAR */}
-              <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="bg-card border border-border rounded-2xl p-5 shadow-[0_14px_38px_-26px_rgba(15,23,42,0.45)]">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                   <div className="md:col-span-2">
                     <label className="text-xs font-semibold text-muted-foreground">Buscar estudiante</label>
                     <input
                       value={q}
                       onChange={e => setQ(e.target.value)}
                       placeholder="Ej.: Ana, Pérez, Juan..."
-                      className="mt-1 w-full px-4 py-3 rounded-xl bg-white border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-1 w-full px-4 py-3 rounded-xl bg-white border border-border focus:outline-none focus:ring-2 focus:ring-ring shadow-sm"
                     />
                   </div>
 
-
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground">Tema</label>
+                    <select
+                      value={temaFilter}
+                      onChange={e => setTemaFilter(e.target.value)}
+                      className="mt-1 w-full px-4 py-3 rounded-xl bg-white border border-border focus:outline-none focus:ring-2 focus:ring-ring shadow-sm"
+                    >
+                      {temasUnicos.map(t => (
+                        <option key={t} value={t}>
+                          {t === '__ALL__' ? 'Todos los temas' : t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground">Ordenar por</label>
                     <select
                       value={sortKey}
                       onChange={e => setSortKey(e.target.value as SortKey)}
-                      className="mt-1 w-full px-4 py-3 rounded-xl bg-white border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-1 w-full px-4 py-3 rounded-xl bg-white border border-border focus:outline-none focus:ring-2 focus:ring-ring shadow-sm"
                     >
                       <option value="accuracy_desc">Precisión (↓)</option>
                       <option value="attempts_desc">Intentos (↓)</option>
@@ -905,7 +858,7 @@ export default function PerformancePage() {
               </div>
 
               {/* LIST */}
-              <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+              <div className="bg-card border border-border rounded-2xl shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] overflow-hidden">
                 <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                   <div className="font-bold">Listado de estudiantes</div>
                   <div className="text-xs text-muted-foreground">
@@ -1102,7 +1055,7 @@ export default function PerformancePage() {
                 </div>
               </div>
 
-              <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+              <div className="bg-card border border-border rounded-2xl shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] overflow-hidden">
                 <div className="overflow-auto bg-white">
                   <table className="min-w-full text-sm">
                     <thead className="bg-muted">
@@ -1165,6 +1118,7 @@ export default function PerformancePage() {
           )}
         </AnimatePresence>
       </div>
+      </div>
     </div>
   )
 }
@@ -1177,8 +1131,8 @@ function SegmentTab({ active, onClick, children }: any) {
     <button
       onClick={onClick}
       className={`px-4 py-2 rounded-xl font-semibold border transition shadow-sm ${active
-          ? 'bg-primary text-white border-primary'
-          : 'bg-white text-foreground border-border hover:bg-muted'
+          ? 'bg-gradient-to-r from-slate-900 to-slate-700 text-white border-slate-800 shadow-md shadow-slate-900/20'
+          : 'bg-white text-foreground border-border hover:bg-muted/70'
         }`}
     >
       {children}
@@ -1203,7 +1157,7 @@ function KPICard({
     tone === 'danger' ? 'ring-2 ring-destructive/20 border-destructive/30' : tone === 'ok' ? 'ring-2 ring-primary/10' : ''
 
   return (
-    <div className={`bg-card border border-border rounded-2xl p-5 shadow-sm ${ring}`}>
+    <div className={`bg-card border border-border rounded-2xl p-5 shadow-[0_14px_32px_-24px_rgba(15,23,42,0.45)] ${ring}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm text-muted-foreground font-semibold">{title}</div>
