@@ -30,16 +30,12 @@ export function useStudent(redirectIfNotFound = false) {
           setStudent(session)
         } else {
           setStudent(null)
-          if (redirectIfNotFound) {
-            router.push('/sign-in')
-          }
+   
         }
       } catch (err) {
         if (active) {
           setStudent(null)
-          if (redirectIfNotFound) {
-            router.push('/sign-in')
-          }
+  
         }
       } finally {
         if (active) {

@@ -77,10 +77,6 @@ const clearSession = (request: Request) => {
 }
 
 export async function GET(request: Request) {
-  const institutionId = await getInstitutionId(request)
-  if (!institutionId) {
-    return clearSession(request)
-  }
   const cookieStore = await cookies()
   const token = cookieStore.get(getStudentSessionCookieName())?.value
 
@@ -93,9 +89,6 @@ export async function GET(request: Request) {
     : null
 
   if (!session?.profile_id) {
-    return clearSession(request)
-  }
-  if (institutionId && session.institution_id && session.institution_id !== institutionId) {
     return clearSession(request)
   }
 

@@ -54,10 +54,8 @@ export const updateSession = async (request: NextRequest) => {
 
   // Redirect root domain dashboard/auth routes to root
   if (!slug) {
-    if (
-      pathname.startsWith("/dashboard") ||
-      pathname.startsWith("/sign-in") 
-    ) {
+    const isSignInRoute = pathname.startsWith("/sign-in");
+    if (!isStudentRoute && !isSignInRoute && pathname.startsWith("/dashboard")) {
       return NextResponse.redirect(getRootRedirectUrl(request));
     }
   }
@@ -132,7 +130,7 @@ export const updateSession = async (request: NextRequest) => {
   if (isStudentRoute) {
     if (!studentSession) {
       console.warn("[Middleware] Student route requires student session");
-      return NextResponse.redirect(new URL("/", request.url));
+      return NextResponse.redirect(new URL("/sign-in", request.url));
     }
     // Student authenticated → allow, DO NOT check Supabase auth
     return response;

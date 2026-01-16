@@ -70,12 +70,6 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: Request) {
   const institutionId = await getInstitutionId(request)
-  if (!institutionId) {
-    return NextResponse.json(
-      { error: 'Institucion no encontrada.' },
-      { status: 400 }
-    )
-  }
 
   const body = (await request.json()) as LoginPayload
   const username = body.username?.trim()
@@ -116,16 +110,20 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: member } = await supabaseAdmin
+  let memberQuery = supabaseAdmin
     .from('edu_institution_members')
     .select('classroom_id, institution_id')
     .eq('profile_id', profile.id)
     .eq('role', 'student')
     .eq('active', true)
-    .eq('institution_id', institutionId)
     .order('created_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
+
+  if (institutionId) {
+    memberQuery = memberQuery.eq('institution_id', institutionId)
+  }
+
+  const { data: member } = await memberQuery.maybeSingle()
 
   if (!member?.institution_id) {
     return NextResponse.json(
