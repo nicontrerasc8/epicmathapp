@@ -4,7 +4,7 @@ import { useStudent } from '@/lib/hooks/useStudent'
 import Link from 'next/link'
 
 export default function StudentDashboard() {
-  const { student, loading } = useStudent(true)
+  const { student, loading } = useStudent(false)
 
   if (loading) return <div className="text-white p-6">Cargando...</div>
 

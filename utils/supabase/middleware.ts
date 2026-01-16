@@ -53,10 +53,12 @@ export const updateSession = async (request: NextRequest) => {
 
   // Redirect root domain dashboard/auth routes to root
   if (!slug) {
+    const isStudentDashboard = pathname.startsWith("/dashboard/student");
     if (
-      pathname.startsWith("/dashboard") ||
-      pathname.startsWith("/sign-in") ||
-      pathname.startsWith("/protected")
+      !isStudentDashboard &&
+      (pathname.startsWith("/dashboard") ||
+        pathname.startsWith("/sign-in") ||
+        pathname.startsWith("/protected"))
     ) {
       return NextResponse.redirect(getRootRedirectUrl(request));
     }
@@ -176,26 +178,11 @@ export const updateSession = async (request: NextRequest) => {
     }
   }
 
-  // Protected routes - require Supabase auth
-  if (pathname.startsWith("/protected")) {
-    if (authError || !authData.user) {
-      console.warn(`[Middleware] Protected route access denied: ${pathname}`);
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
-  }
 
-  // Redirect institution root to sign-in
-  if (slug && pathname === "/") {
-    return NextResponse.redirect(new URL("/sign-in", request.url));
-  }
 
-  // Student dashboard routes - require student session
-  if (pathname.startsWith("/dashboard/student")) {
-    if (!studentSession) {
-      console.warn(`[Middleware] Student route access denied: ${pathname}`);
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
-  }
+
+
+  // Student dashboard routes - allow access without student session
 
   // Teacher and Admin routes - require Supabase auth and proper role
   if (pathname.startsWith("/dashboard/teacher") || pathname.startsWith("/dashboard/admin")) {

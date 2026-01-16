@@ -12,7 +12,7 @@ interface Quiz {
 }
 
 export default function StudentExamsPage() {
-  const { student, loading } = useStudent(true)
+  const { student, loading } = useStudent(false)
   const supabase = createClient()
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
