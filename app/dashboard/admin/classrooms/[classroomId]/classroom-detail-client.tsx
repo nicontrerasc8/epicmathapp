@@ -23,9 +23,13 @@ interface ClassroomData {
     id: string
     grade: string
     section: string | null
+    grade_id?: string | null
+    section_id?: string | null
     academic_year: number
     active: boolean
     edu_institutions: { id: string; name: string; type: string } | null
+    edu_institution_grades?: { id: string; name: string; level: string; grade_num: number; code: string } | null
+    edu_grade_sections?: { id: string; name: string; code: string } | null
     memberCount: number
     temasCount: number
     exercisesCount: number
@@ -80,7 +84,15 @@ function QuickLinkCard({
 
 export default function ClassroomDetailClient({ data }: any) {
     const institutionName = data.edu_institutions?.name || "Sin institución"
-    const gradeLabel = `${data.section ? `${data.section}` : ""}`
+    const gradeSource = data.edu_institution_grades
+    const sectionSource = data.edu_grade_sections
+    const gradeName = Array.isArray(gradeSource)
+        ? gradeSource[0]?.name || gradeSource[0]?.code || data.grade
+        : gradeSource?.name || gradeSource?.code || data.grade
+    const sectionName = Array.isArray(sectionSource)
+        ? sectionSource[0]?.name || sectionSource[0]?.code || data.section || "Sin sección"
+        : sectionSource?.name || sectionSource?.code || data.section || "Sin sección"
+    const gradeLabel = sectionName ? `${gradeName} - ${sectionName}` : gradeName
 
     return (
         <div className="space-y-8">
@@ -183,11 +195,11 @@ export default function ClassroomDetailClient({ data }: any) {
                         </div>
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Grado</dt>
-                            <dd className="font-medium">{data.grade}</dd>
+                            <dd className="font-medium">{gradeName}</dd>
                         </div>
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Sección</dt>
-                            <dd className="font-medium">{data.section || "—"}</dd>
+                            <dd className="font-medium">{sectionName}</dd>
                         </div>
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Año Académico</dt>

@@ -44,6 +44,31 @@ interface Membership {
   classroom_id: string | null
   active: boolean
   created_at: string
+  edu_institutions?: { id: string; name: string } | null
+  edu_classrooms?: {
+    id: string
+    academic_year: number
+    grade: string
+    section: string | null
+    edu_institution_grades?: { name: string; code: string } | null
+    edu_grade_sections?: { name: string; code: string } | null
+  } | null
+}
+
+function getMembershipGrade(m: Membership) {
+  const grade = m.edu_classrooms?.edu_institution_grades as any
+  if (Array.isArray(grade)) {
+    return grade[0]?.name || grade[0]?.code || m.edu_classrooms?.grade || ""
+  }
+  return grade?.name || grade?.code || m.edu_classrooms?.grade || ""
+}
+
+function getMembershipSection(m: Membership) {
+  const section = m.edu_classrooms?.edu_grade_sections as any
+  if (Array.isArray(section)) {
+    return section[0]?.name || section[0]?.code || m.edu_classrooms?.section || ""
+  }
+  return section?.name || section?.code || m.edu_classrooms?.section || ""
 }
 
 export default function StudentDetail({ studentId }: StudentDetailProps) {
@@ -232,9 +257,17 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="font-medium capitalize">{m.role}</div>
-                      <div className="text-xs text-muted-foreground font-mono mt-0.5">
-                        Inst: {m.institution_id?.slice(0, 8) || "—"}
-                        {m.classroom_id && ` • Aula: ${m.classroom_id.slice(0, 8)}`}
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        <div>
+                          Institucion: {m.edu_institutions?.name || m.institution_id?.slice(0, 8) || "Sin institucion"}
+                        </div>
+                        {m.edu_classrooms ? (
+                          <div>
+                            Aula: {getMembershipGrade(m)} {getMembershipSection(m)} ? {m.edu_classrooms.academic_year}
+                          </div>
+                        ) : (
+                          <div>Aula: Sin asignar</div>
+                        )}
                       </div>
                     </div>
                     <StatusBadge active={m.active} />

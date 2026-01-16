@@ -1,10 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState, useCallback } from "react"
+import type { FormEvent } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Eye, Edit, Trash2, UserPlus, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   PageHeader,
   FilterBar,
@@ -15,7 +19,13 @@ import {
   type ColumnDef,
   type FilterConfig
 } from "@/components/dashboard/core"
-import { listStudentsAction } from "../admin-actions"
+import {
+  listStudentsAction,
+  listClassroomsAction,
+  createStudentAction,
+  updateStudentAction,
+  deactivateStudentAction,
+} from "../admin-actions"
 
 // Types
 type Student = {
@@ -26,9 +36,75 @@ type Student = {
   global_role: "student" | "teacher" | "admin" | null
   active: boolean
   created_at?: string
+  edu_institution_members?: InstitutionMember[]
+}
+
+type InstitutionMember = {
+  id: string
+  role: string
+  active: boolean
+  institution_id: string | null
+  classroom_id: string | null
+  edu_institutions?: { id: string; name: string } | null
+  edu_classrooms?: {
+    id: string
+    academic_year: number
+    grade: string
+    section: string | null
+    edu_institution_grades?: { name: string; code: string } | null
+    edu_grade_sections?: { name: string; code: string } | null
+  } | null
+}
+
+type ClassroomOption = {
+  id: string
+  institution_id: string | null
+  academic_year: number
+  grade: string
+  section: string | null
+  active?: boolean
+  edu_institutions?: { id: string; name: string } | null
+  edu_institution_grades?: { name: string; code: string } | null
+  edu_grade_sections?: { name: string; code: string } | null
 }
 
 const pageSizeOptions = [10, 20, 50, 100]
+
+function getPrimaryMembership(student: Student) {
+  const members = student.edu_institution_members || []
+  const active = members.find((m) => m.active)
+  return active || members[0]
+}
+
+function getMembershipGrade(member?: InstitutionMember) {
+  if (!member?.edu_classrooms) return ""
+  const grade = member.edu_classrooms.edu_institution_grades as any
+  if (Array.isArray(grade)) {
+    return grade[0]?.name || grade[0]?.code || member.edu_classrooms.grade || ""
+  }
+  return grade?.name || grade?.code || member.edu_classrooms.grade || ""
+}
+
+function getMembershipSection(member?: InstitutionMember) {
+  if (!member?.edu_classrooms) return ""
+  const section = member.edu_classrooms.edu_grade_sections as any
+  if (Array.isArray(section)) {
+    return section[0]?.name || section[0]?.code || member.edu_classrooms.section || ""
+  }
+  return section?.name || section?.code || member.edu_classrooms.section || ""
+}
+
+function getClassroomLabel(cls: ClassroomOption) {
+  const grade = cls.edu_institution_grades as any
+  const section = cls.edu_grade_sections as any
+  const gradeLabel = Array.isArray(grade)
+    ? grade[0]?.name || grade[0]?.code || cls.grade
+    : grade?.name || grade?.code || cls.grade
+  const sectionLabel = Array.isArray(section)
+    ? section[0]?.name || section[0]?.code || cls.section || ""
+    : section?.name || section?.code || cls.section || ""
+  return `${gradeLabel} ${sectionLabel}`.trim()
+}
 
 // Filter configuration
 const filterConfigs: FilterConfig[] = [
@@ -61,6 +137,55 @@ const columns: ColumnDef<Student>[] = [
     ),
   },
   {
+    key: "institution",
+    header: "Institucion",
+    render: (_, row) => {
+      const member = getPrimaryMembership(row)
+      return (
+        <span className="text-sm">
+          {member?.edu_institutions?.name || "Sin institucion"}
+        </span>
+      )
+    },
+  },
+  {
+    key: "grade",
+    header: "Grado",
+    render: (_, row) => {
+      const member = getPrimaryMembership(row)
+      return (
+        <span className="text-sm">
+          {getMembershipGrade(member) || "Sin grado"}
+        </span>
+      )
+    },
+  },
+  {
+    key: "section",
+    header: "Seccion",
+    render: (_, row) => {
+      const member = getPrimaryMembership(row)
+      return (
+        <span className="text-sm">
+          {getMembershipSection(member) || "Sin seccion"}
+        </span>
+      )
+    },
+  },
+  {
+    key: "academic_year",
+    header: "Ano",
+    width: "90px",
+    render: (_, row) => {
+      const member = getPrimaryMembership(row)
+      return (
+        <span className="text-xs text-muted-foreground">
+          {member?.edu_classrooms?.academic_year || "—"}
+        </span>
+      )
+    },
+  },
+  {
     key: "id",
     header: "ID",
     width: "200px",
@@ -86,6 +211,20 @@ export default function StudentsTable() {
   const [error, setError] = useState<string | null>(null)
   const [pageSize, setPageSize] = useState(pageSizeOptions[0])
   const [page, setPage] = useState(1)
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null)
+  const [classrooms, setClassrooms] = useState<ClassroomOption[]>([])
+  const [editId, setEditId] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    classroomId: "",
+    active: true,
+  })
 
   // Filters
   const { values, onChange, onClear } = useFilters({
@@ -110,6 +249,21 @@ export default function StudentsTable() {
   useEffect(() => {
     fetchStudents()
   }, [fetchStudents])
+
+  useEffect(() => {
+    if (!showCreate) return
+    const loadClassrooms = async () => {
+      try {
+        setCreateError(null)
+        const data = await listClassroomsAction()
+        const active = (data as ClassroomOption[]).filter((c) => c.active !== false)
+        setClassrooms(active)
+      } catch (e: any) {
+        setCreateError(e?.message ?? "Error cargando aulas")
+      }
+    }
+    loadClassrooms()
+  }, [showCreate])
 
   useEffect(() => {
     setPage(1)
@@ -153,17 +307,102 @@ export default function StudentsTable() {
         {
           label: "Editar",
           icon: <Edit className="w-4 h-4" />,
-          onClick: () => {/* TODO: implement edit */ },
+          onClick: () => {
+            const member = getPrimaryMembership(row)
+            setEditId(row.id)
+            setShowCreate(true)
+            setCreateError(null)
+            setCreateSuccess(null)
+            setForm({
+              firstName: row.first_name,
+              lastName: row.last_name,
+              email: "",
+              password: "",
+              classroomId: member?.classroom_id || "",
+              active: Boolean(row.active),
+            })
+          },
         },
         {
           label: "Eliminar",
           icon: <Trash2 className="w-4 h-4" />,
           variant: "destructive",
-          onClick: () => {/* TODO: implement delete */ },
+          onClick: async () => {
+            const ok = window.confirm("¿Seguro que deseas desactivar este estudiante?")
+            if (!ok) return
+            try {
+              setCreateError(null)
+              await deactivateStudentAction(row.id)
+              await fetchStudents()
+            } catch (e: any) {
+              setCreateError(e?.message ?? "Error desactivando estudiante")
+            }
+          },
         },
       ]}
     />
   )
+
+  const resetForm = () => {
+    setForm({
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      classroomId: "",
+    })
+    setCreateError(null)
+    setEditId(null)
+  }
+
+  const clearMessages = () => {
+    setCreateError(null)
+    setCreateSuccess(null)
+  }
+
+  const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setCreateError(null)
+    setCreateSuccess(null)
+
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      setCreateError("Completa nombre y apellido.")
+      return
+    }
+    if (!editId && !form.email.trim()) {
+      setCreateError("Completa el correo.")
+      return
+    }
+
+    try {
+      setCreating(true)
+      if (editId) {
+        await updateStudentAction(editId, {
+          first_name: form.firstName,
+          last_name: form.lastName,
+          classroom_id: form.classroomId || null,
+          active: form.active,
+        })
+        setCreateSuccess("Estudiante actualizado.")
+      } else {
+        const result = await createStudentAction({
+          email: form.email,
+          password: form.password || undefined,
+          first_name: form.firstName,
+          last_name: form.lastName,
+          classroom_id: form.classroomId || null,
+        })
+        const passwordInfo = result?.password ? `Password: ${result.password}` : "Usuario creado."
+        setCreateSuccess(passwordInfo)
+      }
+      resetForm()
+      await fetchStudents()
+    } catch (e: any) {
+      setCreateError(e?.message ?? "Error creando estudiante")
+    } finally {
+      setCreating(false)
+    }
+  }
 
   if (error) {
     return (
@@ -200,13 +439,109 @@ export default function StudentsTable() {
                 Importar
               </Button>
             </Link>
-            <Button size="sm">
+            <Button
+              size="sm"
+              onClick={() => {
+                setShowCreate((s) => !s)
+                if (showCreate) {
+                  resetForm()
+                  clearMessages()
+                }
+              }}
+            >
               <UserPlus className="w-4 h-4 mr-2" />
-              Nuevo
+              {showCreate ? "Cerrar" : "Nuevo"}
             </Button>
           </div>
         }
       />
+
+      {showCreate && (
+        <form onSubmit={handleCreateSubmit} className="rounded-xl border bg-card p-4 space-y-4">
+          <div className="text-sm font-medium">{editId ? "Editar estudiante" : "Nuevo estudiante"}</div>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="space-y-2">
+              <Label htmlFor="studentFirstName">Nombre</Label>
+              <Input
+                id="studentFirstName"
+                value={form.firstName}
+                onChange={(e) => setForm((s) => ({ ...s, firstName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="studentLastName">Apellido</Label>
+              <Input
+                id="studentLastName"
+                value={form.lastName}
+                onChange={(e) => setForm((s) => ({ ...s, lastName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="studentEmail">Correo</Label>
+              <Input
+                id="studentEmail"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
+                disabled={Boolean(editId)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="studentPassword">Password (opcional)</Label>
+              <Input
+                id="studentPassword"
+                type="text"
+                value={form.password}
+                onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
+                disabled={Boolean(editId)}
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="studentClassroom">Aula</Label>
+              <select
+                id="studentClassroom"
+                value={form.classroomId}
+                onChange={(e) => setForm((s) => ({ ...s, classroomId: e.target.value }))}
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+              >
+                <option value="">Sin asignar</option>
+                {classrooms.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.edu_institutions?.name || "Sin institucion"} - {getClassroomLabel(cls)} - {cls.academic_year}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 md:col-span-2">
+              <Checkbox
+                id="studentActive"
+                checked={form.active}
+                onCheckedChange={(val) => setForm((s) => ({ ...s, active: Boolean(val) }))}
+              />
+              <Label htmlFor="studentActive">Activo</Label>
+            </div>
+          </div>
+          {createError && <p className="text-sm text-destructive">{createError}</p>}
+          {createSuccess && <p className="text-sm text-foreground">{createSuccess}</p>}
+          <div className="flex items-center gap-2">
+            <Button type="submit" size="sm" disabled={creating}>
+              {creating ? "Guardando..." : editId ? "Actualizar estudiante" : "Crear estudiante"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                resetForm()
+                clearMessages()
+                setShowCreate(false)
+              }}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      )}
 
       {/* Filters */}
       <FilterBar

@@ -74,9 +74,13 @@ async function getRecentClassrooms() {
       id,
       grade,
       section,
+      grade_id,
+      section_id,
       academic_year,
       active,
-      edu_institutions ( name )
+      edu_institutions ( name ),
+      edu_institution_grades ( name, code ),
+      edu_grade_sections ( name, code )
     `)
     .eq("active", true)
     .order("created_at", { ascending: false })
