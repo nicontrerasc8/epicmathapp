@@ -1,28 +1,24 @@
 "use client"
 
-import { useState, createContext, useContext, ReactNode } from "react"
+import { createContext, ReactNode, useContext, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import {
-    LayoutDashboard,
-    Users,
-    GraduationCap,
     BookOpen,
     Building2,
     ChevronLeft,
     ChevronRight,
-    LogOut,
+    GraduationCap,
+    LayoutDashboard,
+    LucideIcon,
     Menu,
+    Users,
     X,
-    LucideIcon
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-// ═══════════════════════════════════════════════════════════════
 // TYPES & CONTEXT
-// ═══════════════════════════════════════════════════════════════
 
 interface SidebarContextType {
     collapsed: boolean
@@ -33,16 +29,14 @@ interface SidebarContextType {
 
 const SidebarContext = createContext<SidebarContextType>({
     collapsed: false,
-    setCollapsed: () => { },
+    setCollapsed: () => {},
     mobileOpen: false,
-    setMobileOpen: () => { },
+    setMobileOpen: () => {},
 })
 
 export const useSidebar = () => useContext(SidebarContext)
 
-// ═══════════════════════════════════════════════════════════════
 // NAVIGATION CONFIG
-// ═══════════════════════════════════════════════════════════════
 
 interface NavItem {
     icon: LucideIcon
@@ -63,13 +57,12 @@ const teacherNavigation: NavItem[] = [
     { icon: LayoutDashboard, label: "Mis Clases", href: "/dashboard/teacher" },
 ]
 
-// ═══════════════════════════════════════════════════════════════
 // NAV ITEM COMPONENT
-// ═══════════════════════════════════════════════════════════════
 
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
     const pathname = usePathname()
-    const isActive = pathname === item.href ||
+    const isActive =
+        pathname === item.href ||
         (item.href !== "/dashboard/admin" && pathname.startsWith(item.href))
     const Icon = item.icon
 
@@ -101,7 +94,6 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
                     )}
                 </AnimatePresence>
 
-                {/* Badge */}
                 {item.badge && !collapsed && (
                     <span className="ml-auto bg-primary text-primary-foreground text-xs font-medium px-2 py-0.5 rounded-full">
                         {item.badge}
@@ -112,14 +104,11 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
     )
 }
 
-// ═══════════════════════════════════════════════════════════════
 // SIDEBAR COMPONENT
-// ═══════════════════════════════════════════════════════════════
 
 interface SidebarProps {
     type: "admin" | "teacher"
     userName?: string
-    children?: ReactNode
 }
 
 export function Sidebar({ type, userName = "Usuario" }: SidebarProps) {
@@ -157,6 +146,7 @@ export function Sidebar({ type, userName = "Usuario" }: SidebarProps) {
                     <button
                         onClick={() => setMobileOpen(false)}
                         className="lg:hidden p-2 hover:bg-muted rounded-lg"
+                        type="button"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -171,108 +161,116 @@ export function Sidebar({ type, userName = "Usuario" }: SidebarProps) {
             </nav>
 
             {/* Footer */}
-            <div className="p-3 border-t">
-                {/* Collapse toggle - desktop only */}
+            <div className="p-3 border-t space-y-2">
+                {!collapsed && (
+                    <div className="px-3 text-xs text-muted-foreground">
+                        Sesion: <span className="font-medium text-foreground">{userName}</span>
+                    </div>
+                )}
                 <button
                     onClick={() => setCollapsed(!collapsed)}
                     className="hidden lg:flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-normal"
+                    type="button"
                 >
                     {collapsed ? (
                         <ChevronRight className="w-5 h-5" />
                     ) : (
                         <>
-                            <>
-                                {/* Desktop sidebar */}
-                                <motion.aside
-                                    initial={false}
-                                    animate={{ width: collapsed ? "72px" : "280px" }}
-                                    transition={{ duration: 0.2 }}
-                                    className="hidden lg:block fixed left-0 top-0 h-screen bg-card border-r z-30"
-                                >
-                                    {sidebarContent}
-                                </motion.aside>
+                            <ChevronLeft className="w-5 h-5" />
+                            <span className="text-sm">Contraer</span>
+                        </>
+                    )}
+                </button>
+            </div>
+        </div>
+    )
 
-                                {/* Mobile overlay */}
-                                <AnimatePresence>
-                                    {mobileOpen && (
-                                        <>
-                                            <motion.div
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                exit={{ opacity: 0 }}
-                                                className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-                                                onClick={() => setMobileOpen(false)}
-                                            />
-                                            <motion.aside
-                                                initial={{ x: "-100%" }}
-                                                animate={{ x: 0 }}
-                                                exit={{ x: "-100%" }}
-                                                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                                                className="fixed left-0 top-0 h-screen w-[280px] bg-card border-r z-50 lg:hidden"
-                                            >
-                                                {sidebarContent}
-                                            </motion.aside>
-                                        </>
-                                    )}
-                                </AnimatePresence>
-                            </>
-                            )
+    return (
+        <>
+            {/* Desktop sidebar */}
+            <motion.aside
+                initial={false}
+                animate={{ width: collapsed ? "72px" : "280px" }}
+                transition={{ duration: 0.2 }}
+                className="hidden lg:block fixed left-0 top-0 h-screen bg-card border-r z-30"
+            >
+                {sidebarContent}
+            </motion.aside>
+
+            {/* Mobile overlay */}
+            <AnimatePresence>
+                {mobileOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                            onClick={() => setMobileOpen(false)}
+                        />
+                        <motion.aside
+                            initial={{ x: "-100%" }}
+                            animate={{ x: 0 }}
+                            exit={{ x: "-100%" }}
+                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                            className="fixed left-0 top-0 h-screen w-[280px] bg-card border-r z-50 lg:hidden"
+                        >
+                            {sidebarContent}
+                        </motion.aside>
+                    </>
+                )}
+            </AnimatePresence>
+        </>
+    )
 }
 
-                            // ═══════════════════════════════════════════════════════════════
-                            // SIDEBAR PROVIDER
-                            // ═══════════════════════════════════════════════════════════════
+// SIDEBAR PROVIDER
 
-                            export function SidebarProvider({children}: {children: ReactNode }) {
+export function SidebarProvider({ children }: { children: ReactNode }) {
     const [collapsed, setCollapsed] = useState(false)
-                            const [mobileOpen, setMobileOpen] = useState(false)
+    const [mobileOpen, setMobileOpen] = useState(false)
 
-                            return (
-                            <SidebarContext.Provider value={{ collapsed, setCollapsed, mobileOpen, setMobileOpen }}>
-                                {children}
-                            </SidebarContext.Provider>
-                            )
+    return (
+        <SidebarContext.Provider value={{ collapsed, setCollapsed, mobileOpen, setMobileOpen }}>
+            {children}
+        </SidebarContext.Provider>
+    )
 }
 
-                            // ═══════════════════════════════════════════════════════════════
-                            // MOBILE HEADER
-                            // ═══════════════════════════════════════════════════════════════
+// MOBILE HEADER
 
-                            export function MobileHeader({title}: {title: string }) {
-    const {setMobileOpen} = useSidebar()
+export function MobileHeader({ title }: { title: string }) {
+    const { setMobileOpen } = useSidebar()
 
-                            return (
-                            <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-card border-b z-20 flex items-center justify-between px-4">
-                                <button
-                                    onClick={() => setMobileOpen(true)}
-                                    className="p-2 hover:bg-muted rounded-lg"
-                                >
-                                    <Menu className="w-5 h-5" />
-                                </button>
-                                <span className="font-semibold">{title}</span>
-                                <div className="w-9" /> {/* Spacer */}
-                            </header>
-                            )
+    return (
+        <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-card border-b z-20 flex items-center justify-between px-4">
+            <button
+                onClick={() => setMobileOpen(true)}
+                className="p-2 hover:bg-muted rounded-lg"
+                type="button"
+            >
+                <Menu className="w-5 h-5" />
+            </button>
+            <span className="font-semibold">{title}</span>
+            <div className="w-9" />
+        </header>
+    )
 }
 
-                            // ═══════════════════════════════════════════════════════════════
-                            // MAIN CONTENT WRAPPER
-                            // ═══════════════════════════════════════════════════════════════
+// MAIN CONTENT WRAPPER
 
-                            export function MainContent({children}: {children: ReactNode }) {
-    const {collapsed} = useSidebar()
+export function MainContent({ children }: { children: ReactNode }) {
+    const { collapsed } = useSidebar()
 
-                            return (
-                            <main
-                                className={cn(
-                                    "min-h-screen transition-all duration-200",
-                                    "pt-14 lg:pt-0", // Mobile header offset
-                                    collapsed ? "lg:pl-[72px]" : "lg:pl-[280px]"
-                                )}
-                            >
-                                <div className="p-4 lg:p-6 w-full">
-                                    {children}
-                                </div>
-                            </main>
-                            )
+    return (
+        <main
+            className={cn(
+                "min-h-screen transition-all duration-200",
+                "pt-14 lg:pt-0",
+                collapsed ? "lg:pl-[72px]" : "lg:pl-[280px]"
+            )}
+        >
+            <div className="p-4 lg:p-6 w-full">{children}</div>
+        </main>
+    )
 }
