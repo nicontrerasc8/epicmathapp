@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     maxAge: getStudentSessionMaxAge(),
-    path: '/',
+    path: '/dashboard/student/play',
   })
 
   return response
