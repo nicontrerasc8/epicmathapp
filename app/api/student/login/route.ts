@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import bcrypt from 'bcryptjs'
 import {
   createStudentSessionValue,
@@ -17,11 +15,6 @@ type LoginPayload = {
 
 const ROOT_DOMAIN =
   process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'ludus-edu.com'
-
-const STUDENT_AUTH_EMAIL =
-  process.env.STUDENT_AUTH_EMAIL || 'estudiante@gmail.com'
-const STUDENT_AUTH_PASSWORD =
-  process.env.STUDENT_AUTH_PASSWORD || 'password'
 
 const getInstitutionSlugFromHost = (host: string) => {
   const hostname = host.split(':')[0] || ''
@@ -128,37 +121,6 @@ export async function POST(request: Request) {
   if (!member?.institution_id) {
     return NextResponse.json(
       { error: 'Credenciales incorrectas.' },
-      { status: 401 }
-    )
-  }
-
-  const cookieStore = await cookies()
-  const supabaseAuth = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
-        },
-      },
-    }
-  )
-
-  const { data: authData, error: authError } =
-    await supabaseAuth.auth.signInWithPassword({
-      email: STUDENT_AUTH_EMAIL,
-      password: STUDENT_AUTH_PASSWORD,
-    })
-
-  if (authError || !authData.session) {
-    return NextResponse.json(
-      { error: 'No se pudo iniciar sesion para el estudiante.' },
       { status: 401 }
     )
   }
