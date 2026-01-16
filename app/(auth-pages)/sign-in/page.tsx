@@ -83,6 +83,7 @@ export default function SignInPage() {
     const res = await fetch('/api/student/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         username,
         password: studentPassword || undefined,
@@ -95,8 +96,31 @@ export default function SignInPage() {
       return
     }
 
+    const data = await res.json().catch(() => null)
+    if (!data?.student) {
+      setError('No se pudo iniciar sesión. Intenta nuevamente.')
+      setLoading(false)
+      return
+    }
+
+    const sessionRes = await fetch('/api/student/session', {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    })
+
+    if (!sessionRes.ok) {
+      setError('No se pudo validar la sesión. Intenta nuevamente.')
+      setLoading(false)
+      return
+    }
+
+    const redirectTo = typeof data.redirect_to === 'string'
+      ? data.redirect_to
+      : '/dashboard/student/play'
+
     setLoading(false)
-    router.push('/dashboard/student/play')
+    window.location.href = redirectTo
   }
 
   return (

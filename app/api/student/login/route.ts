@@ -143,6 +143,7 @@ export async function POST(request: Request) {
       classroom_id: member?.classroom_id ?? null,
       institution_id: member?.institution_id ?? null,
     },
+    redirect_to: '/dashboard/student/play',
   })
 
   response.cookies.set(getStudentSessionCookieName(), token, {
