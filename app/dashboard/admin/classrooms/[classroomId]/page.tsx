@@ -1,9 +1,10 @@
 import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
 import ClassroomDetailClient from "./classroom-detail-client"
+import { requireInstitution } from "@/lib/institution"
 
 // Server component - fetch classroom data
-async function getClassroomData(classroomId: string) {
+async function getClassroomData(classroomId: string, institutionId: string) {
   const supabase = await createClient()
 
   // Fetch classroom info
@@ -22,6 +23,7 @@ async function getClassroomData(classroomId: string) {
       edu_grade_sections ( id, name, code )
     `)
     .eq("id", classroomId)
+    .eq("institution_id", institutionId)
     .single()
 
   if (!classroom) return null
@@ -31,6 +33,7 @@ async function getClassroomData(classroomId: string) {
     .from("edu_institution_members")
     .select("id", { count: "exact", head: true })
     .eq("classroom_id", classroomId)
+    .eq("institution_id", institutionId)
     .eq("active", true)
 
   // Get temas count
@@ -38,6 +41,7 @@ async function getClassroomData(classroomId: string) {
     .from("edu_classroom_temas")
     .select("id", { count: "exact", head: true })
     .eq("classroom_id", classroomId)
+    .eq("institution_id", institutionId)
     .eq("active", true)
 
   // Get exercises count
@@ -45,6 +49,7 @@ async function getClassroomData(classroomId: string) {
     .from("edu_classroom_tema_exercises")
     .select("id", { count: "exact", head: true })
     .eq("classroom_id", classroomId)
+    .eq("institution_id", institutionId)
     .eq("active", true)
 
   // Get recent student exercises for accuracy
@@ -52,6 +57,7 @@ async function getClassroomData(classroomId: string) {
     .from("edu_student_exercises")
     .select("id, correct")
     .eq("classroom_id", classroomId)
+    .eq("institution_id", institutionId)
     .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
     .limit(200)
 
@@ -77,7 +83,8 @@ export default async function ClassroomSummary({
   params: Promise<{ classroomId: string }>
 }) {
   const { classroomId } = await params
-  const data = await getClassroomData(classroomId)
+  const institution = await requireInstitution()
+  const data = await getClassroomData(classroomId, institution.id)
 
   if (!data) {
     notFound()

@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
 import TeacherClassroomHubClient from "./classroom-hub-client"
+import { requireInstitution } from "@/lib/institution"
 
 export default async function TeacherClassroomHub({
   params,
@@ -8,6 +9,7 @@ export default async function TeacherClassroomHub({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const institution = await requireInstitution()
   const supabase = await createClient()
 
   // Fetch classroom details
@@ -18,6 +20,7 @@ export default async function TeacherClassroomHub({
       edu_institutions ( name )
     `)
     .eq("id", id)
+    .eq("institution_id", institution.id)
     .single()
 
   if (!classroom) notFound()
@@ -27,6 +30,7 @@ export default async function TeacherClassroomHub({
     .from("edu_classroom_temas")
     .select("id", { count: "exact", head: true })
     .eq("classroom_id", id)
+    .eq("institution_id", institution.id)
     .eq("active", true)
 
   // Calculate active students
@@ -34,6 +38,7 @@ export default async function TeacherClassroomHub({
     .from("edu_institution_members")
     .select("active")
     .eq("classroom_id", id)
+    .eq("institution_id", institution.id)
     .eq("role", "student")
 
   const activeStudents = students?.filter(s => s.active).length || 0

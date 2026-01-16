@@ -19,6 +19,14 @@ const supabaseAdmin = createClient(
 )
 
 export async function POST(request: Request) {
+  const institutionId = request.headers.get('x-institution-id')
+  if (!institutionId) {
+    return NextResponse.json(
+      { error: 'Institucion no encontrada.' },
+      { status: 400 }
+    )
+  }
+
   const body = (await request.json()) as LoginPayload
   const username = body.username?.trim()
   const password = body.password ?? ''
@@ -61,9 +69,17 @@ export async function POST(request: Request) {
     .eq('profile_id', profile.id)
     .eq('role', 'student')
     .eq('active', true)
+    .eq('institution_id', institutionId)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  if (!member?.institution_id) {
+    return NextResponse.json(
+      { error: 'Credenciales incorrectas.' },
+      { status: 401 }
+    )
+  }
 
   const session: StudentSession = {
     profile_id: profile.id,

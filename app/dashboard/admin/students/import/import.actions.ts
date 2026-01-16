@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js"
 import crypto from "crypto"
+import { requireInstitution } from "@/lib/institution"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,6 +20,7 @@ type Row = {
 }
 
 export async function importUsersAction(rows: Row[]) {
+  const institution = await requireInstitution()
   const report:any = {
     created: [],
     failed: [],
@@ -44,6 +46,13 @@ export async function importUsersAction(rows: Row[]) {
         report.failed.push({
           email,
           error: "Role invalido (student o teacher)",
+        })
+        continue
+      }
+      if (institutionId !== institution.id) {
+        report.failed.push({
+          email,
+          error: "Institucion invalida",
         })
         continue
       }

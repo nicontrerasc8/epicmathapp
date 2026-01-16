@@ -5,14 +5,76 @@ import {
   getStudentSessionCookieName,
 } from "@/utils/student-session";
 
+type InstitutionLookup = {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url?: string | null;
+};
+
+const ROOT_DOMAIN =
+  process.env.NEXT_PUBLIC_ROOT_DOMAIN || "ludus-edu.com";
+
+const getHost = (request: NextRequest) =>
+  request.headers.get("host") || "";
+
+const getRootRedirectUrl = (request: NextRequest) => {
+  const host = getHost(request);
+  const protocol = request.nextUrl.protocol;
+  if (host.includes("localhost")) {
+    return `${protocol}//localhost:3000/`;
+  }
+  return `${protocol}//${ROOT_DOMAIN}/`;
+};
+
+const getInstitutionSlugFromHost = (host: string) => {
+  const hostname = host.split(":")[0] || "";
+  if (!hostname) return null;
+  if (hostname === "localhost") return null;
+  if (hostname.endsWith(".localhost")) {
+    const parts = hostname.split(".");
+    return parts.length > 1 ? parts[0] : null;
+  }
+  if (hostname === ROOT_DOMAIN || hostname === `www.${ROOT_DOMAIN}`) {
+    return null;
+  }
+  if (hostname.endsWith(`.${ROOT_DOMAIN}`)) {
+    const slug = hostname.slice(0, -1 * (`.${ROOT_DOMAIN}`.length));
+    if (!slug || slug === "www") return null;
+    return slug;
+  }
+  return null;
+};
+
 export const updateSession = async (request: NextRequest) => {
   // This `try/catch` block is only here for the interactive tutorial.
   // Feel free to remove once you have Supabase connected.
   try {
+    const host = getHost(request);
+    const slug = getInstitutionSlugFromHost(host);
+    const pathname = request.nextUrl.pathname;
+
+    if (!slug) {
+      if (
+        pathname.startsWith("/dashboard") ||
+        pathname.startsWith("/sign-in") ||
+        pathname.startsWith("/protected")
+      ) {
+        return NextResponse.redirect(getRootRedirectUrl(request));
+      }
+    }
+
     // Create an unmodified response
+    const requestHeaders = new Headers(request.headers);
+    if (slug) {
+      requestHeaders.set("x-institution-slug", slug);
+    } else {
+      requestHeaders.delete("x-institution-slug");
+    }
+
     let response = NextResponse.next({
       request: {
-        headers: request.headers,
+        headers: requestHeaders,
       },
     });
 
@@ -29,7 +91,9 @@ export const updateSession = async (request: NextRequest) => {
               request.cookies.set(name, value),
             );
             response = NextResponse.next({
-              request,
+              request: {
+                headers: requestHeaders,
+              },
             });
             cookiesToSet.forEach(({ name, value, options }) =>
               response.cookies.set(name, value, options),
@@ -42,7 +106,34 @@ export const updateSession = async (request: NextRequest) => {
     // This will refresh session if expired - required for Server Components
     // https://supabase.com/docs/guides/auth/server-side/nextjs
     const { data: authData, error: authError } = await supabase.auth.getUser();
-    const pathname = request.nextUrl.pathname;
+
+    if (slug) {
+      const { data: institution } = await supabase
+        .from("edu_institutions")
+        .select("id, name, slug, logo_url")
+        .eq("slug", slug)
+        .eq("active", true)
+        .maybeSingle();
+
+      if (!institution) {
+        return NextResponse.redirect(getRootRedirectUrl(request));
+      }
+
+      const inst = institution as InstitutionLookup;
+      requestHeaders.set("x-institution-id", inst.id);
+      requestHeaders.set("x-institution-name", inst.name);
+      requestHeaders.set("x-institution-slug", inst.slug);
+      if (inst.logo_url) {
+        requestHeaders.set("x-institution-logo", inst.logo_url);
+      } else {
+        requestHeaders.delete("x-institution-logo");
+      }
+      response = NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
+    }
 
     const studentToken = request.cookies.get(getStudentSessionCookieName())?.value;
     const studentSession = studentToken
@@ -54,8 +145,8 @@ export const updateSession = async (request: NextRequest) => {
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }
 
-    if (pathname === "/" && !authError) {
-      return NextResponse.redirect(new URL("/protected", request.url));
+    if (slug && pathname === "/") {
+      return NextResponse.redirect(new URL("/sign-in", request.url));
     }
 
     if (pathname.startsWith("/dashboard/student")) {

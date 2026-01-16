@@ -1,7 +1,9 @@
 import { createClient } from "@/utils/supabase/server"
 import TeacherDashboardClient from "./dashboard-client"
+import { requireInstitution } from "@/lib/institution"
 
 export default async function TeacherDashboard() {
+  const institution = await requireInstitution()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -17,6 +19,7 @@ export default async function TeacherDashboard() {
       edu_institutions:institution_id ( id, name, type )
     `)
     .eq("profile_id", user.id)
+    .eq("institution_id", institution.id)
     .eq("role", "teacher")
     .eq("active", true)
 

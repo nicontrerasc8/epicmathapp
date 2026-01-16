@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { User, LogOut, BookOpen, GraduationCap, Sparkles } from 'lucide-react'
+import { useInstitution } from '@/components/institution-provider'
 
 type Role = 'student' | 'teacher' | 'admin' | null
 
@@ -43,6 +44,7 @@ export default function NavbarUser() {
 
   const router = useRouter()
   const pathname = usePathname()
+  const institution = useInstitution()
   const supabase = createClient()
 
   const displayName = profile ? profile.first_name?.trim() || 'Usuario' : 'Usuario'
@@ -60,6 +62,14 @@ export default function NavbarUser() {
         const data = await studentRes.json()
         const student = data.student as StudentSession | null
         if (student) {
+          if (institution?.id && student.institution_id && student.institution_id !== institution.id) {
+            setStudentSession(null)
+            setProfile(null)
+            setMember(null)
+            setRole(null)
+            setLoading(false)
+            return
+          }
           setStudentSession(student)
           setProfile({
             id: student.id,
@@ -100,14 +110,19 @@ export default function NavbarUser() {
 
       // 2) Membresía (rol real dentro de institución/aula)
       //    Tomamos la más reciente activa (y si hay varias, esta decide)
-      const { data: m, error: mErr } = await supabase
+      let memberQuery = supabase
         .from('edu_institution_members')
         .select('id, role, institution_id, classroom_id, active, created_at')
         .eq('profile_id', user.id)
         .eq('active', true)
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle()
+
+      if (institution?.id) {
+        memberQuery = memberQuery.eq('institution_id', institution.id)
+      }
+
+      const { data: m, error: mErr } = await memberQuery.maybeSingle()
 
       if (mErr) {
         console.error('edu_institution_members error:', mErr)
@@ -125,7 +140,11 @@ export default function NavbarUser() {
 
     fetchUser()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname])
+  }, [pathname, institution?.id])
+
+  if (!institution) {
+    return null
+  }
 
   const logout = async () => {
     if (role === 'student') {

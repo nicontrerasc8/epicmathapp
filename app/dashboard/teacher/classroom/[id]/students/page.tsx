@@ -9,6 +9,7 @@ import {
     StatusBadge,
     type ColumnDef
 } from "@/components/dashboard/core"
+import { useInstitution } from "@/components/institution-provider"
 
 interface Student {
     id: string
@@ -46,13 +47,14 @@ export default function TeacherClassroomStudentsPage() {
     const params = useParams()
     const classroomId = params.id as string
     const router = useRouter()
+    const institution = useInstitution()
     const [loading, setLoading] = useState(true)
     const [students, setStudents] = useState<Student[]>([])
 
     useEffect(() => {
         const fetchStudents = async () => {
             const supabase = createClient()
-            const { data } = await supabase
+            let query = supabase
                 .from("edu_institution_members")
                 .select(`
           active,
@@ -61,6 +63,12 @@ export default function TeacherClassroomStudentsPage() {
         `)
                 .eq("classroom_id", classroomId)
                 .eq("role", "student")
+
+            if (institution?.id) {
+                query = query.eq("institution_id", institution.id)
+            }
+
+            const { data } = await query
 
             if (data) {
                 setStudents(data.map((m: any) => ({
@@ -74,7 +82,7 @@ export default function TeacherClassroomStudentsPage() {
             setLoading(false)
         }
         fetchStudents()
-    }, [classroomId])
+    }, [classroomId, institution?.id])
 
     return (
         <div className="space-y-6">

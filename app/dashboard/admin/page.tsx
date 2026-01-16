@@ -1,9 +1,10 @@
 import { createClient } from "@/utils/supabase/server"
 import AdminDashboardClient from "./dashboard-client"
+import { requireInstitution } from "@/lib/institution"
 
 
 // Server component - fetch all data
-async function getAdminStats() {
+async function getAdminStats(institutionId: string) {
   const supabase = await createClient()
 
   const [
@@ -15,34 +16,39 @@ async function getAdminStats() {
   ] = await Promise.all([
     // Total active students
     supabase
-      .from("edu_profiles")
+      .from("edu_institution_members")
       .select("id", { count: "exact", head: true })
-      .eq("global_role", "student")
-      .eq("active", true),
+      .eq("role", "student")
+      .eq("active", true)
+      .eq("institution_id", institutionId),
 
     // Total active classrooms
     supabase
       .from("edu_classrooms")
       .select("id", { count: "exact", head: true })
-      .eq("active", true),
+      .eq("active", true)
+      .eq("institution_id", institutionId),
 
     // Total institutions
     supabase
       .from("edu_institutions")
       .select("id", { count: "exact", head: true })
-      .eq("active", true),
+      .eq("active", true)
+      .eq("id", institutionId),
 
     // Total temas assigned
     supabase
       .from("edu_classroom_temas")
       .select("id", { count: "exact", head: true })
-      .eq("active", true),
+      .eq("active", true)
+      .eq("institution_id", institutionId),
 
     // Recent student exercises (last 7 days)
     supabase
       .from("edu_student_exercises")
       .select("id, correct, created_at")
       .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      .eq("institution_id", institutionId)
       .order("created_at", { ascending: false })
       .limit(500),
   ])
@@ -65,7 +71,7 @@ async function getAdminStats() {
   }
 }
 
-async function getRecentClassrooms() {
+async function getRecentClassrooms(institutionId: string) {
   const supabase = await createClient()
 
   const { data } = await supabase
@@ -83,34 +89,44 @@ async function getRecentClassrooms() {
       edu_grade_sections ( name, code )
     `)
     .eq("active", true)
+    .eq("institution_id", institutionId)
     .order("created_at", { ascending: false })
     .limit(5)
 
   return data || []
 }
 
-async function getRecentStudents() {
+async function getRecentStudents(institutionId: string) {
   const supabase = await createClient()
 
   const { data } = await supabase
-    .from("edu_profiles")
-    .select("id, first_name, last_name, created_at")
-    .eq("global_role", "student")
+    .from("edu_institution_members")
+    .select(`
+      id,
+      created_at,
+      edu_profiles ( id, first_name, last_name )
+    `)
+    .eq("role", "student")
     .eq("active", true)
+    .eq("institution_id", institutionId)
     .order("created_at", { ascending: false })
     .limit(5)
 
-  return (data || []).map((s) => ({
-    ...s,
-    full_name: `${s.first_name} ${s.last_name}`.trim(),
+  return (data || []).map((m: any) => ({
+    id: m.edu_profiles?.id,
+    first_name: m.edu_profiles?.first_name,
+    last_name: m.edu_profiles?.last_name,
+    created_at: m.created_at,
+    full_name: `${m.edu_profiles?.first_name || ""} ${m.edu_profiles?.last_name || ""}`.trim(),
   }))
 }
 
 export default async function AdminDashboard() {
+  const institution = await requireInstitution()
   const [stats, recentClassrooms, recentStudents] = await Promise.all([
-    getAdminStats(),
-    getRecentClassrooms(),
-    getRecentStudents(),
+    getAdminStats(institution.id),
+    getRecentClassrooms(institution.id),
+    getRecentStudents(institution.id),
   ])
 
   return (

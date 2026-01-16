@@ -6,12 +6,14 @@ import { createClient } from '@/utils/supabase/client'
 import * as XLSX from 'xlsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import { PageHeader } from '@/components/dashboard/core'
+import { useInstitution } from '@/components/institution-provider'
 
 /* ============================================================
    TYPES
 ============================================================ */
 type PerfRow = {
   classroom_id: string
+  institution_id?: string
   student_id: string
   nombres: string
   tema_id: string
@@ -117,6 +119,7 @@ function getInitials(name: string) {
 export default function PerformancePage() {
   const params = useParams() as any
   const classroomId = params?.id as string
+  const institution = useInstitution()
 
   // IMPORTANT: crea el client una sola vez
   const supabase = useMemo(() => createClient(), [])
@@ -143,10 +146,16 @@ export default function PerformancePage() {
     const fetchData = async () => {
       setLoading(true)
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('edu_classroom_performance_v')
         .select('*')
         .eq('classroom_id', classroomId)
+
+      if (institution?.id) {
+        query = query.eq('institution_id', institution.id)
+      }
+
+      const { data, error } = await query
 
       if (error) {
         console.error('edu_classroom_performance_v', error)
@@ -168,7 +177,7 @@ export default function PerformancePage() {
     return () => {
       supabase.removeChannel(ch)
     }
-  }, [classroomId, supabase])
+  }, [classroomId, supabase, institution?.id])
 
   /* =========================
      DERIVED — TEMAS ÚNICOS

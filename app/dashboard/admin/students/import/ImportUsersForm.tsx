@@ -84,7 +84,7 @@ export default function ImportUsersForm() {
     })
 
     const presentKeys = new Set(indexToKey.filter(Boolean))
-    const missing = requiredColumns.filter((col) => !presentKeys.has(col))
+    const missing = requiredColumns.filter((col:any) => !presentKeys.has(col))
     if (missing.length > 0) {
       return {
         rows: [],

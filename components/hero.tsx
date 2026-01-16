@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { ArrowRight, LineChart, Calculator, BarChart3 } from 'lucide-react'
+import { LineChart, Calculator, BarChart3 } from 'lucide-react'
 
 export default function Page() {
   return (
@@ -31,11 +31,6 @@ export default function Page() {
 
           <div className="flex flex-col sm:flex-row justify-center md:justify-start gap-3">
             <Button asChild size="lg">
-              <Link href="/sign-in" className="flex items-center gap-2">
-                Probar ahora <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
               <Link href="#features">Ver funciones</Link>
             </Button>
           </div>

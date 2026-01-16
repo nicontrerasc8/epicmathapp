@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { fetchStudentSession } from '@/lib/student-session-client'
+import { useInstitution } from '@/components/institution-provider'
 
 type ExerciseContext = {
   temaId: string | null
@@ -17,6 +18,7 @@ export function useExerciseContext(
   exerciseId: string | null
 ): ExerciseContext {
   const supabase = createClient()
+  const institution = useInstitution()
 
   const [state, setState] = useState<ExerciseContext>({
     temaId: null,
@@ -53,6 +55,13 @@ export function useExerciseContext(
         if (!studentId) {
           throw new Error('Usuario no autenticado')
         }
+        if (
+          institution?.id &&
+          studentSession?.institution_id &&
+          studentSession.institution_id !== institution.id
+        ) {
+          throw new Error('Institucion incorrecta')
+        }
         console.log('studentId:', studentId)
         console.groupEnd()
 
@@ -85,14 +94,18 @@ export function useExerciseContext(
         ========================= */
         console.group('3️⃣ STUDENT → CLASSROOM')
 
-        const { data: member, error: memberErr } =
-          await supabase
-            .from('edu_institution_members')
-            .select('id, classroom_id, institution_id, role, active')
-            .eq('profile_id', studentId)
-            .eq('role', 'student')
-            .eq('active', true)
-            .maybeSingle()
+        let memberQuery = supabase
+          .from('edu_institution_members')
+          .select('id, classroom_id, institution_id, role, active')
+          .eq('profile_id', studentId)
+          .eq('role', 'student')
+          .eq('active', true)
+
+        if (institution?.id) {
+          memberQuery = memberQuery.eq('institution_id', institution.id)
+        }
+
+        const { data: member, error: memberErr } = await memberQuery.maybeSingle()
 
         console.log('member row:', member)
         console.log('memberErr:', memberErr)
