@@ -162,7 +162,7 @@ export default function SignInPage() {
                 <Lock className="h-4 w-4 text-muted-foreground" />
                 <input
                   type={showPwd ? 'text' : 'password'}
-                  placeholder="Contrasena (si tu colegio la exige)"
+                  placeholder="Contrasena"
                   value={studentPassword}
                   onChange={(e) => setStudentPassword(e.target.value)}
                   className="w-full bg-transparent outline-none text-sm"

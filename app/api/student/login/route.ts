@@ -13,13 +13,54 @@ type LoginPayload = {
   password?: string
 }
 
+const ROOT_DOMAIN =
+  process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'ludus-edu.com'
+
+const getInstitutionSlugFromHost = (host: string) => {
+  const hostname = host.split(':')[0] || ''
+  if (!hostname) return null
+  if (hostname === 'localhost') return null
+  if (hostname.endsWith('.localhost')) {
+    const parts = hostname.split('.')
+    return parts.length > 1 ? parts[0] : null
+  }
+  if (hostname === ROOT_DOMAIN || hostname === `www.${ROOT_DOMAIN}`) {
+    return null
+  }
+  if (hostname.endsWith(`.${ROOT_DOMAIN}`)) {
+    const slug = hostname.slice(0, -1 * (`.${ROOT_DOMAIN}`.length))
+    if (!slug || slug === 'www') return null
+    return slug
+  }
+  return null
+}
+
+const getInstitutionId = async (request: Request) => {
+  const explicitId = request.headers.get('x-institution-id')
+  if (explicitId) return explicitId
+
+  const slugHeader = request.headers.get('x-institution-slug')
+  const host = request.headers.get('host') || ''
+  const slug = slugHeader || getInstitutionSlugFromHost(host)
+  if (!slug) return null
+
+  const { data: institution } = await supabaseAdmin
+    .from('edu_institutions')
+    .select('id, slug')
+    .eq('slug', slug)
+    .eq('active', true)
+    .maybeSingle()
+
+  return institution?.id ?? null
+}
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export async function POST(request: Request) {
-  const institutionId = request.headers.get('x-institution-id')
+  const institutionId = await getInstitutionId(request)
   if (!institutionId) {
     return NextResponse.json(
       { error: 'Institucion no encontrada.' },
