@@ -16,6 +16,15 @@ type LoginPayload = {
 const ROOT_DOMAIN =
   process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'ludus-edu.com'
 
+const getCookieDomain = (request: Request) => {
+  const host = request.headers.get('host') || ''
+  if (!host || host.includes('localhost')) return undefined
+  if (host === ROOT_DOMAIN || host === `www.${ROOT_DOMAIN}` || host.endsWith(`.${ROOT_DOMAIN}`)) {
+    return `.${ROOT_DOMAIN}`
+  }
+  return undefined
+}
+
 const getInstitutionSlugFromHost = (host: string) => {
   const hostname = host.split(':')[0] || ''
   if (!hostname) return null
@@ -151,7 +160,8 @@ export async function POST(request: Request) {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     maxAge: getStudentSessionMaxAge(),
-    path: '/dashboard/student/play',
+    path: '/',
+    domain: getCookieDomain(request),
   })
 
   return response

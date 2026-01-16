@@ -11,6 +11,15 @@ import {
 const ROOT_DOMAIN =
   process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'ludus-edu.com'
 
+const getCookieDomain = (request: Request) => {
+  const host = request.headers.get('host') || ''
+  if (!host || host.includes('localhost')) return undefined
+  if (host === ROOT_DOMAIN || host === `www.${ROOT_DOMAIN}` || host.endsWith(`.${ROOT_DOMAIN}`)) {
+    return `.${ROOT_DOMAIN}`
+  }
+  return undefined
+}
+
 const getInstitutionSlugFromHost = (host: string) => {
   const hostname = host.split(':')[0] || ''
   if (!hostname) return null
@@ -54,7 +63,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const clearSession = () => {
+const clearSession = (request: Request) => {
   const response = NextResponse.json({ student: null }, { status: 401 })
   response.cookies.set(getStudentSessionCookieName(), '', {
     httpOnly: true,
@@ -62,6 +71,7 @@ const clearSession = () => {
     secure: process.env.NODE_ENV === 'production',
     expires: new Date(0),
     path: '/',
+    domain: getCookieDomain(request),
   })
   return response
 }
@@ -69,13 +79,13 @@ const clearSession = () => {
 export async function GET(request: Request) {
   const institutionId = await getInstitutionId(request)
   if (!institutionId) {
-    return clearSession()
+    return clearSession(request)
   }
   const cookieStore = await cookies()
   const token = cookieStore.get(getStudentSessionCookieName())?.value
 
   if (!token) {
-    return clearSession()
+    return clearSession(request)
   }
 
   const session = token
@@ -83,10 +93,10 @@ export async function GET(request: Request) {
     : null
 
   if (!session?.profile_id) {
-    return clearSession()
+    return clearSession(request)
   }
   if (institutionId && session.institution_id && session.institution_id !== institutionId) {
-    return clearSession()
+    return clearSession(request)
   }
 
   const { data: profile } = await supabaseAdmin
@@ -96,7 +106,7 @@ export async function GET(request: Request) {
     .maybeSingle()
 
   if (!profile || profile.active === false || profile.global_role !== 'student') {
-    return clearSession()
+    return clearSession(request)
   }
 
   const response = NextResponse.json({
@@ -116,6 +126,7 @@ export async function GET(request: Request) {
     secure: process.env.NODE_ENV === 'production',
     maxAge: getStudentSessionMaxAge(),
     path: '/',
+    domain: getCookieDomain(request),
   })
 
   return response
