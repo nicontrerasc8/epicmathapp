@@ -50,15 +50,15 @@ export const updateSession = async (request: NextRequest) => {
   const host = getHost(request);
   const slug = getInstitutionSlugFromHost(host);
   const pathname = request.nextUrl.pathname;
+  const isStudentRoute = pathname.startsWith("/dashboard/student");
+
 
   // Redirect root domain dashboard/auth routes to root
   if (!slug) {
-    const isStudentDashboard = pathname.startsWith("/dashboard/student");
     if (
-      !isStudentDashboard &&
-      (pathname.startsWith("/dashboard") ||
-        pathname.startsWith("/sign-in") ||
-        pathname.startsWith("/protected"))
+      pathname.startsWith("/dashboard") ||
+      pathname.startsWith("/sign-in") ||
+      pathname.startsWith("/protected")
     ) {
       return NextResponse.redirect(getRootRedirectUrl(request));
     }
@@ -169,6 +169,17 @@ export const updateSession = async (request: NextRequest) => {
   // Parse student session token
   const studentToken = request.cookies.get(getStudentSessionCookieName())?.value;
   let studentSession = null;
+  // Student routes - require student session ONLY
+if (isStudentRoute) {
+  if (!studentSession) {
+    console.warn("[Middleware] Student route requires student session");
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  // Student authenticated → allow, DO NOT check Supabase auth
+  return response;
+}
+
 
   if (studentToken) {
     try {
@@ -178,8 +189,19 @@ export const updateSession = async (request: NextRequest) => {
     }
   }
 
+  // Protected routes - require Supabase auth
+  if (pathname.startsWith("/protected")) {
+    if (authError || !authData.user) {
+      console.warn(`[Middleware] Protected route access denied: ${pathname}`);
+      return NextResponse.redirect(new URL("/sign-in", request.url));
+    }
+  }
 
-
+  // Redirect institution root to sign-in
+  // Redirect institution root to sign-in ONLY if not a student
+if (slug && pathname === "/" && !studentSession) {
+  return NextResponse.redirect(new URL("/sign-in", request.url));
+}
 
 
   // Student dashboard routes - allow access without student session
