@@ -217,7 +217,7 @@ export default function StudentsTable() {
   const [createSuccess, setCreateSuccess] = useState<string | null>(null)
   const [classrooms, setClassrooms] = useState<ClassroomOption[]>([])
   const [editId, setEditId] = useState<string | null>(null)
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<any>({
     firstName: "",
     lastName: "",
     email: "",
@@ -237,7 +237,7 @@ export default function StudentsTable() {
     try {
       setLoading(true)
       setError(null)
-      const data = await listStudentsAction(values.search || "")
+      const data:any = await listStudentsAction(values.search || "")
       setRows(data as Student[])
     } catch (e: any) {
       setError(e?.message ?? "Error cargando estudiantes")
@@ -255,7 +255,7 @@ export default function StudentsTable() {
     const loadClassrooms = async () => {
       try {
         setCreateError(null)
-        const data = await listClassroomsAction()
+        const data:any = await listClassroomsAction()
         const active = (data as ClassroomOption[]).filter((c) => c.active !== false)
         setClassrooms(active)
       } catch (e: any) {
@@ -465,7 +465,7 @@ export default function StudentsTable() {
               <Input
                 id="studentFirstName"
                 value={form.firstName}
-                onChange={(e) => setForm((s) => ({ ...s, firstName: e.target.value }))}
+                onChange={(e) => setForm((s:any) => ({ ...s, firstName: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
@@ -473,7 +473,7 @@ export default function StudentsTable() {
               <Input
                 id="studentLastName"
                 value={form.lastName}
-                onChange={(e) => setForm((s) => ({ ...s, lastName: e.target.value }))}
+                onChange={(e) => setForm((s:any) => ({ ...s, lastName: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
@@ -482,7 +482,7 @@ export default function StudentsTable() {
                 id="studentEmail"
                 type="email"
                 value={form.email}
-                onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
+                onChange={(e) => setForm((s:any) => ({ ...s, email: e.target.value }))}
                 disabled={Boolean(editId)}
               />
             </div>
@@ -492,7 +492,7 @@ export default function StudentsTable() {
                 id="studentPassword"
                 type="text"
                 value={form.password}
-                onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
+                onChange={(e) => setForm((s:any) => ({ ...s, password: e.target.value }))}
                 disabled={Boolean(editId)}
               />
             </div>
@@ -501,7 +501,7 @@ export default function StudentsTable() {
               <select
                 id="studentClassroom"
                 value={form.classroomId}
-                onChange={(e) => setForm((s) => ({ ...s, classroomId: e.target.value }))}
+                onChange={(e) => setForm((s:any) => ({ ...s, classroomId: e.target.value }))}
                 className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
               >
                 <option value="">Sin asignar</option>
@@ -516,7 +516,7 @@ export default function StudentsTable() {
               <Checkbox
                 id="studentActive"
                 checked={form.active}
-                onCheckedChange={(val) => setForm((s) => ({ ...s, active: Boolean(val) }))}
+                onCheckedChange={(val) => setForm((s:any) => ({ ...s, active: Boolean(val) }))}
               />
               <Label htmlFor="studentActive">Activo</Label>
             </div>
