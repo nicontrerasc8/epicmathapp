@@ -181,140 +181,98 @@ export function Sidebar({ type, userName = "Usuario" }: SidebarProps) {
                         <ChevronRight className="w-5 h-5" />
                     ) : (
                         <>
-                            <ChevronLeft className="w-5 h-5" />
-                            <span className="text-sm">Colapsar</span>
-                        </>
-                    )}
-                </button>
+                            <>
+                                {/* Desktop sidebar */}
+                                <motion.aside
+                                    initial={false}
+                                    animate={{ width: collapsed ? "72px" : "280px" }}
+                                    transition={{ duration: 0.2 }}
+                                    className="hidden lg:block fixed left-0 top-0 h-screen bg-card border-r z-30"
+                                >
+                                    {sidebarContent}
+                                </motion.aside>
 
-                {/* User & logout */}
-                <div className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 mt-1",
-                    collapsed && "flex-col"
-                )}>
-                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                        <span className="text-sm font-medium">{userName[0]?.toUpperCase()}</span>
-                    </div>
-                    <AnimatePresence mode="wait">
-                        {!collapsed && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="flex-1 min-w-0"
-                            >
-                                <div className="text-sm font-medium truncate">{userName}</div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                    <Link
-                        href="/dashboard"
-                        className={cn(
-                            "p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-fast",
-                            collapsed && "mt-2"
-                        )}
-                        title="Cerrar sesión"
-                    >
-                        <LogOut className="w-4 h-4" />
-                    </Link>
-                </div>
-            </div>
-        </div>
-    )
-
-    return (
-        <>
-            {/* Desktop sidebar */}
-            <motion.aside
-                initial={false}
-                animate={{ width: collapsed ? "72px" : "280px" }}
-                transition={{ duration: 0.2 }}
-                className="hidden lg:block fixed left-0 top-0 h-screen bg-card border-r z-30"
-            >
-                {sidebarContent}
-            </motion.aside>
-
-            {/* Mobile overlay */}
-            <AnimatePresence>
-                {mobileOpen && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-                            onClick={() => setMobileOpen(false)}
-                        />
-                        <motion.aside
-                            initial={{ x: "-100%" }}
-                            animate={{ x: 0 }}
-                            exit={{ x: "-100%" }}
-                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="fixed left-0 top-0 h-screen w-[280px] bg-card border-r z-50 lg:hidden"
-                        >
-                            {sidebarContent}
-                        </motion.aside>
-                    </>
-                )}
-            </AnimatePresence>
-        </>
-    )
+                                {/* Mobile overlay */}
+                                <AnimatePresence>
+                                    {mobileOpen && (
+                                        <>
+                                            <motion.div
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                exit={{ opacity: 0 }}
+                                                className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                                                onClick={() => setMobileOpen(false)}
+                                            />
+                                            <motion.aside
+                                                initial={{ x: "-100%" }}
+                                                animate={{ x: 0 }}
+                                                exit={{ x: "-100%" }}
+                                                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                                                className="fixed left-0 top-0 h-screen w-[280px] bg-card border-r z-50 lg:hidden"
+                                            >
+                                                {sidebarContent}
+                                            </motion.aside>
+                                        </>
+                                    )}
+                                </AnimatePresence>
+                            </>
+                            )
 }
 
-// ═══════════════════════════════════════════════════════════════
-// SIDEBAR PROVIDER
-// ═══════════════════════════════════════════════════════════════
+                            // ═══════════════════════════════════════════════════════════════
+                            // SIDEBAR PROVIDER
+                            // ═══════════════════════════════════════════════════════════════
 
-export function SidebarProvider({ children }: { children: ReactNode }) {
+                            export function SidebarProvider({children}: {children: ReactNode }) {
     const [collapsed, setCollapsed] = useState(false)
-    const [mobileOpen, setMobileOpen] = useState(false)
+                            const [mobileOpen, setMobileOpen] = useState(false)
 
-    return (
-        <SidebarContext.Provider value={{ collapsed, setCollapsed, mobileOpen, setMobileOpen }}>
-            {children}
-        </SidebarContext.Provider>
-    )
+                            return (
+                            <SidebarContext.Provider value={{ collapsed, setCollapsed, mobileOpen, setMobileOpen }}>
+                                {children}
+                            </SidebarContext.Provider>
+                            )
 }
 
-// ═══════════════════════════════════════════════════════════════
-// MOBILE HEADER
-// ═══════════════════════════════════════════════════════════════
+                            // ═══════════════════════════════════════════════════════════════
+                            // MOBILE HEADER
+                            // ═══════════════════════════════════════════════════════════════
 
-export function MobileHeader({ title }: { title: string }) {
-    const { setMobileOpen } = useSidebar()
+                            export function MobileHeader({title}: {title: string }) {
+    const {setMobileOpen} = useSidebar()
 
-    return (
-        <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-card border-b z-20 flex items-center justify-between px-4">
-            <button
-                onClick={() => setMobileOpen(true)}
-                className="p-2 hover:bg-muted rounded-lg"
-            >
-                <Menu className="w-5 h-5" />
-            </button>
-            <span className="font-semibold">{title}</span>
-            <div className="w-9" /> {/* Spacer */}
-        </header>
-    )
+                            return (
+                            <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-card border-b z-20 flex items-center justify-between px-4">
+                                <button
+                                    onClick={() => setMobileOpen(true)}
+                                    className="p-2 hover:bg-muted rounded-lg"
+                                >
+                                    <Menu className="w-5 h-5" />
+                                </button>
+                                <span className="font-semibold">{title}</span>
+                                <div className="w-9" /> {/* Spacer */}
+                            </header>
+                            )
 }
 
-// ═══════════════════════════════════════════════════════════════
-// MAIN CONTENT WRAPPER
-// ═══════════════════════════════════════════════════════════════
+                            // ═══════════════════════════════════════════════════════════════
+                            // MAIN CONTENT WRAPPER
+                            // ═══════════════════════════════════════════════════════════════
 
-export function MainContent({ children }: { children: ReactNode }) {
-    const { collapsed } = useSidebar()
+                            export function MainContent({children}: {children: ReactNode }) {
+    const {collapsed} = useSidebar()
 
-    return (
-        <main
-            className={cn(
-                "min-h-screen transition-all duration-200",
-                "pt-14 lg:pt-0", // Mobile header offset
-                collapsed ? "lg:pl-[72px]" : "lg:pl-[280px]"
-            )}
-        >
-            <div className="p-4 lg:p-6 w-full">
-                {children}
-            </div>
-        </main>
-    )
+                            return (
+                            <main
+                                className={cn(
+                                    "min-h-screen transition-all duration-200",
+                                    "pt-14 lg:pt-0", // Mobile header offset
+                                    collapsed ? "lg:pl-[72px]" : "lg:pl-[280px]"
+                                )}
+                            >
+                                <div className="p-4 lg:p-6 w-full">
+                                    {children}
+                                </div>
+                            </main>
+                            )
 }

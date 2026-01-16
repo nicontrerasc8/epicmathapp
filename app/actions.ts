@@ -96,7 +96,8 @@ export const signInAction = async (formData: FormData) => {
   // 🚦 Redirect por rol GLOBAL
   switch (profile.global_role) {
     case "admin":
-      return redirect("/dashboard/admin");
+      // Redirect to admin-access page to choose institution
+      return redirect("/admin-access");
 
     case "teacher":
       return redirect("/dashboard/teacher");

@@ -62,8 +62,7 @@ export default async function RootLayout({
             <nav className="sticky top-0 z-50 bg-white/80 dark:bg-background/80 backdrop-blur-xl border-b border-border shadow-sm">
               <div className="max-w-6xl mx-auto flex justify-between items-center px-6 py-3">
                 {/* Brand */}
-                <Link
-                  href="/"
+                <div
                   className="flex items-center gap-3 text-xl md:text-2xl font-extrabold tracking-tight text-primary hover:opacity-90 transition-opacity"
                 >
                   {institution?.logo_url ? (
@@ -79,7 +78,7 @@ export default async function RootLayout({
                     </span>
                   )}
                   <span className="text-foreground">{brandLabel}</span>
-                </Link>
+                </div>
 
                 {/* Right side */}
                 <div className="flex items-center gap-4">
