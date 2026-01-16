@@ -52,13 +52,11 @@ export const updateSession = async (request: NextRequest) => {
   const pathname = request.nextUrl.pathname;
   const isStudentRoute = pathname.startsWith("/dashboard/student");
 
-
   // Redirect root domain dashboard/auth routes to root
   if (!slug) {
     if (
       pathname.startsWith("/dashboard") ||
-      pathname.startsWith("/sign-in") ||
-      pathname.startsWith("/protected")
+      pathname.startsWith("/sign-in") 
     ) {
       return NextResponse.redirect(getRootRedirectUrl(request));
     }
@@ -78,18 +76,15 @@ export const updateSession = async (request: NextRequest) => {
     },
   });
 
-  // Determine if we're in production (HTTPS)
   const isProduction = request.nextUrl.protocol === "https:";
   const isLocalhost = host.includes("localhost");
 
-  // Cookie options for production
   const getCookieOptions = (options: any = {}) => {
     return {
       ...options,
       path: options.path || "/",
       sameSite: options.sameSite || (isProduction ? "lax" : "lax"),
       secure: options.secure !== undefined ? options.secure : isProduction,
-      // Set domain for production subdomain support
       domain: !isLocalhost && slug ? `.${ROOT_DOMAIN}` : undefined,
     };
   };
@@ -103,19 +98,14 @@ export const updateSession = async (request: NextRequest) => {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          // Update request cookies for subsequent middleware logic
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
-
-          // Create new response with updated headers
           response = NextResponse.next({
             request: {
               headers: requestHeaders,
             },
           });
-
-          // Set cookies on response with proper options
           cookiesToSet.forEach(({ name, value, options }) => {
             const cookieOptions = getCookieOptions(options);
             response.cookies.set(name, value, cookieOptions);
@@ -125,8 +115,30 @@ export const updateSession = async (request: NextRequest) => {
     },
   );
 
+  // ⭐ MOVER ESTE BLOQUE AQUÍ - ANTES DE VALIDAR RUTAS
+  // Parse student session token FIRST
+  const studentToken = request.cookies.get(getStudentSessionCookieName())?.value;
+  let studentSession = null;
+  
+  if (studentToken) {
+    try {
+      studentSession = await parseStudentSessionValue(studentToken);
+    } catch (error) {
+      console.error("[Middleware] Student session parse error:", error);
+    }
+  }
+
+  // Student routes - require student session ONLY
+  if (isStudentRoute) {
+    if (!studentSession) {
+      console.warn("[Middleware] Student route requires student session");
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+    // Student authenticated → allow, DO NOT check Supabase auth
+    return response;
+  }
+
   // Refresh session if expired - required for Server Components
-  // https://supabase.com/docs/guides/auth/server-side/nextjs
   const { data: authData, error: authError } = await supabase.auth.getUser();
 
   // Fetch and validate institution if on subdomain
@@ -158,7 +170,6 @@ export const updateSession = async (request: NextRequest) => {
       requestHeaders.delete("x-institution-logo");
     }
 
-    // Update response with institution headers
     response = NextResponse.next({
       request: {
         headers: requestHeaders,
@@ -166,48 +177,18 @@ export const updateSession = async (request: NextRequest) => {
     });
   }
 
-  // Parse student session token
-  const studentToken = request.cookies.get(getStudentSessionCookieName())?.value;
-  let studentSession = null;
-  // Student routes - require student session ONLY
-if (isStudentRoute) {
-  if (!studentSession) {
-    console.warn("[Middleware] Student route requires student session");
-    return NextResponse.redirect(new URL("/", request.url));
-  }
-
-  // Student authenticated → allow, DO NOT check Supabase auth
-  return response;
-}
 
 
-  if (studentToken) {
-    try {
-      studentSession = await parseStudentSessionValue(studentToken);
-    } catch (error) {
-      console.error("[Middleware] Student session parse error:", error);
-    }
-  }
-
-  // Protected routes - require Supabase auth
-  if (pathname.startsWith("/protected")) {
-    if (authError || !authData.user) {
-      console.warn(`[Middleware] Protected route access denied: ${pathname}`);
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
-  }
-
-  // Redirect institution root to sign-in
   // Redirect institution root to sign-in ONLY if not a student
-if (slug && pathname === "/" && !studentSession) {
-  return NextResponse.redirect(new URL("/sign-in", request.url));
-}
-
-
-  // Student dashboard routes - allow access without student session
+  if (slug && pathname === "/" && !studentSession) {
+    return NextResponse.redirect(new URL("/sign-in", request.url));
+  }
 
   // Teacher and Admin routes - require Supabase auth and proper role
-  if (pathname.startsWith("/dashboard/teacher") || pathname.startsWith("/dashboard/admin")) {
+  if (
+    pathname.startsWith("/dashboard/teacher") ||
+    pathname.startsWith("/dashboard/admin")
+  ) {
     if (authError || !authData.user) {
       console.warn(`[Middleware] Auth required for: ${pathname}`);
       return NextResponse.redirect(new URL("/sign-in", request.url));
@@ -234,13 +215,11 @@ if (slug && pathname === "/" && !studentSession) {
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }
 
-    // Admin routes - require admin role
     if (pathname.startsWith("/dashboard/admin") && profile.global_role !== "admin") {
       console.warn(`[Middleware] Admin access denied for role: ${profile.global_role}`);
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    // Teacher routes - require teacher or admin role
     if (
       pathname.startsWith("/dashboard/teacher") &&
       profile.global_role !== "teacher" &&
