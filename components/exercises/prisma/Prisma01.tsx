@@ -487,7 +487,7 @@ export default function Prisma01({
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 1 — Tablas de verdad"
+        title="Tablas de verdad"
         prompt="Elige la alternativa correcta: la tabla de verdad de la proposición es…"
         status={engine.status}
         attempts={engine.attempts}
