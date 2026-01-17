@@ -103,7 +103,7 @@ export const signInAction = async (formData: FormData) => {
       return redirect("/dashboard/teacher");
 
     case "student":
-      return redirect("/dashboard/student/play");
+      return redirect("/student/play");
 
     default:
       return encodedRedirect(

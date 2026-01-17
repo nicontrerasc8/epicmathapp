@@ -117,7 +117,7 @@ export default function SignInPage() {
 
     const redirectTo = typeof data.redirect_to === 'string'
       ? data.redirect_to
-      : '/dashboard/student/play'
+      : '/student/play'
 
     setLoading(false)
     window.location.href = redirectTo

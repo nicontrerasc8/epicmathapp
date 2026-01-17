@@ -50,7 +50,7 @@ export const updateSession = async (request: NextRequest) => {
   const host = getHost(request);
   const slug = getInstitutionSlugFromHost(host);
   const pathname = request.nextUrl.pathname;
-  const isStudentRoute = pathname.startsWith("/dashboard/student");
+  const isStudentRoute = pathname.startsWith("/student");
 
   // Redirect root domain dashboard/auth routes to root
   if (!slug) {

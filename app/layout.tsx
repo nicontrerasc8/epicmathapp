@@ -1,4 +1,4 @@
-import Navbar from "@/components/navbar-student";
+import Navbar from "@/components/navbar";
 import { EnvVarWarning } from "@/components/env-var-warning";
 import { hasEnvVars } from "@/utils/supabase/check-env-vars";
 import { Geist, Inter } from "next/font/google";

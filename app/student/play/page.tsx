@@ -246,7 +246,7 @@ export default function StudentDashboardPage() {
                           whileTap={{ scale: 0.97 }}
                         >
                           <Link
-                            href={`/dashboard/student/play/${ex.id}`}
+                            href={`/student/play/${ex.id}`}
                             className="block rounded-lg border bg-card p-4 text-center hover:shadow-md transition"
                           >
                             <span className="text-sm font-semibold">

@@ -13,7 +13,7 @@ export function GameCard({ game }: { game: Game }) {
 
   return (
     <div
-      onClick={() => router.push(`/dashboard/student/play/${game.id}`)}
+      onClick={() => router.push(`/student/play/${game.id}`)}
       className="bg-card p-6 rounded-xl border hover:bg-accent cursor-pointer transition-all shadow-md flex flex-col justify-between"
     >
       <h2 className="text-lg font-bold mb-2">{game.title}</h2>

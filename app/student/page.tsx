@@ -18,13 +18,13 @@ export default function StudentDashboard() {
   </p>
 
   <div className="flex flex-col sm:flex-row gap-6">
-    <Link href="/dashboard/student/play" className="w-full sm:w-auto">
+    <Link href="/student/play" className="w-full sm:w-auto">
       <button className="w-full sm:w-auto bg-secondary text-white font-semibold px-6 py-3 rounded-xl hover:bg-secondary/90 transition">
         🎮 Jugar
       </button>
     </Link>
 
-    <Link href="/dashboard/student/exams" className="w-full sm:w-auto">
+    <Link href="/student/exams" className="w-full sm:w-auto">
       <button className="w-full sm:w-auto bg-primary text-white font-semibold px-6 py-3 rounded-xl hover:bg-primary/90 transition">
         📝 Ver mis exámenes
       </button>

@@ -117,7 +117,7 @@ export const ExerciseRegistry = ({
     <div className="relative">
       {/* ✅ Botón Volver (siempre) */}
       <Link
-        href="/dashboard/student/play"
+        href="/student/play"
         className="absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
       >
         <ArrowLeft className="h-4 w-4" />

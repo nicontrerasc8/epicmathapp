@@ -62,7 +62,7 @@ export default function StudentExamsPage() {
               <button
                 className="mt-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition"
                 onClick={() =>
-                  window.location.href = `/dashboard/student/exams/${quiz.id}`
+                  window.location.href = `/student/exams/${quiz.id}`
                 }
               >
                 📖 Resolver
@@ -74,7 +74,7 @@ export default function StudentExamsPage() {
         <div className="text-center text-muted-foreground space-y-4">
           <p className="text-lg">📭 No tienes exámenes asignados por el momento.</p>
           <button
-            onClick={() => window.location.href = '/dashboard/student'}
+            onClick={() => window.location.href = '/student'}
             className="bg-secondary text-white px-4 py-2 rounded-lg hover:bg-secondary/90 transition"
           >
             ⬅️ Volver al menú
