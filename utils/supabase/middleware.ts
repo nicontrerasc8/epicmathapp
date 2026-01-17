@@ -128,10 +128,7 @@ export const updateSession = async (request: NextRequest) => {
 
   // Student routes - require student session ONLY
   if (isStudentRoute) {
-    if (!studentSession) {
-      console.warn("[Middleware] Student route requires student session");
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
+
     // Student authenticated → allow, DO NOT check Supabase auth
     return response;
   }
