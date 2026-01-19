@@ -39,6 +39,11 @@ import Prisma32 from './prisma/Prisma32'
 import Prisma33 from './prisma/Prisma33'
 import Prisma34 from './prisma/Prisma34'
 import Prisma35 from './prisma/Prisma35'
+import PrimariaSumaResta01 from './primaria/PrimariaSumaResta01'
+import PrimariaSumaResta02 from './primaria/PrimariaSumaResta02'
+import PrimariaSumaResta03 from './primaria/PrimariaSumaResta03'
+import PrimariaSumaResta04 from './primaria/PrimariaSumaResta04'
+import PrimariaSumaResta05 from './primaria/PrimariaSumaResta05'
 
 /* ============================================================
    REGISTRO GLOBAL DE EJERCICIOS (edu_exercises)
@@ -96,6 +101,11 @@ const EXERCISE_COMPONENTS: Record<
   '5ffb7fcb-b4a6-4d01-83c1-4d6eef48a04a': Prisma33,
   '01e506fd-11d4-4a4a-8de6-19d7a32e6132': Prisma34,
   '7ed40df0-cc59-48e5-a156-71e9322c9a8f': Prisma35,
+  '213987398578932': PrimariaSumaResta01,
+  '5748678765': PrimariaSumaResta02,
+  '876286732': PrimariaSumaResta03,
+  '67485747': PrimariaSumaResta04,
+  '97843297248397': PrimariaSumaResta05,
 }
 
 /* ============================================================

@@ -6,28 +6,6 @@ import { fetchStudentSession } from '@/lib/student-session-client'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 
-/* ============================================================
-   TYPES
-============================================================ */
-type Row = {
-  profile_id: string
-
-  block_id: string
-  block_name: string
-  block_type: string
-  block_order: number
-
-  subblock_id: string
-  subblock_name: string
-  subblock_order: number
-
-  tema_id: string
-  tema_order: number
-
-  exercise_id: string
-  exercise_order: number // ✅ EXISTE EN EL VIEW
-}
-
 type Exercise = {
   id: string
   order: number
@@ -35,6 +13,7 @@ type Exercise = {
 
 type Tema = {
   id: string
+  name: string
   areaName: string
   subblockName: string
   exercises: Exercise[]
@@ -53,14 +32,12 @@ type Block = {
   subblocks: Subblock[]
 }
 
-/* ============================================================
-   PAGE
-============================================================ */
 export default function StudentDashboardPage() {
   const supabase = createClient()
 
   const [loading, setLoading] = useState(true)
   const [blocks, setBlocks] = useState<Block[]>([])
+  const [activeBlockLabel, setActiveBlockLabel] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -72,98 +49,122 @@ export default function StudentDashboardPage() {
         return
       }
 
-      const { data, error } = await supabase
-        .from('edu_v_student_practice_screen')
-        .select('*')
+      const { data: member } = await supabase
+        .from('edu_institution_members')
+        .select('classroom_id')
         .eq('profile_id', studentSession.id)
-        .order('block_order')
-        .order('subblock_order')
-        .order('tema_order')
-        .order('exercise_order') // 🔥 IMPORTANTE
+        .eq('role', 'student')
+        .eq('active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-      if (error || !data) {
+      if (!member?.classroom_id) {
+        setLoading(false)
+        return
+      }
+
+      const classroomId = member.classroom_id
+
+      const { data: activeBlocks } = await supabase
+        .from('edu_classroom_blocks')
+        .select(`
+          block:edu_academic_blocks ( id, name, block_type )
+        `)
+        .eq('classroom_id', classroomId)
+        .eq('active', true)
+        .order('started_at', { ascending: false })
+        .limit(1)
+
+      const activeBlock = activeBlocks?.[0]?.block
+      if (!activeBlock?.id) {
+        setLoading(false)
+        setBlocks([])
+        return
+      }
+
+      setActiveBlockLabel(`${activeBlock.name} (${activeBlock.block_type})`)
+
+      const { data: assignments, error } = await supabase
+        .from('edu_classroom_tema_exercises')
+        .select(`
+          id,
+          exercise_id,
+          ordering,
+          tema:edu_temas (
+            id,
+            name,
+            ordering,
+            area:edu_areas ( name ),
+            subblock:edu_academic_subblocks (
+              id,
+              name,
+              ordering,
+              block:edu_academic_blocks ( id, name, block_type )
+            )
+          )
+        `)
+        .eq('classroom_id', classroomId)
+        .eq('active', true)
+
+      if (error || !assignments) {
         console.error(error)
         setLoading(false)
         return
       }
 
-      const temaIds = Array.from(new Set(data.map((r: Row) => r.tema_id)))
-      const { data: temasData } = await supabase
-        .from('edu_temas')
-        .select(`
-          id,
-          area:edu_areas ( name ),
-          subblock:edu_academic_subblocks ( name )
-        `)
-        .in('id', temaIds)
-
-      const temaMeta = new Map<string, { areaName: string; subblockName: string }>()
-      temasData?.forEach((t: any) => {
-        temaMeta.set(t.id, {
-          areaName: t.area?.name || 'Area',
-          subblockName: t.subblock?.name || 'Sub-bloque',
-        })
-      })
-
       const blockMap = new Map<string, Block>()
 
-      data.forEach((r: Row) => {
-        /* =========================
-           BLOCK
-        ========================= */
-        if (!blockMap.has(r.block_id)) {
-          blockMap.set(r.block_id, {
-            id: r.block_id,
-            name: r.block_name,
-            type: r.block_type,
+      assignments.forEach((row: any) => {
+        const block = row.tema?.subblock?.block
+        if (!block || block.id !== activeBlock.id) return
+
+        if (!blockMap.has(block.id)) {
+          blockMap.set(block.id, {
+            id: block.id,
+            name: block.name,
+            type: block.block_type,
             subblocks: [],
           })
         }
 
-        const block = blockMap.get(r.block_id)!
+        const blockEntry = blockMap.get(block.id)!
+        const subblock = row.tema?.subblock
+        if (!subblock) return
 
-        /* =========================
-           SUBBLOCK
-        ========================= */
-        let sub = block.subblocks.find(s => s.id === r.subblock_id)
+        let sub = blockEntry.subblocks.find(s => s.id === subblock.id)
         if (!sub) {
           sub = {
-            id: r.subblock_id,
-            name: r.subblock_name,
+            id: subblock.id,
+            name: subblock.name,
             temas: [],
           }
-          block.subblocks.push(sub)
+          blockEntry.subblocks.push(sub)
         }
 
-        /* =========================
-           TEMA
-        ========================= */
-        let tema = sub.temas.find(t => t.id === r.tema_id)
-        if (!tema) {
-          const meta = temaMeta.get(r.tema_id)
-          tema = {
-            id: r.tema_id,
-            areaName: meta?.areaName || 'Area',
-            subblockName: meta?.subblockName || r.subblock_name,
+        const tema = row.tema
+        if (!tema) return
+
+        let temaEntry = sub.temas.find(t => t.id === tema.id)
+        if (!temaEntry) {
+          temaEntry = {
+            id: tema.id,
+            name: tema.name,
+            areaName: tema.area?.name || 'Area',
+            subblockName: subblock.name || 'Sub-bloque',
             exercises: [],
           }
-          sub.temas.push(tema)
+          sub.temas.push(temaEntry)
         }
 
-        /* =========================
-           EXERCISE (AQUÍ ESTABA EL BUG)
-        ========================= */
-        if (!tema.exercises.find(e => e.id === r.exercise_id)) {
-          tema.exercises.push({
-            id: r.exercise_id,
-            order: r.exercise_order, // ✅ SE GUARDA EL ORDER REAL
+        if (!temaEntry.exercises.find(e => e.id === row.exercise_id)) {
+          temaEntry.exercises.push({
+            id: row.exercise_id,
+            order: row.ordering ?? 0,
           })
         }
       })
 
-      /* =========================
-         ORDEN FINAL (DEFENSIVO)
-      ========================= */
       blockMap.forEach(block => {
         block.subblocks.forEach(sub => {
           sub.temas.forEach(tema => {
@@ -179,31 +180,27 @@ export default function StudentDashboardPage() {
     load()
   }, [supabase])
 
-  /* =========================
-     LOADING
-  ========================= */
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <span className="text-muted-foreground text-lg animate-pulse">
-          Cargando práctica académica…
+          Cargando practica academica...
         </span>
       </div>
     )
   }
 
-  /* =========================
-     UI
-  ========================= */
   return (
     <div className="min-h-screen bg-background p-6 sm:p-10">
       <div className="max-w-7xl mx-auto space-y-12">
         <header className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">
-            Práctica académica
+            Practica academica
           </h1>
           <p className="text-muted-foreground">
-            Avanza por bloques y temas a tu ritmo.
+            {activeBlockLabel
+              ? `Bloque activo: ${activeBlockLabel}`
+              : 'No hay bloque activo asignado.'}
           </p>
         </header>
 
@@ -234,8 +231,10 @@ export default function StudentDashboardPage() {
                     className="rounded-xl border bg-background p-4 space-y-4"
                   >
                     <div className="space-y-1">
-                      <h4 className="font-semibold">{tema.areaName}</h4>
-                      <p className="text-sm text-muted-foreground">{tema.subblockName}</p>
+                      <h4 className="font-semibold">{tema.name}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {tema.areaName} · {tema.subblockName}
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -265,7 +264,7 @@ export default function StudentDashboardPage() {
 
         {blocks.length === 0 && (
           <div className="text-center text-muted-foreground py-20">
-            No hay ejercicios disponibles.
+            No hay ejercicios disponibles para el bloque activo.
           </div>
         )}
       </div>

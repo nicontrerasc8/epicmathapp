@@ -47,11 +47,8 @@ export async function listStudentsAction(q: string) {
                     id,
                     academic_year,
                     grade,
-                    section,
                     grade_id,
-                    section_id,
-                    edu_institution_grades ( name, code ),
-                    edu_grade_sections ( name, code )
+                    edu_institution_grades ( name, code )
                 )
             )
         `)
@@ -84,11 +81,7 @@ export async function listStudentsAction(q: string) {
                     m.edu_classrooms?.edu_institution_grades?.code ||
                     m.edu_classrooms?.grade ||
                     ""
-                const section = m.edu_classrooms?.edu_grade_sections?.name ||
-                    m.edu_classrooms?.edu_grade_sections?.code ||
-                    m.edu_classrooms?.section ||
-                    ""
-                return `${inst} ${grade} ${section}`.trim()
+                return `${inst} ${grade}`.trim()
             })
             .join(" ")
             .toLowerCase()
@@ -124,11 +117,8 @@ export async function getStudentDetailAction(studentId: string) {
                 id,
                 academic_year,
                 grade,
-                section,
                 grade_id,
-                section_id,
-                edu_institution_grades ( name, code ),
-                edu_grade_sections ( name, code )
+                edu_institution_grades ( name, code )
             )
         `)
         .eq("profile_id", studentId)
@@ -321,9 +311,7 @@ export async function listClassroomsAction() {
         .select(`
       id,
       grade,
-      section,
       grade_id,
-      section_id,
       academic_year,
       active,
       institution_id,
@@ -337,11 +325,6 @@ export async function listClassroomsAction() {
         name,
         level,
         grade_num,
-        code
-      ),
-      edu_grade_sections (
-        id,
-        name,
         code
       )
     `)
@@ -359,7 +342,6 @@ export async function listInstitutionsAction() {
     const { data, error } = await supabase
         .from("edu_institutions")
         .select("id, name, type, code, active")
-        .eq("active", true)
         .eq("id", institutionId)
         .order("name", { ascending: true })
 
@@ -367,17 +349,81 @@ export async function listInstitutionsAction() {
     return data ?? []
 }
 
+export async function createInstitutionAction(input: {
+    name: string
+    type: "academia" | "colegio" | "universidad"
+    region?: string | null
+    code?: string | null
+    slug?: string | null
+    domain?: string | null
+    logo_url?: string | null
+    active: boolean
+}) {
+    if (!input.name.trim()) throw new Error("Nombre requerido")
+    if (!input.type) throw new Error("Tipo requerido")
+
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from("edu_institutions")
+        .insert({
+            name: input.name.trim(),
+            type: input.type,
+            region: input.region?.trim() || null,
+            code: input.code?.trim() || null,
+            slug: input.slug?.trim() || null,
+            domain: input.domain?.trim() || null,
+            logo_url: input.logo_url?.trim() || null,
+            active: input.active,
+        })
+        .select("id, name, type, region, active, created_at, code, slug, domain, logo_url")
+        .single()
+
+    if (error) throw new Error(error.message)
+    return data
+}
+
+export async function updateInstitutionAction(
+    institutionId: string,
+    input: {
+        name: string
+        type: "academia" | "colegio" | "universidad"
+        region?: string | null
+        code?: string | null
+        slug?: string | null
+        domain?: string | null
+        logo_url?: string | null
+        active: boolean
+    },
+) {
+    if (!input.name.trim()) throw new Error("Nombre requerido")
+    if (!input.type) throw new Error("Tipo requerido")
+
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from("edu_institutions")
+        .update({
+            name: input.name.trim(),
+            type: input.type,
+            region: input.region?.trim() || null,
+            code: input.code?.trim() || null,
+            slug: input.slug?.trim() || null,
+            domain: input.domain?.trim() || null,
+            logo_url: input.logo_url?.trim() || null,
+            active: input.active,
+        })
+        .eq("id", institutionId)
+
+    if (error) throw new Error(error.message)
+    return { id: institutionId }
+}
+
 export async function listInstitutionGradesAction(institutionId: string) {
-    const activeInstitutionId = await getInstitutionId()
-    if (institutionId && institutionId !== activeInstitutionId) {
-        throw new Error("Institucion invalida")
-    }
     const supabase = await createClient()
 
     const { data, error } = await supabase
         .from("edu_institution_grades")
         .select("id, institution_id, name, code, level, grade_num, ordering, active")
-        .eq("institution_id", activeInstitutionId)
+        .eq("institution_id", institutionId)
         .eq("active", true)
         .order("ordering", { ascending: true })
         .order("grade_num", { ascending: true })
@@ -386,44 +432,114 @@ export async function listInstitutionGradesAction(institutionId: string) {
     return data ?? []
 }
 
-export async function listGradeSectionsAction(gradeId: string) {
-    if (!gradeId) return []
-    const supabase = await createClient()
-    const institutionId = await getInstitutionId()
+export async function createInstitutionGradeAction(input: {
+    institution_id: string
+    name: string
+    code?: string | null
+    level: "inicial" | "primaria" | "secundaria"
+    grade_num: number
+    ordering?: number | null
+    active?: boolean
+}) {
+    if (!input.institution_id) throw new Error("Institucion requerida")
+    if (!input.name.trim()) throw new Error("Nombre requerido")
+    if (!Number.isFinite(input.grade_num) || input.grade_num <= 0) {
+        throw new Error("Numero de grado invalido")
+    }
 
+    const supabase = await createClient()
+    const { data: institution, error: instErr } = await supabase
+        .from("edu_institutions")
+        .select("id")
+        .eq("id", input.institution_id)
+        .single()
+    if (instErr || !institution) {
+        throw new Error(instErr?.message || "Institucion no encontrada")
+    }
+
+    const { data, error } = await supabase
+        .from("edu_institution_grades")
+        .insert({
+            institution_id: input.institution_id,
+            name: input.name.trim(),
+            code: input.code?.trim() || null,
+            level: input.level,
+            grade_num: input.grade_num,
+            ordering: input.ordering ?? null,
+            active: input.active ?? true,
+        })
+        .select("id, institution_id, name, code, level, grade_num, ordering, active")
+        .single()
+
+    if (error) throw new Error(error.message)
+    return data
+}
+
+export async function updateInstitutionGradeAction(
+    gradeId: string,
+    input: {
+        institution_id: string
+        name: string
+        code?: string | null
+        level: "inicial" | "primaria" | "secundaria"
+        grade_num: number
+        ordering?: number | null
+        active: boolean
+    },
+) {
+    if (!gradeId) throw new Error("Grado invalido")
+    if (!input.name.trim()) throw new Error("Nombre requerido")
+    if (!Number.isFinite(input.grade_num) || input.grade_num <= 0) {
+        throw new Error("Numero de grado invalido")
+    }
+
+    const supabase = await createClient()
     const { data: grade, error: gradeErr } = await supabase
         .from("edu_institution_grades")
         .select("id, institution_id")
         .eq("id", gradeId)
         .single()
     if (gradeErr || !grade) throw new Error(gradeErr?.message || "Grado no encontrado")
-    if (grade.institution_id !== institutionId) {
-        throw new Error("Grado fuera de la institucion")
+    if (grade.institution_id !== input.institution_id) {
+        throw new Error("El grado no pertenece a la institucion seleccionada")
     }
 
-    const { data, error } = await supabase
-        .from("edu_grade_sections")
-        .select("id, grade_id, name, code, ordering, active")
-        .eq("grade_id", gradeId)
-        .eq("active", true)
-        .order("ordering", { ascending: true })
+    const { error } = await supabase
+        .from("edu_institution_grades")
+        .update({
+            name: input.name.trim(),
+            code: input.code?.trim() || null,
+            level: input.level,
+            grade_num: input.grade_num,
+            ordering: input.ordering ?? null,
+            active: input.active,
+        })
+        .eq("id", gradeId)
 
     if (error) throw new Error(error.message)
-    return data ?? []
+    return { id: gradeId }
+}
+
+export async function deactivateInstitutionGradeAction(gradeId: string) {
+    if (!gradeId) throw new Error("Grado invalido")
+    const supabase = await createClient()
+
+    const { error } = await supabase
+        .from("edu_institution_grades")
+        .update({ active: false })
+        .eq("id", gradeId)
+
+    if (error) throw new Error(error.message)
+    return { id: gradeId }
 }
 
 export async function createClassroomAction(input: {
     institution_id: string
     grade_id: string
-    section_id: string
     academic_year: number
     active: boolean
 }) {
     const supabase = await createClient()
-    const institutionId = await getInstitutionId()
-    if (input.institution_id !== institutionId) {
-        throw new Error("Institucion invalida")
-    }
 
     const { data: grade, error: gradeErr } = await supabase
         .from("edu_institution_grades")
@@ -435,24 +551,12 @@ export async function createClassroomAction(input: {
         throw new Error("El grado no pertenece a la institucion seleccionada")
     }
 
-    const { data: section, error: sectionErr } = await supabase
-        .from("edu_grade_sections")
-        .select("id, name, code, grade_id")
-        .eq("id", input.section_id)
-        .single()
-    if (sectionErr || !section) throw new Error(sectionErr?.message || "Seccion no encontrada")
-    if (section.grade_id !== input.grade_id) {
-        throw new Error("La seccion no pertenece al grado seleccionado")
-    }
-
     const payload = {
         institution_id: input.institution_id,
         grade_id: input.grade_id,
-        section_id: input.section_id,
         academic_year: input.academic_year,
         active: input.active,
         grade: grade.name || grade.code || "",
-        section: section.name || section.code || "",
     }
 
     const { data: existing, error: existingErr } = await supabase
@@ -460,7 +564,6 @@ export async function createClassroomAction(input: {
         .select("id, active")
         .eq("institution_id", input.institution_id)
         .eq("grade_id", input.grade_id)
-        .eq("section_id", input.section_id)
         .eq("academic_year", input.academic_year)
         .limit(1)
         .maybeSingle()
@@ -494,17 +597,12 @@ export async function updateClassroomAction(
     input: {
         institution_id: string
         grade_id: string
-        section_id: string
         academic_year: number
         active: boolean
     },
 ) {
     if (!classroomId) throw new Error("Aula invalida")
     const supabase = await createClient()
-    const institutionId = await getInstitutionId()
-    if (input.institution_id !== institutionId) {
-        throw new Error("Institucion invalida")
-    }
 
     const { data: grade, error: gradeErr } = await supabase
         .from("edu_institution_grades")
@@ -516,24 +614,12 @@ export async function updateClassroomAction(
         throw new Error("El grado no pertenece a la institucion seleccionada")
     }
 
-    const { data: section, error: sectionErr } = await supabase
-        .from("edu_grade_sections")
-        .select("id, name, code, grade_id")
-        .eq("id", input.section_id)
-        .single()
-    if (sectionErr || !section) throw new Error(sectionErr?.message || "Seccion no encontrada")
-    if (section.grade_id !== input.grade_id) {
-        throw new Error("La seccion no pertenece al grado seleccionado")
-    }
-
     const payload = {
         institution_id: input.institution_id,
         grade_id: input.grade_id,
-        section_id: input.section_id,
         academic_year: input.academic_year,
         active: input.active,
         grade: grade.name || grade.code || "",
-        section: section.name || section.code || "",
     }
 
     const { error } = await supabase
@@ -548,7 +634,6 @@ export async function updateClassroomAction(
 export async function deactivateClassroomAction(classroomId: string) {
     if (!classroomId) throw new Error("Aula invalida")
     const supabase = await createClient()
-    const institutionId = await getInstitutionId()
 
     const { data: classroom, error: classroomErr } = await supabase
         .from("edu_classrooms")
@@ -557,9 +642,6 @@ export async function deactivateClassroomAction(classroomId: string) {
         .single()
     if (classroomErr || !classroom) {
         throw new Error(classroomErr?.message || "Aula no encontrada")
-    }
-    if (classroom.institution_id !== institutionId) {
-        throw new Error("Aula fuera de la institucion")
     }
 
     const { error } = await supabase

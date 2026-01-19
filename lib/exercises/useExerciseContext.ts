@@ -8,21 +8,21 @@ import { useInstitution } from '@/components/institution-provider'
 type ExerciseContext = {
   temaId: string | null
   classroomId: string | null
+  blockId: string | null
   sessionId: string | null
   studentId: string | null
   loading: boolean
   error: string | null
 }
 
-export function useExerciseContext(
-  exerciseId: string | null
-): ExerciseContext {
+export function useExerciseContext(exerciseId: string | null): ExerciseContext {
   const supabase = createClient()
   const institution = useInstitution()
 
   const [state, setState] = useState<ExerciseContext>({
     temaId: null,
     classroomId: null,
+    blockId: null,
     sessionId: null,
     studentId: null,
     loading: true,
@@ -31,7 +31,6 @@ export function useExerciseContext(
 
   useEffect(() => {
     if (!exerciseId) {
-      console.log('[ExerciseContext] ❌ exerciseId vacío')
       setState(s => ({ ...s, loading: false }))
       return
     }
@@ -39,18 +38,9 @@ export function useExerciseContext(
     let cancelled = false
 
     async function loadContext() {
-      console.group('[ExerciseContext] 🚀 init')
-      console.log('exerciseId:', exerciseId)
-
       try {
-        /* =========================
-           1️⃣ AUTH → studentId
-        ========================= */
-        console.group('1️⃣ AUTH')
         const studentSession = await fetchStudentSession()
         const studentId = studentSession?.id
-
-        console.log('studentSession:', studentSession)
 
         if (!studentId) {
           throw new Error('Usuario no autenticado')
@@ -62,41 +52,10 @@ export function useExerciseContext(
         ) {
           throw new Error('Institucion incorrecta')
         }
-        console.log('studentId:', studentId)
-        console.groupEnd()
-
-        /* =========================
-           2️⃣ exercise → tema
-        ========================= */
-        console.group('2️⃣ EXERCISE → TEMA')
-
-        const { data: assignment, error: assignErr } =
-          await supabase
-            .from('edu_exercise_assignments')
-            .select('tema_id')
-            .eq('exercise_id', exerciseId)
-            .eq('active', true)
-            .maybeSingle()
-
-        console.log('assignment row:', assignment)
-        console.log('assignErr:', assignErr)
-
-        if (assignErr || !assignment?.tema_id) {
-          throw new Error('Ejercicio sin tema asignado')
-        }
-
-        const temaId = assignment.tema_id
-        console.log('temaId:', temaId)
-        console.groupEnd()
-
-        /* =========================
-           3️⃣ student → classroom
-        ========================= */
-        console.group('3️⃣ STUDENT → CLASSROOM')
 
         let memberQuery = supabase
           .from('edu_institution_members')
-          .select('id, classroom_id, institution_id, role, active')
+          .select('id, classroom_id, institution_id, role, active, created_at')
           .eq('profile_id', studentId)
           .eq('role', 'student')
           .eq('active', true)
@@ -105,52 +64,72 @@ export function useExerciseContext(
           memberQuery = memberQuery.eq('institution_id', institution.id)
         }
 
-        const { data: member, error: memberErr } = await memberQuery.maybeSingle()
+        const { data: member } = await memberQuery
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
 
-        console.log('member row:', member)
-        console.log('memberErr:', memberErr)
-
-        if (!member) {
-          console.warn('❌ No hay fila en edu_institution_members para este student')
-        }
-
-        if (memberErr || !member?.classroom_id) {
+        if (!member?.classroom_id) {
           throw new Error('Alumno sin aula asignada')
         }
 
         const classroomId = member.classroom_id
-        console.log('classroomId:', classroomId)
-        console.groupEnd()
 
-        /* =========================
-           4️⃣ practice session
-        ========================= */
-        console.group('4️⃣ PRACTICE SESSION')
+        const { data: activeBlocks } = await supabase
+          .from('edu_classroom_blocks')
+          .select('block_id, started_at')
+          .eq('classroom_id', classroomId)
+          .eq('active', true)
+          .order('started_at', { ascending: false })
+          .limit(1)
 
-        const { data: session, error: sessionErr } =
-          await supabase
-            .from('edu_practice_sessions')
-            .insert({
-              student_id: studentId,
-              classroom_id: classroomId,
-            })
-            .select('id')
-            .single()
-
-        console.log('session:', session)
-        console.log('sessionErr:', sessionErr)
-
-        if (sessionErr || !session?.id) {
-          throw new Error('No se pudo crear sesión')
+        const blockId = activeBlocks?.[0]?.block_id ?? null
+        if (!blockId) {
+          throw new Error('Aula sin bloque activo')
         }
 
-        console.groupEnd()
+        const { data: assignment, error: assignErr } = await supabase
+          .from('edu_classroom_tema_exercises')
+          .select(`
+            tema_id,
+            tema:edu_temas (
+              id,
+              subblock:edu_academic_subblocks ( block_id )
+            )
+          `)
+          .eq('classroom_id', classroomId)
+          .eq('exercise_id', exerciseId)
+          .eq('active', true)
+          .maybeSingle()
+
+        if (assignErr || !assignment?.tema_id) {
+          throw new Error('Ejercicio no asignado al aula')
+        }
+
+        const temaId = assignment.tema_id
+        const temaBlockId = assignment.tema?.subblock?.block_id ?? null
+        if (!temaBlockId || temaBlockId !== blockId) {
+          throw new Error('Ejercicio fuera del bloque activo')
+        }
+
+        const { data: session, error: sessionErr } = await supabase
+          .from('edu_practice_sessions')
+          .insert({
+            student_id: studentId,
+            classroom_id: classroomId,
+          })
+          .select('id')
+          .single()
+
+        if (sessionErr || !session?.id) {
+          throw new Error('No se pudo crear sesion')
+        }
 
         if (!cancelled) {
-          console.log('✅ CONTEXT OK')
           setState({
             temaId,
             classroomId,
+            blockId,
             sessionId: session.id,
             studentId,
             loading: false,
@@ -158,8 +137,6 @@ export function useExerciseContext(
           })
         }
       } catch (err: any) {
-        console.error('🔥 ERROR useExerciseContext:', err)
-
         if (!cancelled) {
           setState(s => ({
             ...s,
@@ -167,8 +144,6 @@ export function useExerciseContext(
             error: err.message ?? 'Error desconocido',
           }))
         }
-      } finally {
-        console.groupEnd()
       }
     }
 
@@ -177,7 +152,7 @@ export function useExerciseContext(
     return () => {
       cancelled = true
     }
-  }, [exerciseId])
+  }, [exerciseId, institution?.id, supabase])
 
   return state
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import {
@@ -9,11 +9,12 @@ import {
   Calendar,
   Building2,
   ArrowLeft,
-  Settings,
-  Mail,
-  Target
+  Settings
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   PageHeader,
   StatCard,
@@ -22,7 +23,11 @@ import {
   FullPageLoading,
   ErrorState
 } from "@/components/dashboard/core"
-import { getStudentDetailAction } from "../admin-actions"
+import {
+  getStudentDetailAction,
+  listClassroomsAction,
+  updateStudentAction
+} from "../admin-actions"
 
 interface StudentDetailProps {
   studentId: string
@@ -49,10 +54,23 @@ interface Membership {
     id: string
     academic_year: number
     grade: string
-    section: string | null
     edu_institution_grades?: { name: string; code: string } | null
-    edu_grade_sections?: { name: string; code: string } | null
   } | null
+}
+
+interface ClassroomOption {
+  id: string
+  institution_id: string | null
+  academic_year: number
+  grade: string
+  active?: boolean
+  edu_institutions?: { id: string; name: string } | null
+  edu_institution_grades?: { name: string; code: string } | null
+}
+
+function getPrimaryMembership(memberships: Membership[]) {
+  const active = memberships.find((m) => m.active)
+  return active || memberships[0]
 }
 
 function getMembershipGrade(m: Membership) {
@@ -63,34 +81,102 @@ function getMembershipGrade(m: Membership) {
   return grade?.name || grade?.code || m.edu_classrooms?.grade || ""
 }
 
-function getMembershipSection(m: Membership) {
-  const section = m.edu_classrooms?.edu_grade_sections as any
-  if (Array.isArray(section)) {
-    return section[0]?.name || section[0]?.code || m.edu_classrooms?.section || ""
-  }
-  return section?.name || section?.code || m.edu_classrooms?.section || ""
+function getClassroomLabel(cls: ClassroomOption) {
+  const grade = cls.edu_institution_grades as any
+  const gradeLabel = Array.isArray(grade)
+    ? grade[0]?.name || grade[0]?.code || cls.grade
+    : grade?.name || grade?.code || cls.grade
+  return `${gradeLabel}`.trim()
 }
 
 export default function StudentDetail({ studentId }: StudentDetailProps) {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<{ profile: Profile; memberships: Membership[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [classrooms, setClassrooms] = useState<ClassroomOption[]>([])
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    classroomId: "",
+    active: true,
+  })
+  const [formError, setFormError] = useState<string | null>(null)
+  const [formSuccess, setFormSuccess] = useState<string | null>(null)
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await getStudentDetailAction(studentId)
+      setData(result as any)
+    } catch (e: any) {
+      setError(e?.message ?? "Error cargando estudiante")
+    } finally {
+      setLoading(false)
+    }
+  }, [studentId])
+
+  const loadClassrooms = useCallback(async () => {
+    try {
+      const result: any = await listClassroomsAction()
+      const active = (result as ClassroomOption[]).filter((c) => c.active !== false)
+      setClassrooms(active)
+    } catch (e: any) {
+      setFormError(e?.message ?? "Error cargando aulas")
+    }
+  }, [])
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const result = await getStudentDetailAction(studentId)
-        setData(result as any)
-      } catch (e: any) {
-        setError(e?.message ?? "Error cargando estudiante")
-      } finally {
-        setLoading(false)
-      }
-    }
     fetchData()
-  }, [studentId])
+  }, [fetchData])
+
+  useEffect(() => {
+    if (editing && classrooms.length === 0) {
+      loadClassrooms()
+    }
+  }, [editing, classrooms.length, loadClassrooms])
+
+  const startEdit = () => {
+    if (!data) return
+    const primary = getPrimaryMembership(data.memberships)
+    setForm({
+      firstName: data.profile.first_name,
+      lastName: data.profile.last_name,
+      classroomId: primary?.classroom_id || "",
+      active: Boolean(data.profile.active),
+    })
+    setFormError(null)
+    setFormSuccess(null)
+    setEditing(true)
+  }
+
+  const handleSave = async () => {
+    if (!data) return
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      setFormError("Completa nombre y apellido.")
+      return
+    }
+
+    try {
+      setSaving(true)
+      setFormError(null)
+      await updateStudentAction(data.profile.id, {
+        first_name: form.firstName,
+        last_name: form.lastName,
+        classroom_id: form.classroomId || null,
+        active: form.active,
+      })
+      setFormSuccess("Estudiante actualizado.")
+      setEditing(false)
+      await fetchData()
+    } catch (e: any) {
+      setFormError(e?.message ?? "Error actualizando estudiante")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (loading) {
     return <FullPageLoading />
@@ -108,7 +194,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
           ]}
         />
         <ErrorState
-          message={error || "No se encontró el estudiante"}
+          message={error || "No se encontro el estudiante"}
           onRetry={() => window.location.reload()}
         />
       </div>
@@ -118,6 +204,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
   const { profile, memberships } = data
   const fullName = `${profile.first_name} ${profile.last_name}`.trim()
   const activeMemberships = memberships.filter((m) => m.active)
+  const primaryMembership = getPrimaryMembership(memberships)
   const createdDate = new Date(profile.created_at).toLocaleDateString("es-PE", {
     year: "numeric",
     month: "long",
@@ -126,7 +213,6 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
 
   return (
     <div className="space-y-8">
-      {/* Page Header */}
       <PageHeader
         title={fullName}
         description={`ID: ${profile.id.slice(0, 8)}...`}
@@ -147,7 +233,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
                 Volver
               </Button>
             </Link>
-            <Button size="sm">
+            <Button size="sm" onClick={startEdit}>
               <Settings className="w-4 h-4 mr-2" />
               Editar
             </Button>
@@ -155,31 +241,93 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
         }
       />
 
-      {/* Stats */}
       <StatCardGrid columns={3}>
         <StatCard
-          title="Membresías Activas"
+          title="Membresias activas"
           value={activeMemberships.length}
           icon={GraduationCap}
           variant="primary"
         />
         <StatCard
-          title="Total Membresías"
+          title="Total membresias"
           value={memberships.length}
           icon={Building2}
           variant="default"
         />
         <StatCard
-          title="Rol Global"
-          value={profile.global_role || "—"}
+          title="Rol global"
+          value={profile.global_role || "Sin rol"}
           icon={User}
           variant="default"
         />
       </StatCardGrid>
 
-      {/* Content Grid */}
+      {formSuccess && !editing && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {formSuccess}
+        </div>
+      )}
+
+      {editing && (
+        <div className="rounded-2xl border bg-card p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-medium">Editar perfil</div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? "Guardando..." : "Guardar cambios"}
+              </Button>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-4">
+            <div className="space-y-2">
+              <Label htmlFor="studentEditFirstName">Nombre</Label>
+              <Input
+                id="studentEditFirstName"
+                value={form.firstName}
+                onChange={(e) => setForm((s) => ({ ...s, firstName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="studentEditLastName">Apellido</Label>
+              <Input
+                id="studentEditLastName"
+                value={form.lastName}
+                onChange={(e) => setForm((s) => ({ ...s, lastName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="studentEditClassroom">Aula</Label>
+              <select
+                id="studentEditClassroom"
+                value={form.classroomId}
+                onChange={(e) => setForm((s) => ({ ...s, classroomId: e.target.value }))}
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+              >
+                <option value="">Sin asignar</option>
+                {classrooms.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.edu_institutions?.name || "Sin institucion"} - {getClassroomLabel(cls)} - {cls.academic_year}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 md:col-span-2">
+              <Checkbox
+                id="studentEditActive"
+                checked={form.active}
+                onCheckedChange={(val) => setForm((s) => ({ ...s, active: Boolean(val) }))}
+              />
+              <Label htmlFor="studentEditActive">Activo</Label>
+            </div>
+          </div>
+          {formError && <p className="mt-3 text-sm text-destructive">{formError}</p>}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Profile Info */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -187,7 +335,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
         >
           <h3 className="font-semibold mb-4 flex items-center gap-2">
             <User className="w-5 h-5 text-primary" />
-            Información del Perfil
+            Informacion del perfil
           </h3>
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between">
@@ -203,8 +351,22 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
               <dd className="font-mono text-xs">{profile.id}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Rol Global</dt>
+              <dt className="text-muted-foreground">Rol global</dt>
               <dd className="font-medium capitalize">{profile.global_role || "Sin rol"}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Institucion</dt>
+              <dd className="font-medium">
+                {primaryMembership?.edu_institutions?.name || "Sin institucion"}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Aula</dt>
+              <dd className="font-medium">
+                {primaryMembership?.edu_classrooms
+                  ? `${getMembershipGrade(primaryMembership)}`
+                  : "Sin asignar"}
+              </dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Estado</dt>
@@ -222,7 +384,6 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
           </dl>
         </motion.div>
 
-        {/* Memberships */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -231,17 +392,17 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
         >
           <h3 className="font-semibold mb-4 flex items-center gap-2">
             <Building2 className="w-5 h-5 text-primary" />
-            Membresías
+            Membresias
           </h3>
 
           {memberships.length === 0 ? (
             <div className="py-8 text-center">
               <GraduationCap className="w-10 h-10 text-muted-foreground/50 mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">
-                No tiene membresías registradas
+                No tiene membresias registradas
               </p>
               <Button variant="outline" size="sm" className="mt-3">
-                Asignar a institución
+                Asignar a institucion
               </Button>
             </div>
           ) : (
@@ -263,7 +424,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
                         </div>
                         {m.edu_classrooms ? (
                           <div>
-                            Aula: {getMembershipGrade(m)} {getMembershipSection(m)} ? {m.edu_classrooms.academic_year}
+                            Aula: {getMembershipGrade(m)} - {m.edu_classrooms.academic_year}
                           </div>
                         ) : (
                           <div>Aula: Sin asignar</div>

@@ -18,7 +18,6 @@ interface TeacherClassroomHubProps {
     classroom: {
         id: string
         grade: string
-        section: string | null
         academic_year: number
         active: boolean
         institution: { name: string }
@@ -28,6 +27,18 @@ interface TeacherClassroomHubProps {
         temaCount: number
         activeStudents: number
     }
+    blocks: Array<{
+        id: string
+        active: boolean
+        started_at: string | null
+        ended_at: string | null
+        block: {
+            id: string
+            name: string
+            block_type: string
+            academic_year: number
+        } | null
+    }>
 }
 
 function QuickActionCard({
@@ -67,8 +78,9 @@ function QuickActionCard({
     )
 }
 
-export default function TeacherClassroomHubClient({ classroom, stats }: TeacherClassroomHubProps) {
-    const gradeLabel = `${classroom.section ? ` ${classroom.section}` : ""}`
+export default function TeacherClassroomHubClient({ classroom, stats, blocks }: TeacherClassroomHubProps) {
+    const gradeLabel = `${classroom.grade}`
+    const activeBlocks = blocks ?? []
 
     return (
         <div className="space-y-8">
@@ -107,6 +119,31 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
             </StatCardGrid>
 
             <section>
+                <h2 className="text-lg font-semibold mb-4">Bloques activos</h2>
+                {activeBlocks.length === 0 ? (
+                    <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+                        No hay bloques activos asignados a este aula.
+                    </div>
+                ) : (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {activeBlocks.map((item) => (
+                            <div key={item.id} className="rounded-xl border bg-card p-4">
+                                <div className="font-semibold">{item.block?.name || "Bloque"}</div>
+                                <div className="text-xs text-muted-foreground">
+                                    {item.block?.block_type || "Sin tipo"} - {item.block?.academic_year || "N/A"}
+                                </div>
+                                <div className="mt-2 text-xs text-muted-foreground">
+                                    {item.started_at ? `Inicio: ${new Date(item.started_at).toLocaleDateString()}` : "Inicio: -"}
+                                    {" · "}
+                                    {item.ended_at ? `Fin: ${new Date(item.ended_at).toLocaleDateString()}` : "Fin: -"}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            <section>
                 <h2 className="text-lg font-semibold mb-4">Gestion y Rendimiento</h2>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
                     <QuickActionCard
@@ -126,4 +163,3 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
         </div>
     )
 }
-

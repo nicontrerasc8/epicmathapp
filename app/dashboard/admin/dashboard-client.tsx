@@ -28,14 +28,11 @@ interface Stats {
 interface RecentClassroom {
     id: string
     grade: string
-    section: string | null
     grade_id?: string | null
-    section_id?: string | null
     academic_year: number
     active: boolean
     edu_institutions: { name: string } | null
     edu_institution_grades?: { name: string; code: string } | null
-    edu_grade_sections?: { name: string; code: string } | null
 }
 
 interface RecentStudent {
@@ -106,14 +103,6 @@ function getRecentGradeLabel(cls: RecentClassroom) {
         return grade[0]?.name || grade[0]?.code || cls.grade
     }
     return grade?.name || grade?.code || cls.grade
-}
-
-function getRecentSectionLabel(cls: RecentClassroom) {
-    const section = cls.edu_grade_sections as any
-    if (Array.isArray(section)) {
-        return section[0]?.name || section[0]?.code || cls.section || "Sin sección"
-    }
-    return section?.name || section?.code || cls.section || "Sin sección"
 }
 
 export default function AdminDashboardClient({
@@ -224,7 +213,7 @@ export default function AdminDashboardClient({
                                         <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-fast">
                                             <div>
                                                 <div className="font-medium">
-                                                    {`${getRecentGradeLabel(cls)} - ${getRecentSectionLabel(cls)}`}
+                                            {`${getRecentGradeLabel(cls)}`}
                                                 </div>
                                                 <div className="text-sm text-muted-foreground">
                                                     {cls.edu_institutions?.name || "Sin institución"} • {cls.academic_year}

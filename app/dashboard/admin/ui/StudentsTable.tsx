@@ -50,9 +50,7 @@ type InstitutionMember = {
     id: string
     academic_year: number
     grade: string
-    section: string | null
     edu_institution_grades?: { name: string; code: string } | null
-    edu_grade_sections?: { name: string; code: string } | null
   } | null
 }
 
@@ -61,11 +59,9 @@ type ClassroomOption = {
   institution_id: string | null
   academic_year: number
   grade: string
-  section: string | null
   active?: boolean
   edu_institutions?: { id: string; name: string } | null
   edu_institution_grades?: { name: string; code: string } | null
-  edu_grade_sections?: { name: string; code: string } | null
 }
 
 const pageSizeOptions = [10, 20, 50, 100]
@@ -85,25 +81,12 @@ function getMembershipGrade(member?: InstitutionMember) {
   return grade?.name || grade?.code || member.edu_classrooms.grade || ""
 }
 
-function getMembershipSection(member?: InstitutionMember) {
-  if (!member?.edu_classrooms) return ""
-  const section = member.edu_classrooms.edu_grade_sections as any
-  if (Array.isArray(section)) {
-    return section[0]?.name || section[0]?.code || member.edu_classrooms.section || ""
-  }
-  return section?.name || section?.code || member.edu_classrooms.section || ""
-}
-
 function getClassroomLabel(cls: ClassroomOption) {
   const grade = cls.edu_institution_grades as any
-  const section = cls.edu_grade_sections as any
   const gradeLabel = Array.isArray(grade)
     ? grade[0]?.name || grade[0]?.code || cls.grade
     : grade?.name || grade?.code || cls.grade
-  const sectionLabel = Array.isArray(section)
-    ? section[0]?.name || section[0]?.code || cls.section || ""
-    : section?.name || section?.code || cls.section || ""
-  return `${gradeLabel} ${sectionLabel}`.trim()
+  return `${gradeLabel}`.trim()
 }
 
 // Filter configuration
@@ -156,18 +139,6 @@ const columns: ColumnDef<Student>[] = [
       return (
         <span className="text-sm">
           {getMembershipGrade(member) || "Sin grado"}
-        </span>
-      )
-    },
-  },
-  {
-    key: "section",
-    header: "Seccion",
-    render: (_, row) => {
-      const member = getPrimaryMembership(row)
-      return (
-        <span className="text-sm">
-          {getMembershipSection(member) || "Sin seccion"}
         </span>
       )
     },

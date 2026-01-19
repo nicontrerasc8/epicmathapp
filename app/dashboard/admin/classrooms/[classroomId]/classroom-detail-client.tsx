@@ -9,7 +9,8 @@ import {
     Target,
     ArrowRight,
     Settings,
-    Calendar
+    Calendar,
+    Layers
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,17 +23,15 @@ import {
 interface ClassroomData {
     id: string
     grade: string
-    section: string | null
     grade_id?: string | null
-    section_id?: string | null
     academic_year: number
     active: boolean
     edu_institutions: { id: string; name: string; type: string } | null
     edu_institution_grades?: { id: string; name: string; level: string; grade_num: number; code: string } | null
-    edu_grade_sections?: { id: string; name: string; code: string } | null
     memberCount: number
     temasCount: number
     exercisesCount: number
+    blocksCount: number
     accuracy: number
     totalExercises: number
 }
@@ -83,23 +82,19 @@ function QuickLinkCard({
 }
 
 export default function ClassroomDetailClient({ data }: any) {
-    const institutionName = data.edu_institutions?.name || "Sin institución"
+    const institutionName = data.edu_institutions?.name || "Sin institucion"
     const gradeSource = data.edu_institution_grades
-    const sectionSource = data.edu_grade_sections
     const gradeName = Array.isArray(gradeSource)
         ? gradeSource[0]?.name || gradeSource[0]?.code || data.grade
         : gradeSource?.name || gradeSource?.code || data.grade
-    const sectionName = Array.isArray(sectionSource)
-        ? sectionSource[0]?.name || sectionSource[0]?.code || data.section || "Sin sección"
-        : sectionSource?.name || sectionSource?.code || data.section || "Sin sección"
-    const gradeLabel = sectionName ? `${gradeName} - ${sectionName}` : gradeName
+    const gradeLabel = gradeName
 
     return (
         <div className="space-y-8">
             {/* Page Header */}
             <PageHeader
                 title={gradeLabel}
-                description={`${institutionName} • Año ${data.academic_year}`}
+                description={`${institutionName} - Anio ${data.academic_year}`}
                 badge={{
                     label: data.active ? "Activo" : "Inactivo",
                     variant: data.active ? "success" : "default",
@@ -128,6 +123,12 @@ export default function ClassroomDetailClient({ data }: any) {
                     variant="primary"
                 />
                 <StatCard
+                    title="Bloques"
+                    value={data.blocksCount}
+                    icon={Layers}
+                    variant="default"
+                />
+                <StatCard
                     title="Temas Asignados"
                     value={data.temasCount}
                     icon={BookOpen}
@@ -140,7 +141,7 @@ export default function ClassroomDetailClient({ data }: any) {
                     variant="default"
                 />
                 <StatCard
-                    title="Precisión (7 días)"
+                    title="Precision (7 dias)"
                     value={data.accuracy}
                     suffix="%"
                     icon={Target}
@@ -166,9 +167,16 @@ export default function ClassroomDetailClient({ data }: any) {
                     <QuickLinkCard
                         icon={BookOpen}
                         title="Temas"
-                        description="Asignar temas del currículum"
+                        description="Asignar temas del curriculum"
                         href={`/dashboard/admin/classrooms/${data.id}/temas`}
                         count={data.temasCount}
+                    />
+                    <QuickLinkCard
+                        icon={Layers}
+                        title="Bloques"
+                        description="Asignar bloques academicos al aula"
+                        href={`/dashboard/admin/classrooms/${data.id}/blocks`}
+                        count={data.blocksCount}
                     />
                     <QuickLinkCard
                         icon={FileQuestion}
@@ -187,22 +195,19 @@ export default function ClassroomDetailClient({ data }: any) {
                     animate={{ opacity: 1, y: 0 }}
                     className="rounded-2xl border bg-card p-5"
                 >
-                    <h3 className="font-semibold mb-4">Información del Aula</h3>
+                    <h3 className="font-semibold mb-4">Informacion del Aula</h3>
                     <dl className="space-y-3 text-sm">
                         <div className="flex justify-between">
-                            <dt className="text-muted-foreground">Institución</dt>
+                            <dt className="text-muted-foreground">Institucion</dt>
                             <dd className="font-medium">{institutionName}</dd>
                         </div>
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Grado</dt>
                             <dd className="font-medium">{gradeName}</dd>
                         </div>
+
                         <div className="flex justify-between">
-                            <dt className="text-muted-foreground">Sección</dt>
-                            <dd className="font-medium">{sectionName}</dd>
-                        </div>
-                        <div className="flex justify-between">
-                            <dt className="text-muted-foreground">Año Académico</dt>
+                            <dt className="text-muted-foreground">Anio Academico</dt>
                             <dd className="font-medium flex items-center gap-1">
                                 <Calendar className="w-4 h-4 text-muted-foreground" />
                                 {data.academic_year}
@@ -228,7 +233,7 @@ export default function ClassroomDetailClient({ data }: any) {
                         <div className="py-8 text-center">
                             <FileQuestion className="w-10 h-10 text-muted-foreground/50 mx-auto mb-2" />
                             <p className="text-sm text-muted-foreground">
-                                No hay ejercicios resueltos en los últimos 7 días
+                                No hay ejercicios resueltos en los ultimos 7 dias
                             </p>
                         </div>
                     ) : (
@@ -238,7 +243,7 @@ export default function ClassroomDetailClient({ data }: any) {
                                 <span className="font-semibold">{data.totalExercises}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">Precisión promedio</span>
+                                <span className="text-sm text-muted-foreground">Precision promedio</span>
                                 <span className={`font-semibold ${data.accuracy >= 70 ? "text-secondary" :
                                         data.accuracy >= 50 ? "text-accent-foreground" : "text-destructive"
                                     }`}>

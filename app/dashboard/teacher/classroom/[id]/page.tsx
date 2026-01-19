@@ -16,7 +16,7 @@ export default async function TeacherClassroomHub({
   const { data: classroom } = await supabase
     .from("edu_classrooms")
     .select(`
-      id, grade, section, academic_year, active,
+      id, grade, academic_year, active,
       edu_institutions ( name )
     `)
     .eq("id", id)
@@ -44,6 +44,18 @@ export default async function TeacherClassroomHub({
   const activeStudents = students?.filter(s => s.active).length || 0
   const studentCount = students?.length || 0
 
+  const { data: activeBlocks } = await supabase
+    .from("edu_classroom_blocks")
+    .select(`
+      id,
+      active,
+      started_at,
+      ended_at,
+      block:edu_academic_blocks ( id, name, block_type, academic_year )
+    `)
+    .eq("classroom_id", id)
+    .eq("active", true)
+
 
   return (
     <TeacherClassroomHubClient
@@ -58,6 +70,7 @@ export default async function TeacherClassroomHub({
         activeStudents,
         temaCount: temaCount || 0,
       }}
+      blocks={activeBlocks ?? []}
     />
   )
 }

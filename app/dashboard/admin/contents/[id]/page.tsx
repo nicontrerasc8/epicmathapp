@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
 import ExercisesClient from "./exercises-client"
+import { requireInstitution } from "@/lib/institution"
 
 export default async function TemaDetailPage({
     params,
@@ -9,6 +10,7 @@ export default async function TemaDetailPage({
 }) {
     const { id } = await params
     const supabase = await createClient()
+    const institution = await requireInstitution()
 
     const { data: tema } = await supabase
         .from("edu_temas")
@@ -18,6 +20,7 @@ export default async function TemaDetailPage({
             subblock:edu_academic_subblocks ( name )
         `)
         .eq("id", id)
+        .eq("institution_id", institution.id)
         .single()
 
     if (!tema) notFound()

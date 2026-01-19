@@ -23,7 +23,6 @@ import {
   listClassroomsAction,
   listInstitutionsAction,
   listInstitutionGradesAction,
-  listGradeSectionsAction,
   createClassroomAction,
   updateClassroomAction,
   deactivateClassroomAction,
@@ -33,15 +32,12 @@ import {
 type Classroom = {
   id: string
   grade: string
-  section: string | null
   grade_id?: string | null
-  section_id?: string | null
   institution_id?: string | null
   academic_year: number
   active: boolean
   edu_institutions?: any
   edu_institution_grades?: any
-  edu_grade_sections?: any
 }
 
 type Institution = {
@@ -60,13 +56,6 @@ type InstitutionGrade = {
   grade_num?: number | null
 }
 
-type GradeSection = {
-  id: string
-  grade_id: string
-  name: string
-  code?: string | null
-}
-
 const pageSizeOptions = [10, 20, 50, 100]
 
 function getGradeLabel(classroom: Classroom): string {
@@ -76,14 +65,7 @@ function getGradeLabel(classroom: Classroom): string {
   }
   return grade?.name || grade?.code || classroom.grade
 }
-
-function getSectionLabel(classroom: Classroom): string {
-  const section = classroom.edu_grade_sections
-  if (Array.isArray(section)) {
-    return section[0]?.name || section[0]?.code || classroom.section || "Sin sección"
-  }
-  return section?.name || section?.code || classroom.section || "Sin sección"
-}
+
 
 // Helper to get institution name (handles both array and object from Supabase)
 function getInstitutionName(classroom: Classroom): string {
@@ -136,13 +118,7 @@ const columns: ColumnDef<Classroom>[] = [
     render: (_, row) => (
       <span className="font-medium">{getGradeLabel(row)}</span>
     ),
-  },
-  {
-    key: "section",
-    header: "Sección",
-    width: "100px",
-    render: (_, row) => getSectionLabel(row),
-  },
+  },
   {
     key: "academic_year",
     header: "Año",
@@ -188,11 +164,9 @@ export default function ClassroomsTable() {
   const [editId, setEditId] = useState<string | null>(null)
   const [institutions, setInstitutions] = useState<Institution[]>([])
   const [grades, setGrades] = useState<InstitutionGrade[]>([])
-  const [sections, setSections] = useState<GradeSection[]>([])
   const [form, setForm] = useState({
     institutionId: "",
     gradeId: "",
-    sectionId: "",
     academicYear: String(new Date().getFullYear()),
     active: true,
   })
@@ -221,12 +195,10 @@ export default function ClassroomsTable() {
     setForm({
       institutionId: "",
       gradeId: "",
-      sectionId: "",
       academicYear: String(new Date().getFullYear()),
       active: true,
     })
     setGrades([])
-    setSections([])
     setCreateError(null)
     setEditId(null)
   }, [])
@@ -252,7 +224,6 @@ export default function ClassroomsTable() {
   useEffect(() => {
     if (!form.institutionId) {
       setGrades([])
-      setSections([])
       return
     }
     const loadGrades = async () => {
@@ -268,23 +239,6 @@ export default function ClassroomsTable() {
   }, [form.institutionId])
 
   useEffect(() => {
-    if (!form.gradeId) {
-      setSections([])
-      return
-    }
-    const loadSections = async () => {
-      try {
-        setCreateError(null)
-        const data = await listGradeSectionsAction(form.gradeId)
-        setSections(data as GradeSection[])
-      } catch (e: any) {
-        setCreateError(e?.message ?? "Error cargando secciones")
-      }
-    }
-    loadSections()
-  }, [form.gradeId])
-
-  useEffect(() => {
     setPage(1)
   }, [values.search, values.active, pageSize])
 
@@ -297,8 +251,7 @@ export default function ClassroomsTable() {
       const needle = values.search.toLowerCase()
       result = result.filter((r) =>
         getGradeLabel(r).toLowerCase().includes(needle) ||
-        getInstitutionName(r).toLowerCase().includes(needle) ||
-        getSectionLabel(r).toLowerCase().includes(needle)
+        getInstitutionName(r).toLowerCase().includes(needle)
       )
     }
 
@@ -344,7 +297,6 @@ export default function ClassroomsTable() {
             setForm({
               institutionId: row.institution_id || "",
               gradeId: row.grade_id || "",
-              sectionId: row.section_id || "",
               academicYear: String(row.academic_year ?? new Date().getFullYear()),
               active: Boolean(row.active),
             })
@@ -374,8 +326,8 @@ export default function ClassroomsTable() {
     event.preventDefault()
     setCreateError(null)
 
-    if (!form.institutionId || !form.gradeId || !form.sectionId) {
-      setCreateError("Completa institucion, grado y seccion.")
+    if (!form.institutionId || !form.gradeId) {
+      setCreateError("Completa institucion y grado.")
       return
     }
 
@@ -391,7 +343,6 @@ export default function ClassroomsTable() {
         await updateClassroomAction(editId, {
           institution_id: form.institutionId,
           grade_id: form.gradeId,
-          section_id: form.sectionId,
           academic_year: year,
           active: form.active,
         })
@@ -399,7 +350,6 @@ export default function ClassroomsTable() {
         await createClassroomAction({
           institution_id: form.institutionId,
           grade_id: form.gradeId,
-          section_id: form.sectionId,
           academic_year: year,
           active: form.active,
         })
@@ -471,7 +421,6 @@ export default function ClassroomsTable() {
                     ...s,
                     institutionId: e.target.value,
                     gradeId: "",
-                    sectionId: "",
                   }))
                 }}
                 className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
@@ -493,7 +442,6 @@ export default function ClassroomsTable() {
                   setForm((s) => ({
                     ...s,
                     gradeId: e.target.value,
-                    sectionId: "",
                   }))
                 }}
                 disabled={!form.institutionId}
@@ -506,24 +454,7 @@ export default function ClassroomsTable() {
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="section">Seccion</Label>
-              <select
-                id="section"
-                value={form.sectionId}
-                onChange={(e) => setForm((s) => ({ ...s, sectionId: e.target.value }))}
-                disabled={!form.gradeId}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm disabled:opacity-60"
-              >
-                <option value="">Selecciona seccion</option>
-                {sections.map((section) => (
-                  <option key={section.id} value={section.id}>
-                    {section.name || section.code}
-                  </option>
-                ))}
-              </select>
-            </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="academicYear">Ano</Label>
               <Input
@@ -629,4 +560,10 @@ export default function ClassroomsTable() {
     </div>
   )
 }
+
+
+
+
+
+
 

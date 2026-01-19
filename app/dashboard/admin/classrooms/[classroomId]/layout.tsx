@@ -1,5 +1,8 @@
 import Link from "next/link"
+import { notFound } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { createClient } from "@/utils/supabase/server"
+import { requireInstitution } from "@/lib/institution"
 
 export default async function ClassroomLayout({
   children,
@@ -9,6 +12,18 @@ export default async function ClassroomLayout({
   params: Promise<{ classroomId: string }>
 }) {
   const { classroomId } = await params
+  const institution = await requireInstitution()
+  const supabase = await createClient()
+  const { data: classroom } = await supabase
+    .from("edu_classrooms")
+    .select("id")
+    .eq("id", classroomId)
+    .eq("institution_id", institution.id)
+    .single()
+
+  if (!classroom) {
+    notFound()
+  }
   const base = `/dashboard/admin/classrooms/${classroomId}`
 
   return (
@@ -26,6 +41,9 @@ export default async function ClassroomLayout({
         </Link>
         <Link href={`${base}/temas`}>
           <Button variant="ghost">Temas</Button>
+        </Link>
+        <Link href={`${base}/blocks`}>
+          <Button variant="ghost">Bloques</Button>
         </Link>
         <Link href={`${base}/members`}>
           <Button variant="ghost">Usuarios</Button>

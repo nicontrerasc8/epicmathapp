@@ -79,14 +79,11 @@ async function getRecentClassrooms(institutionId: string) {
     .select(`
       id,
       grade,
-      section,
       grade_id,
-      section_id,
       academic_year,
       active,
       edu_institutions ( name ),
-      edu_institution_grades ( name, code ),
-      edu_grade_sections ( name, code )
+      edu_institution_grades ( name, code )
     `)
     .eq("active", true)
     .eq("institution_id", institutionId)

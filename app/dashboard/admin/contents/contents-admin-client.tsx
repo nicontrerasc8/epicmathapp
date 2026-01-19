@@ -18,24 +18,29 @@ import {
     createAreaAction,
     createExerciseAction,
     createExerciseAssignmentAction,
+    createClassroomBlockAction,
     createTemaAction,
     deleteAcademicBlockAction,
     deleteAcademicSubblockAction,
     deleteAreaAction,
     deleteExerciseAction,
     deleteExerciseAssignmentAction,
+    deleteClassroomBlockAction,
     deleteTemaAction,
     listAcademicBlocksAction,
     listAcademicSubblocksAction,
     listAreasAction,
     listExerciseAssignmentsAction,
     listExercisesAction,
+    listClassroomsAction,
+    listClassroomBlocksAction,
     listTemasAction,
     updateAcademicBlockAction,
     updateAcademicSubblockAction,
     updateAreaAction,
     updateExerciseAction,
     updateExerciseAssignmentAction,
+    updateClassroomBlockAction,
     updateTemaAction,
 } from "./content-actions"
 
@@ -88,6 +93,24 @@ type ExerciseAssignment = {
     tema_id: string
     ordering: number | null
     active: boolean
+    created_at: string
+}
+
+type Classroom = {
+    id: string
+    grade: string
+    academic_year: number
+    active: boolean
+    created_at: string
+}
+
+type ClassroomBlock = {
+    id: string
+    classroom_id: string
+    block_id: string
+    active: boolean
+    started_at: string | null
+    ended_at: string | null
     created_at: string
 }
 
@@ -164,6 +187,8 @@ interface ContentsAdminClientProps {
     temas: Tema[]
     exercises: Exercise[]
     assignments: ExerciseAssignment[]
+    classrooms: Classroom[]
+    classroomBlocks: ClassroomBlock[]
 }
 
 export default function ContentsAdminClient({
@@ -173,6 +198,8 @@ export default function ContentsAdminClient({
     temas: initialTemas,
     exercises: initialExercises,
     assignments: initialAssignments,
+    classrooms: initialClassrooms,
+    classroomBlocks: initialClassroomBlocks,
 }: ContentsAdminClientProps) {
     const [blocks, setBlocks] = useState(initialBlocks)
     const [subblocks, setSubblocks] = useState(initialSubblocks)
@@ -180,6 +207,8 @@ export default function ContentsAdminClient({
     const [temas, setTemas] = useState(initialTemas)
     const [exercises, setExercises] = useState(initialExercises)
     const [assignments, setAssignments] = useState(initialAssignments)
+    const [classrooms, setClassrooms] = useState(initialClassrooms)
+    const [classroomBlocks, setClassroomBlocks] = useState(initialClassroomBlocks)
 
     const [blockMessage, setBlockMessage] = useState<Message | null>(null)
     const [subblockMessage, setSubblockMessage] = useState<Message | null>(null)
@@ -187,6 +216,7 @@ export default function ContentsAdminClient({
     const [temaMessage, setTemaMessage] = useState<Message | null>(null)
     const [exerciseMessage, setExerciseMessage] = useState<Message | null>(null)
     const [assignmentMessage, setAssignmentMessage] = useState<Message | null>(null)
+    const [classroomBlockMessage, setClassroomBlockMessage] = useState<Message | null>(null)
 
     const [blockSearch, setBlockSearch] = useState("")
     const [blockPageSize, setBlockPageSize] = useState(pageSizeOptions[0])
@@ -211,6 +241,10 @@ export default function ContentsAdminClient({
     const [assignmentSearch, setAssignmentSearch] = useState("")
     const [assignmentPageSize, setAssignmentPageSize] = useState(pageSizeOptions[0])
     const [assignmentPage, setAssignmentPage] = useState(1)
+
+    const [classroomBlockSearch, setClassroomBlockSearch] = useState("")
+    const [classroomBlockPageSize, setClassroomBlockPageSize] = useState(pageSizeOptions[0])
+    const [classroomBlockPage, setClassroomBlockPage] = useState(1)
 
     const [blockForm, setBlockForm] = useState({
         editId: "",
@@ -253,6 +287,14 @@ export default function ContentsAdminClient({
         ordering: "",
         active: true,
     })
+    const [classroomBlockForm, setClassroomBlockForm] = useState({
+        editId: "",
+        classroom_id: "",
+        block_id: "",
+        started_at: "",
+        ended_at: "",
+        active: true,
+    })
 
     useEffect(() => setBlockPage(1), [blockSearch, blockPageSize])
     useEffect(() => setSubblockPage(1), [subblockSearch, subblockPageSize])
@@ -260,8 +302,13 @@ export default function ContentsAdminClient({
     useEffect(() => setTemaPage(1), [temaSearch, temaPageSize])
     useEffect(() => setExercisePage(1), [exerciseSearch, exercisePageSize])
     useEffect(() => setAssignmentPage(1), [assignmentSearch, assignmentPageSize])
+    useEffect(() => setClassroomBlockPage(1), [classroomBlockSearch, classroomBlockPageSize])
 
     const blockMap = useMemo(() => new Map(blocks.map((b) => [b.id, b.name])), [blocks])
+    const blockMetaMap = useMemo(
+        () => new Map(blocks.map((b) => [b.id, `${b.name} (${b.block_type} ${b.academic_year})`])),
+        [blocks]
+    )
     const areaMap = useMemo(() => new Map(areas.map((a) => [a.id, a.name])), [areas])
     const subblockMap = useMemo(() => new Map(subblocks.map((s) => [s.id, s.name])), [subblocks])
     const temaMap = useMemo(
@@ -269,6 +316,10 @@ export default function ContentsAdminClient({
         [temas, areaMap, subblockMap]
     )
     const exerciseMap = useMemo(() => new Map(exercises.map((e) => [e.id, e.description || e.id])), [exercises])
+    const classroomMap = useMemo(
+        () => new Map(classrooms.map((c) => [c.id, `${c.grade} (${c.academic_year})`])),
+        [classrooms]
+    )
 
     const refreshBlocks = async () => setBlocks(await listAcademicBlocksAction())
     const refreshSubblocks = async () => setSubblocks(await listAcademicSubblocksAction())
@@ -276,6 +327,8 @@ export default function ContentsAdminClient({
     const refreshTemas = async () => setTemas(await listTemasAction())
     const refreshExercises = async () => setExercises(await listExercisesAction())
     const refreshAssignments = async () => setAssignments(await listExerciseAssignmentsAction())
+    const refreshClassrooms = async () => setClassrooms(await listClassroomsAction())
+    const refreshClassroomBlocks = async () => setClassroomBlocks(await listClassroomBlocksAction())
 
     const blockColumns: ColumnDef<AcademicBlock>[] = [
         { key: "name", header: "Nombre", sortable: true, render: (v) => <span className="font-medium">{v}</span> },
@@ -338,6 +391,22 @@ export default function ContentsAdminClient({
             render: (v) => temaMap.get(v) || "Sin tema",
         },
         { key: "ordering", header: "Orden", render: (v) => v ?? "-" },
+        { key: "active", header: "Estado", render: (v) => <StatusBadge active={v} /> },
+    ]
+
+    const classroomBlockColumns: ColumnDef<ClassroomBlock>[] = [
+        {
+            key: "classroom_id",
+            header: "Aula",
+            render: (v) => classroomMap.get(v) || v,
+        },
+        {
+            key: "block_id",
+            header: "Bloque",
+            render: (v) => blockMetaMap.get(v) || blockMap.get(v) || v,
+        },
+        { key: "started_at", header: "Inicio", render: (v) => v ? new Date(v).toLocaleDateString() : "-" },
+        { key: "ended_at", header: "Fin", render: (v) => v ? new Date(v).toLocaleDateString() : "-" },
         { key: "active", header: "Estado", render: (v) => <StatusBadge active={v} /> },
     ]
 
@@ -419,6 +488,20 @@ export default function ContentsAdminClient({
         [filteredAssignments, assignmentPage, assignmentPageSize]
     )
 
+    const classroomBlockNeedle = classroomBlockSearch.trim().toLowerCase()
+    const filteredClassroomBlocks = useMemo(() => {
+        if (!classroomBlockNeedle) return classroomBlocks
+        return classroomBlocks.filter((cb) =>
+            matchesSearch(classroomMap.get(cb.classroom_id), classroomBlockNeedle) ||
+            matchesSearch(blockMetaMap.get(cb.block_id), classroomBlockNeedle) ||
+            matchesSearch(blockMap.get(cb.block_id), classroomBlockNeedle)
+        )
+    }, [classroomBlocks, classroomBlockNeedle, classroomMap, blockMetaMap, blockMap])
+    const pagedClassroomBlocks = useMemo(
+        () => paginateRows(filteredClassroomBlocks, classroomBlockPage, classroomBlockPageSize),
+        [filteredClassroomBlocks, classroomBlockPage, classroomBlockPageSize]
+    )
+
     return (
         <div className="space-y-6">
             <PageHeader
@@ -438,6 +521,7 @@ export default function ContentsAdminClient({
                     <TabsTrigger value="temas">Temas</TabsTrigger>
                     <TabsTrigger value="exercises">Ejercicios</TabsTrigger>
                     <TabsTrigger value="assignments">Asignaciones</TabsTrigger>
+                    <TabsTrigger value="classroom-blocks">Bloques x Aula</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="blocks" className="space-y-6">
@@ -1485,6 +1569,205 @@ export default function ContentsAdminClient({
                                                 exercise_id: "",
                                                 tema_id: "",
                                                 ordering: "",
+                                                active: true,
+                                            })
+                                        }
+                                    >
+                                        Cancelar
+                                    </Button>
+                                )}
+                            </div>
+                        </form>
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="classroom-blocks" className="space-y-6">
+                    <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+                        <div className="space-y-3">
+                            <TableControls
+                                search={classroomBlockSearch}
+                                onSearchChange={setClassroomBlockSearch}
+                                pageSize={classroomBlockPageSize}
+                                onPageSizeChange={setClassroomBlockPageSize}
+                            />
+                            <DataTable
+                                columns={classroomBlockColumns}
+                                data={pagedClassroomBlocks}
+                                emptyState={{
+                                    title: "bloques por aula",
+                                    description: "No hay bloques asignados a aulas.",
+                                }}
+                                pagination={{
+                                    page: classroomBlockPage,
+                                    pageSize: classroomBlockPageSize,
+                                    total: filteredClassroomBlocks.length,
+                                }}
+                                onPageChange={setClassroomBlockPage}
+                                rowActions={(row) => (
+                                    <RowActionsMenu
+                                        actions={[
+                                            {
+                                                label: "Editar",
+                                                onClick: () => {
+                                                    setClassroomBlockForm({
+                                                        editId: row.id,
+                                                        classroom_id: row.classroom_id,
+                                                        block_id: row.block_id,
+                                                        started_at: row.started_at || "",
+                                                        ended_at: row.ended_at || "",
+                                                        active: row.active,
+                                                    })
+                                                    setClassroomBlockMessage(null)
+                                                },
+                                            },
+                                            {
+                                                label: "Eliminar",
+                                                variant: "destructive",
+                                                onClick: async () => {
+                                                    try {
+                                                        await deleteClassroomBlockAction(row.id)
+                                                        await refreshClassroomBlocks()
+                                                        setClassroomBlockMessage({ type: "success", text: "Asignacion eliminada." })
+                                                    } catch (err: any) {
+                                                        setClassroomBlockMessage({ type: "error", text: err?.message || "No se pudo eliminar." })
+                                                    }
+                                                },
+                                            },
+                                        ]}
+                                    />
+                                )}
+                            />
+                        </div>
+
+                        <form
+                            className="space-y-4 rounded-xl border bg-card p-4"
+                            onSubmit={async (e) => {
+                                e.preventDefault()
+                                setClassroomBlockMessage(null)
+
+                                if (!classroomBlockForm.classroom_id || !classroomBlockForm.block_id) {
+                                    setClassroomBlockMessage({ type: "error", text: "Selecciona aula y bloque." })
+                                    return
+                                }
+
+                                try {
+                                    const payload = {
+                                        classroom_id: classroomBlockForm.classroom_id,
+                                        block_id: classroomBlockForm.block_id,
+                                        started_at: classroomBlockForm.started_at || null,
+                                        ended_at: classroomBlockForm.ended_at || null,
+                                        active: classroomBlockForm.active,
+                                    }
+                                    if (classroomBlockForm.editId) {
+                                        await updateClassroomBlockAction(classroomBlockForm.editId, payload)
+                                    } else {
+                                        await createClassroomBlockAction(payload)
+                                    }
+                                    await refreshClassroomBlocks()
+                                    await refreshClassrooms()
+                                    setClassroomBlockForm({
+                                        editId: "",
+                                        classroom_id: "",
+                                        block_id: "",
+                                        started_at: "",
+                                        ended_at: "",
+                                        active: true,
+                                    })
+                                    setClassroomBlockMessage({ type: "success", text: "Asignacion guardada." })
+                                } catch (err: any) {
+                                    setClassroomBlockMessage({ type: "error", text: err?.message || "No se pudo guardar." })
+                                }
+                            }}
+                        >
+                            <div className="text-sm font-medium">
+                                {classroomBlockForm.editId ? "Editar bloque por aula" : "Asignar bloque a aula"}
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Aula</label>
+                                <select
+                                    value={classroomBlockForm.classroom_id}
+                                    onChange={(e) => setClassroomBlockForm((s) => ({ ...s, classroom_id: e.target.value }))}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                >
+                                    <option value="">Selecciona un aula</option>
+                                    {classrooms.map((classroom) => (
+                                        <option key={classroom.id} value={classroom.id}>
+                                            {classroomMap.get(classroom.id) || classroom.id}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Bloque</label>
+                                <select
+                                    value={classroomBlockForm.block_id}
+                                    onChange={(e) => setClassroomBlockForm((s) => ({ ...s, block_id: e.target.value }))}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                >
+                                    <option value="">Selecciona un bloque</option>
+                                    {blocks.map((block) => (
+                                        <option key={block.id} value={block.id}>
+                                            {blockMetaMap.get(block.id) || block.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Inicio</label>
+                                <Input
+                                    type="date"
+                                    value={classroomBlockForm.started_at}
+                                    onChange={(e) => setClassroomBlockForm((s) => ({ ...s, started_at: e.target.value }))}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Fin</label>
+                                <Input
+                                    type="date"
+                                    value={classroomBlockForm.ended_at}
+                                    onChange={(e) => setClassroomBlockForm((s) => ({ ...s, ended_at: e.target.value }))}
+                                />
+                            </div>
+
+                            <label className="flex items-center gap-2 text-sm">
+                                <Checkbox
+                                    checked={classroomBlockForm.active}
+                                    onCheckedChange={(val) => setClassroomBlockForm((s) => ({ ...s, active: Boolean(val) }))}
+                                />
+                                Activo
+                            </label>
+
+                            {classroomBlockMessage && (
+                                <div
+                                    className={`rounded-md border p-3 text-sm ${
+                                        classroomBlockMessage.type === "error"
+                                            ? "border-destructive/50 bg-destructive/10 text-destructive"
+                                            : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+                                    }`}
+                                >
+                                    {classroomBlockMessage.text}
+                                </div>
+                            )}
+
+                            <div className="flex flex-wrap gap-2">
+                                <Button type="submit">
+                                    {classroomBlockForm.editId ? "Actualizar" : "Crear"}
+                                </Button>
+                                {classroomBlockForm.editId && (
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        onClick={() =>
+                                            setClassroomBlockForm({
+                                                editId: "",
+                                                classroom_id: "",
+                                                block_id: "",
+                                                started_at: "",
+                                                ended_at: "",
                                                 active: true,
                                             })
                                         }

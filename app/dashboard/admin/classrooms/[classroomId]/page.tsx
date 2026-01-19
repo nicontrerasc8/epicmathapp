@@ -2,7 +2,6 @@ import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
 import ClassroomDetailClient from "./classroom-detail-client"
 import { requireInstitution } from "@/lib/institution"
-
 // Server component - fetch classroom data
 async function getClassroomData(classroomId: string, institutionId: string) {
   const supabase = await createClient()
@@ -13,14 +12,11 @@ async function getClassroomData(classroomId: string, institutionId: string) {
     .select(`
       id,
       grade,
-      section,
       grade_id,
-      section_id,
       academic_year,
       active,
       edu_institutions ( id, name, type ),
-      edu_institution_grades ( id, name, level, grade_num, code ),
-      edu_grade_sections ( id, name, code )
+      edu_institution_grades ( id, name, level, grade_num, code )
     `)
     .eq("id", classroomId)
     .eq("institution_id", institutionId)
@@ -52,6 +48,13 @@ async function getClassroomData(classroomId: string, institutionId: string) {
     .eq("institution_id", institutionId)
     .eq("active", true)
 
+  // Get blocks count
+  const { count: blocksCount } = await supabase
+    .from("edu_classroom_blocks")
+    .select("id", { count: "exact", head: true })
+    .eq("classroom_id", classroomId)
+    .eq("active", true)
+
   // Get recent student exercises for accuracy
   const { data: recentExercises } = await supabase
     .from("edu_student_exercises")
@@ -72,6 +75,7 @@ async function getClassroomData(classroomId: string, institutionId: string) {
     memberCount: memberCount || 0,
     temasCount: temasCount || 0,
     exercisesCount: exercisesCount || 0,
+    blocksCount: blocksCount || 0,
     accuracy,
     totalExercises,
   }
