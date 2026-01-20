@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
@@ -77,7 +77,7 @@ export default function StudentPerformanceDetailPage() {
 
         const name = `${student?.first_name || ""} ${student?.last_name || ""}`.trim()
         setStudentName(name || "Estudiante")
-        setRows((data ?? []) as AttemptRow[])
+        setRows((data ?? []) as any[])
       } catch (e) {
         console.error(e)
         setErrorMsg("No se pudieron cargar los datos.")

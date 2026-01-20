@@ -130,25 +130,7 @@ export default function Hero() {
               </Button>
             </motion.div>
 
-            {/* Trust indicators */}
-            <motion.div
-              variants={fadeUp}
-              custom={4}
-              className="flex flex-wrap justify-center items-center gap-6 pt-8 text-sm text-muted-foreground"
-            >
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-primary" />
-                <span>Datos protegidos</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <GraduationCap className="h-5 w-5 text-primary" />
-                <span>Validado pedagógicamente</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" />
-                <span>Respuesta en 24h</span>
-              </div>
-            </motion.div>
+         
           </motion.div>
         </div>
       </section>
