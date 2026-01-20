@@ -11,12 +11,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 14 — Potencias + factorización prima (MathJax)
    Formato:
-     A = ( p^a × N^b ) / ( M^c )   → hallar A (entero)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ 100% dinámico: genera p, N, M y exponentes
-   ✅ Explicación PRO: factorización → elevar → cancelar exponentes → calcular
-   ✅ better-react-mathjax (NO KaTeX)
-   ✅ Persist: MISMA estructura que Prisma01 (exerciseId/temaId/classroomId/sessionId)
+     A = ( p^a × N^b ) / ( M^c )   ? hallar A (entero)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? 100% dinámico: genera p, N, M y exponentes
+   ? Explicación PRO: factorización ? elevar ? cancelar exponentes ? calcular
+   ? better-react-mathjax (NO KaTeX)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -280,12 +279,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma14({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -315,10 +312,9 @@ export default function Prisma14({
     setSelected(op.value)
     engine.submit(op.correct)
 
-    // ✅ MISMA ESTRUCTURA QUE PRISMA01
+    // ? MISMA ESTRUCTURA QUE PRISMA01
     persistExerciseOnce({
       exerciseId, // 'Prisma14'
-      temaId,
       classroomId,
       sessionId,
 
@@ -369,7 +365,7 @@ export default function Prisma14({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Miramos la expresión</div>
+                <div className="font-semibold mb-2">?? Paso 0 — Miramos la expresión</div>
                 <p className="text-muted-foreground">
                   La idea es escribir todo como producto de primos y luego usar reglas de potencias para “sumar/restar”
                   exponentes.
@@ -381,7 +377,7 @@ export default function Prisma14({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Factorizamos en primos</div>
+                <div className="font-semibold mb-2">? Paso 1 — Factorizamos en primos</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={`${ej.N}=${factorTex(ej.facN)}`} />
                   <Tex block tex={`${ej.M}=${factorTex(ej.facM)}`} />
@@ -390,7 +386,7 @@ export default function Prisma14({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Reemplazamos y elevamos</div>
+                <div className="font-semibold mb-2">? Paso 2 — Reemplazamos y elevamos</div>
 
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={`A=\\frac{${numExpandedTex}}{${denExpandedTex}}`} />
@@ -404,7 +400,7 @@ export default function Prisma14({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Cancelamos exponentes (tabla)</div>
+                <div className="font-semibold mb-2">? Paso 3 — Cancelamos exponentes (tabla)</div>
 
                 <div className="overflow-x-auto">
                   <table className="border w-full text-center text-xs">
@@ -430,13 +426,13 @@ export default function Prisma14({
                 </div>
 
                 <p className="mt-2 text-muted-foreground">
-                  Para cada primo, hacemos: <span className="font-semibold">num − den</span>.
+                  Para cada primo, hacemos: <span className="font-semibold">num - den</span>.
                 </p>
               </div>
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Escribimos A y calculamos</div>
+                <div className="font-semibold mb-2">? Paso 4 — Escribimos A y calculamos</div>
 
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={`A=${finalProductTex}`} />
@@ -492,3 +488,6 @@ export default function Prisma14({
     </MathJaxContext>
   )
 }
+
+
+

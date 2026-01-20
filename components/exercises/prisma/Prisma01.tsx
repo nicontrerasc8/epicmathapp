@@ -10,9 +10,9 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 1 — Tablas de verdad (p, q) + MathJax (better-react-mathjax)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Generación algorítmica (sin hardcode)
-   ✅ Explicación tipo profe + subexpresiones + tablas por paso
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Generación algorítmica (sin hardcode)
+   ? Explicación tipo profe + subexpresiones + tablas por paso
 ============================================================ */
 
 /* =========================
@@ -102,7 +102,7 @@ function evalExpr(expr: Expr, p: boolean, q: boolean): boolean {
     case 'or':
       return evalExpr(expr.left, p, q) || evalExpr(expr.right, p, q)
     case 'imp':
-      // A → B ≡ (~A ∨ B)   (solo es F cuando A=V y B=F)
+      // A ? B = (~A ? B)   (solo es F cuando A=V y B=F)
       return !evalExpr(expr.left, p, q) || evalExpr(expr.right, p, q)
   }
 }
@@ -141,11 +141,11 @@ function toPretty(expr: Expr): string {
       return needsParens ? `~(${toPretty(inner)})` : `~${toPretty(inner)}`
     }
     case 'and':
-      return `(${toPretty(expr.left)} ∧ ${toPretty(expr.right)})`
+      return `(${toPretty(expr.left)} ? ${toPretty(expr.right)})`
     case 'or':
-      return `(${toPretty(expr.left)} ∨ ${toPretty(expr.right)})`
+      return `(${toPretty(expr.left)} ? ${toPretty(expr.right)})`
     case 'imp':
-      return `(${toPretty(expr.left)} → ${toPretty(expr.right)})`
+      return `(${toPretty(expr.left)} ? ${toPretty(expr.right)})`
   }
 }
 
@@ -399,15 +399,15 @@ function getSubexpressionsInOrder(expr: Expr): Expr[] {
 
 function opRuleText(e: Expr): string {
   if (e.type === 'not') {
-    return 'Regla de negación: invierte el valor. (V → F, F → V)'
+    return 'Regla de negación: invierte el valor. (V ? F, F ? V)'
   }
   if (e.type === 'and') {
-    return 'Regla de conjunción (A ∧ B): solo es V si A es V y B es V. Si falla una, es F.'
+    return 'Regla de conjunción (A ? B): solo es V si A es V y B es V. Si falla una, es F.'
   }
   if (e.type === 'or') {
-    return 'Regla de disyunción (A ∨ B): es V si al menos una es V. Solo es F si ambas son F.'
+    return 'Regla de disyunción (A ? B): es V si al menos una es V. Solo es F si ambas son F.'
   }
-  return 'Regla de implicación (A → B): solo es F cuando A es V y B es F. En los demás casos es V.'
+  return 'Regla de implicación (A ? B): solo es F cuando A es V y B es F. En los demás casos es V.'
 }
 
 function evalBitsForExpr(e: Expr): string {
@@ -426,12 +426,10 @@ function detailedNarrative(expr: Expr) {
 ========================= */
 export default function Prisma01({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -457,7 +455,6 @@ export default function Prisma01({
 
     persistExerciseOnce({
       exerciseId,        // 'Prisma01'
-      temaId,
       classroomId,
       sessionId,
 
@@ -499,7 +496,7 @@ export default function Prisma01({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Qué estamos buscando</div>
+                <div className="font-semibold mb-2">?? Paso 0 — Qué estamos buscando</div>
                 <p className="text-muted-foreground">
                   Vamos a evaluar la proposición en 4 filas (TT, TF, FT, FF). Al final obtendremos un
                   “código” de 4 letras (V/F). Ese código debe coincidir con una alternativa.
@@ -508,7 +505,7 @@ export default function Prisma01({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Orden de filas (SIEMPRE el mismo)</div>
+                <div className="font-semibold mb-2">? Paso 1 — Orden de filas (SIEMPRE el mismo)</div>
 
                 <div className="mt-2 overflow-x-auto">
                   <table className="border w-full text-center text-xs">
@@ -541,7 +538,7 @@ export default function Prisma01({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Proposición a evaluar</div>
+                <div className="font-semibold mb-2">? Paso 2 — Proposición a evaluar</div>
                 <p className="text-muted-foreground">
                   Esta es la proposición del ejercicio. La evaluaremos de adentro hacia afuera (subexpresiones).
                 </p>
@@ -552,7 +549,7 @@ export default function Prisma01({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Subexpresiones (de adentro hacia afuera)</div>
+                <div className="font-semibold mb-2">? Paso 3 — Subexpresiones (de adentro hacia afuera)</div>
                 <p className="text-muted-foreground">
                   Calculamos primero las partes pequeñas. Cada subexpresión produce su propio código de 4 letras.
                   La última que calculemos será la proposición completa.
@@ -610,7 +607,7 @@ export default function Prisma01({
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Respuesta final</div>
+                <div className="font-semibold mb-2">? Paso 4 — Respuesta final</div>
                 <p className="text-muted-foreground">
                   La proposición completa queda con este código (en el orden TT, TF, FT, FF):
                 </p>
@@ -623,11 +620,11 @@ export default function Prisma01({
                 </div>
 
                 <div className="mt-3 rounded-md border bg-background p-3">
-                  <div className="font-semibold mb-1">🧠 Chequeo rápido</div>
+                  <div className="font-semibold mb-1">?? Chequeo rápido</div>
                   <p className="text-muted-foreground">
                     Si tu código no coincide con ninguna opción, revisa:
-                    (1) el orden de filas, y (2) la regla de <span className="font-semibold">→</span>
-                    (solo es F cuando V → F).
+                    (1) el orden de filas, y (2) la regla de <span className="font-semibold">?</span>
+                    (solo es F cuando V ? F).
                   </p>
                 </div>
               </div>
@@ -673,3 +670,6 @@ export default function Prisma01({
     </MathJaxContext>
   )
 }
+
+
+

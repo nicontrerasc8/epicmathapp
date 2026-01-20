@@ -10,10 +10,9 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 25 — Existencia de triángulo (inecuaciones) (MathJax)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ 100% dinámico: lado constante + expresiones + opciones + solución
-   ✅ Estilo Prisma: |a-b| < c < a+b
-   ✅ Persist estilo Prisma01: (exerciseId, temaId, classroomId, sessionId, correct, answer)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? 100% dinámico: lado constante + expresiones + opciones + solución
+   ? Estilo Prisma: |a-b| < c < a+b
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -120,10 +119,10 @@ function Diagram({
   const mAC = mid(A, C)
 
   const sideAB = `${c}`
-  const sideBC = exprXMinus(p).replace('-', ' − ')
+  const sideBC = exprXMinus(p).replace('-', ' - ')
   const sideAC = exprLinear(m, r)
     .replace('+', ' + ')
-    .replace('-', ' − ')
+    .replace('-', ' - ')
 
   return (
     <div className="rounded-xl border bg-white p-3">
@@ -325,12 +324,10 @@ function generateExercise(): Gen {
 ========================= */
 export default function Prisma25({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -350,7 +347,6 @@ export default function Prisma25({
 
     persistExerciseOnce({
       exerciseId, // 'Prisma25'
-      temaId,
       classroomId,
       sessionId,
       correct: op.correct,
@@ -383,7 +379,7 @@ export default function Prisma25({
             <div className="text-sm">
               Los lados de un triángulo miden{' '}
               <span className="font-semibold">{ex.params.c}</span>,{' '}
-              <span className="font-semibold">{exprXMinus(ex.params.p).replace('-', ' − ')}</span>{' '}
+              <span className="font-semibold">{exprXMinus(ex.params.p).replace('-', ' - ')}</span>{' '}
               y <span className="font-semibold">{exprLinear(ex.params.m, ex.params.r)}</span>. Encuentra
               el <span className="font-semibold">valor entero</span> de{' '}
               <span className="font-semibold">x</span>.
@@ -405,7 +401,7 @@ export default function Prisma25({
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Longitud positiva</div>
+                <div className="font-semibold mb-2">? Paso 1 — Longitud positiva</div>
                 <p className="text-muted-foreground">
                   Primero garantizamos que el lado con variable sea positivo.
                 </p>
@@ -415,7 +411,7 @@ export default function Prisma25({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Teorema de existencia</div>
+                <div className="font-semibold mb-2">? Paso 2 — Teorema de existencia</div>
                 <p className="text-muted-foreground">
                   Para que exista un triángulo con lados <span className="font-mono">a</span>,{' '}
                   <span className="font-mono">b</span>, <span className="font-mono">c</span>:
@@ -427,7 +423,7 @@ export default function Prisma25({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Resolver las inecuaciones</div>
+                <div className="font-semibold mb-2">? Paso 3 — Resolver las inecuaciones</div>
                 <div className="space-y-2">
                   <div>
                     <div className="font-semibold mb-1">Izquierda (valor absoluto)</div>
@@ -445,7 +441,7 @@ export default function Prisma25({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Intersección e integralidad</div>
+                <div className="font-semibold mb-2">? Paso 4 — Intersección e integralidad</div>
                 <p className="text-muted-foreground">
                   Tomamos la intersección de condiciones y elegimos el valor entero.
                 </p>
@@ -499,3 +495,6 @@ export default function Prisma25({
     </MathJaxContext>
   )
 }
+
+
+

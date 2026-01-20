@@ -12,10 +12,9 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    PRISMA 20 — Suma de logaritmos telescópica
    Ejemplo: E = log(1/2)+log(2/3)+...+log(9/10)  => E = -1
 
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ MathJax (better-react-mathjax)
-   ✅ Explicación tipo profe (producto, cancelación, resultado)
-   ✅ Persist NUEVO (igual Prisma01): { exerciseId, temaId, classroomId, sessionId, correct, answer:{} }
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? MathJax (better-react-mathjax)
+   ? Explicación tipo profe (producto, cancelación, resultado)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -98,12 +97,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma20({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -119,10 +116,9 @@ export default function Prisma20({
     setSelected(op.value)
     engine.submit(op.correct)
 
-    // ✅ Persist NUEVO (igual Prisma01)
+    // ? Persist NUEVO (igual Prisma01)
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma20'
-      temaId,
       classroomId,
       sessionId,
 
@@ -169,7 +165,7 @@ export default function Prisma20({
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">
-                  ✅ Paso 1 — Unimos la suma (logaritmo del producto)
+                  ? Paso 1 — Unimos la suma (logaritmo del producto)
                 </div>
                 <p className="text-muted-foreground">
                   Propiedad: <Tex tex={`\\log_b(m)+\\log_b(n)=\\log_b(m\\cdot n)`} />.
@@ -191,7 +187,7 @@ export default function Prisma20({
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">
-                  ✅ Paso 2 — Reducimos el producto (se cancela “en cadena”)
+                  ? Paso 2 — Reducimos el producto (se cancela “en cadena”)
                 </div>
                 <p className="text-muted-foreground">
                   El <Tex tex={`2`} /> de arriba cancela con el <Tex tex={`2`} /> de abajo,
@@ -210,7 +206,7 @@ export default function Prisma20({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Logaritmo final</div>
+                <div className="font-semibold mb-2">? Paso 3 — Logaritmo final</div>
                 <p className="text-muted-foreground">
                   Como el producto vale <Tex tex={`\\frac{1}{${b}}`} />, entonces:
                 </p>
@@ -231,7 +227,7 @@ export default function Prisma20({
 
               {/* Respuesta */}
               <div className="rounded-lg border bg-muted p-3">
-                <div className="font-semibold">✅ Respuesta final</div>
+                <div className="font-semibold">? Respuesta final</div>
                 <div className="mt-2">
                   <Tex block tex={`E=-1`} />
                 </div>
@@ -280,3 +276,6 @@ export default function Prisma20({
     </MathJaxContext>
   )
 }
+
+
+

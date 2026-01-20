@@ -9,13 +9,13 @@ import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
 import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
-   PRISMA 31 — Conversión radianes ↔ centesimal (grados g)
+   PRISMA 31 — Conversión radianes ? centesimal (grados g)
 
-   Siendo  (pπ/q) rad  ↔  ab^g
-   Calcula  E = √(a + b − 1)
+   Siendo  (pp/q) rad  ?  ab^g
+   Calcula  E = v(a + b - 1)
 
-   ✅ FORMATO NUEVO (igual a Prisma 29)
-   ✅ 1 intento, autocalifica
+   ? FORMATO NUEVO (igual a Prisma 29)
+   ? 1 intento, autocalifica
 ============================================================ */
 
 type OptionKey = 'A' | 'B' | 'C' | 'D'
@@ -64,7 +64,7 @@ function Tex({ tex, block = false }: { tex: string; block?: boolean }) {
    GENERADOR
 ========================= */
 function digitsThatMakeE(targetE: number) {
-  // a + b − 1 = E²  ⇒  a + b = E² + 1
+  // a + b - 1 = E²  ?  a + b = E² + 1
   const sum = targetE * targetE + 1
   const pairs: Array<{ a: number; b: number }> = []
   for (let a = 1; a <= 9; a++) {
@@ -120,12 +120,10 @@ function buildExercise() {
 ========================= */
 export default function Prisma31({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -146,7 +144,6 @@ export default function Prisma31({
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
 
@@ -161,9 +158,9 @@ export default function Prisma31({
           a: ex.a,
           b: ex.b,
           G: ex.G,
-          radian: `${ex.p}π/${ex.q}`,
+          radian: `${ex.p}p/${ex.q}`,
           labeledOptions: ordered.map(o => `${o.key}.\\ ${o.value}`),
-          rule: 'E = √(a + b − 1)',
+          rule: 'E = v(a + b - 1)',
         },
       },
     })
@@ -234,3 +231,6 @@ export default function Prisma31({
     </MathJaxContext>
   )
 }
+
+
+

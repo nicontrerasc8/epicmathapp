@@ -11,12 +11,12 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 33 — Sistema sexagesimal (°) vs centesimal (g) + MathJax
    Estilo:
-     (x - a)° = (x + b)g   → hallar x
+     (x - a)° = (x + b)g   ? hallar x
 
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ 100% dinámico: a,b cambian siempre
-   ✅ Explicación tipo profe: convertir g→° → ecuación → resolver
-   ✅ Persist: NUEVO FORMATO (como tu Prisma 29)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? 100% dinámico: a,b cambian siempre
+   ? Explicación tipo profe: convertir g?° ? ecuación ? resolver
+   ? Persist: NUEVO FORMATO (como tu Prisma 29)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -69,9 +69,9 @@ function Tex({
 /* =========================
    Generator
    (x-a)° = (x+b)g
-   100g = 90° ⇒ 1g = 0.9° = 9/10°
-   ⇒ (x+b)g = 9(x+b)/10 °
-   Ecuación: x-a = 9(x+b)/10  ⇒ x = 10a + 9b
+   100g = 90° ? 1g = 0.9° = 9/10°
+   ? (x+b)g = 9(x+b)/10 °
+   Ecuación: x-a = 9(x+b)/10  ? x = 10a + 9b
 ========================= */
 function generateExercise() {
   for (let tries = 0; tries < 220; tries++) {
@@ -124,7 +124,7 @@ function generateExercise() {
     return { a, b, correct, options, exprLatex, convertedLatex }
   }
 
-  // fallback: a=b=3 → x=57
+  // fallback: a=b=3 ? x=57
   const a = 3
   const b = 3
   const correct = 57
@@ -144,12 +144,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma33({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -169,7 +167,6 @@ export default function Prisma33({
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
 
@@ -190,7 +187,7 @@ export default function Prisma33({
           b: ej.b,
           exprLatex: ej.exprLatex,
           convertedLatex: ej.convertedLatex,
-          rule: '100g = 90° ⇒ 1g = 0.9° = 9/10°',
+          rule: '100g = 90° ? 1g = 0.9° = 9/10°',
           labeledOptions: ordered.map(o => `${o.label}.\\ ${o.value}`),
         },
       },
@@ -227,7 +224,7 @@ export default function Prisma33({
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Conversión g → °</div>
+                <div className="font-semibold mb-2">? Paso 1 — Conversión g ? °</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={s0} />
                   <Tex block tex={s1} />
@@ -235,7 +232,7 @@ export default function Prisma33({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Ecuación en grados</div>
+                <div className="font-semibold mb-2">? Paso 2 — Ecuación en grados</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={s2} />
                   <Tex block tex={s3} />
@@ -243,7 +240,7 @@ export default function Prisma33({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Resolver</div>
+                <div className="font-semibold mb-2">? Paso 3 — Resolver</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={s4} />
                   <Tex block tex={s5} />
@@ -302,3 +299,6 @@ export default function Prisma33({
     </MathJaxContext>
   )
 }
+
+
+

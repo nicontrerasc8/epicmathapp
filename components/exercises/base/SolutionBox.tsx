@@ -18,3 +18,5 @@ export function SolutionBox({ children }: { children: ReactNode }) {
     </motion.div>
   )
 }
+
+

@@ -10,11 +10,10 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 17 — Logaritmos (evaluación directa) + LaTeX (MathJax)
-   ✅ better-react-mathjax (NO KaTeX)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ 100% dinámico: 3 logs con argumentos “potencia perfecta”
-   ✅ Explicación clara: evalúa cada log y luego opera
-   ✅ Persist con la misma firma que Prisma13 (exerciseId/temaId/...)
+   ? better-react-mathjax (NO KaTeX)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? 100% dinámico: 3 logs con argumentos “potencia perfecta”
+   ? Explicación clara: evalúa cada log y luego opera
 ============================================================ */
 
 type Sign = '+' | '-'
@@ -209,12 +208,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma17({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -232,7 +229,6 @@ export default function Prisma17({
 
     persistExerciseOnce({
       exerciseId, // 'Prisma17'
-      temaId,
       classroomId,
       sessionId,
 
@@ -275,7 +271,7 @@ export default function Prisma17({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Leer bien los signos</div>
+                <div className="font-semibold mb-2">?? Paso 0 — Leer bien los signos</div>
                 <p className="text-muted-foreground">
                   La expresión tiene tres logaritmos y entre ellos hay signos. Esos signos se respetan al final:
                   <span className="font-semibold"> {sign2} </span> para el segundo término y
@@ -285,7 +281,7 @@ export default function Prisma17({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Evaluar cada logaritmo (idea clave)</div>
+                <div className="font-semibold mb-2">? Paso 1 — Evaluar cada logaritmo (idea clave)</div>
 
                 <div className="rounded-md border bg-background p-3">
                   <p className="text-muted-foreground">
@@ -338,7 +334,7 @@ export default function Prisma17({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Sustituimos en la expresión</div>
+                <div className="font-semibold mb-2">? Paso 2 — Sustituimos en la expresión</div>
                 <p className="text-muted-foreground">Reemplazamos cada logaritmo por su valor.</p>
                 <div className="mt-2 space-y-2">
                   <Tex block tex={ej.exprLatex} />
@@ -348,7 +344,7 @@ export default function Prisma17({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Operar respetando signos</div>
+                <div className="font-semibold mb-2">? Paso 3 — Operar respetando signos</div>
                 <div className="mt-2">
                   <Tex block tex={`M = ${ej.correct}`} />
                 </div>
@@ -402,3 +398,6 @@ export default function Prisma17({
     </MathJaxContext>
   )
 }
+
+
+

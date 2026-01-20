@@ -1,53 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { fetchStudentSession } from '@/lib/student-session-client'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 
-type Exercise = {
-  id: string
-  order: number
-}
-
-type Tema = {
-  id: string
-  name: string
-  areaName: string
-  subblockName: string
-  exercises: Exercise[]
-}
-
-type Subblock = {
-  id: string
-  name: string
-  temas: Tema[]
-}
-
-type Block = {
-  id: string
-  name: string
-  block_type: string
-  subblocks: Subblock[]
-}
-
 type AssignmentRow = {
+  id: string
   exercise_id: string
   ordering: number | null
-  tema: {
+  exercise: {
     id: string
-    name: string
-    area: { name: string } | null
-    subblock: {
-      id: string
-      name: string
-      block: {
-        id: string
-        name: string
-        block_type: string
-      } | null
-    } | null
+    exercise_type: string
+    description: string | null
   } | null
 }
 
@@ -55,8 +21,7 @@ export default function StudentDashboardPage() {
   const supabase = createClient()
 
   const [loading, setLoading] = useState(true)
-  const [blocks, setBlocks] = useState<any>([])
-  const [activeBlockLabel, setActiveBlockLabel] = useState<string | null>(null)
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([])
 
   useEffect(() => {
     const load = async () => {
@@ -85,118 +50,46 @@ export default function StudentDashboardPage() {
 
       const classroomId = member.classroom_id
 
-      const { data: activeBlocks } = await supabase
-        .from('edu_classroom_blocks')
+      const { data, error } = await supabase
+        .from('edu_exercise_assignments')
         .select(`
-          block:edu_academic_blocks ( id, name, block_type )
-        `)
-        .eq('classroom_id', classroomId)
-        .eq('active', true)
-        .order('started_at', { ascending: false })
-        .limit(1)
-
-      const activeBlock:any = activeBlocks?.[0]?.block
-      if (!activeBlock?.id) {
-        setBlocks([])
-        setLoading(false)
-        return
-      }
-
-      setActiveBlockLabel(`${activeBlock.name} (${activeBlock.block_type})`)
-
-      const { data: assignments, error } = await supabase
-        .from('edu_classroom_tema_exercises')
-        .select(`
+          id,
           exercise_id,
           ordering,
-          tema:edu_temas (
-            id,
-            name,
-            area:edu_areas ( name ),
-            subblock:edu_academic_subblocks (
-              id,
-              name,
-              block:edu_academic_blocks ( id, name, block_type )
-            )
-          )
+          exercise:edu_exercises ( id, exercise_type, description )
         `)
         .eq('classroom_id', classroomId)
         .eq('active', true)
+   
 
-      if (error || !assignments) {
+      if (error) {
         console.error(error)
+        setAssignments([])
         setLoading(false)
         return
       }
 
-      const blockMap = new Map<string, Block>()
-
-      assignments.forEach((row: any) => {
-        const block = row.tema?.subblock?.block
-        if (!block || block.id !== activeBlock.id) return
-
-        if (!blockMap.has(block.id)) {
-          blockMap.set(block.id, {
-            id: block.id,
-            name: block.name,
-            block_type: block.block_type,
-            subblocks: [],
-          })
-        }
-
-        const blockEntry = blockMap.get(block.id)!
-        const subblock = row.tema?.subblock
-        if (!subblock) return
-
-        let sub = blockEntry.subblocks.find(s => s.id === subblock.id)
-        if (!sub) {
-          sub = { id: subblock.id, name: subblock.name, temas: [] }
-          blockEntry.subblocks.push(sub)
-        }
-
-        const tema = row.tema
-        if (!tema) return
-
-        let temaEntry = sub.temas.find(t => t.id === tema.id)
-        if (!temaEntry) {
-          temaEntry = {
-            id: tema.id,
-            name: tema.name,
-            areaName: tema.area?.name ?? 'Área',
-            subblockName: subblock.name,
-            exercises: [],
-          }
-          sub.temas.push(temaEntry)
-        }
-
-        if (!temaEntry.exercises.some(e => e.id === row.exercise_id)) {
-          temaEntry.exercises.push({
-            id: row.exercise_id,
-            order: row.ordering ?? 0,
-          })
-        }
-      })
-
-      blockMap.forEach(block =>
-        block.subblocks.forEach(sub =>
-          sub.temas.forEach(tema =>
-            tema.exercises.sort((a, b) => a.order - b.order),
-          ),
-        ),
-      )
-
-      setBlocks(Array.from(blockMap.values()))
+      setAssignments((data ?? []) as any[])
       setLoading(false)
     }
 
     load()
   }, [supabase])
 
+  const sortedAssignments = useMemo(() => {
+    return [...assignments].sort((a, b) => {
+      const aOrder = a.ordering ?? Number.MAX_SAFE_INTEGER
+      const bOrder = b.ordering ?? Number.MAX_SAFE_INTEGER
+      if (aOrder !== bOrder) return aOrder - bOrder
+      return a.exercise_id.localeCompare(b.exercise_id)
+    })
+  }, [assignments])
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <span className="text-muted-foreground text-lg animate-pulse">
-          Cargando práctica académica...
+          Cargando practica academica...
         </span>
       </div>
     )
@@ -204,59 +97,51 @@ export default function StudentDashboardPage() {
 
   return (
     <div className="min-h-screen bg-background p-6 sm:p-10">
-      <div className="max-w-7xl mx-auto space-y-12">
+      <div className="max-w-6xl mx-auto space-y-10">
         <header>
-          <h1 className="text-3xl font-bold">Práctica académica</h1>
+          <h1 className="text-3xl font-bold">Practica academica</h1>
           <p className="text-muted-foreground">
-            {activeBlockLabel
-              ? `Bloque activo: ${activeBlockLabel}`
-              : 'No hay bloque activo asignado'}
+            Ejercicios asignados a tu aula
           </p>
         </header>
 
-        {blocks.map((block:any, bi:any) => (
-          <motion.section
-            key={block.id}
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: bi * 0.08 }}
-            className="rounded-2xl border bg-card p-6 space-y-8"
-          >
-            <h2 className="text-2xl font-semibold">{block.name}</h2>
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border bg-card p-6"
+        >
+          {sortedAssignments.length === 0 ? (
+            <div className="text-center text-muted-foreground py-10">
+              No hay ejercicios asignados en este momento.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {sortedAssignments.map((assignment, index) => {
+                const exercise = assignment.exercise
+                const label =
+                  exercise?.description ||
+                  exercise?.id ||
+                  `Ejercicio ${index + 1}`
 
-            {block.subblocks.map((sub:any) => (
-              <div key={sub.id}>
-                <h3 className="text-lg font-medium text-primary">
-                  {sub.name}
-                </h3>
-
-                {sub.temas.map((tema:any) => (
-                  <div key={tema.id} className="border rounded-xl p-4">
-                    <h4 className="font-semibold">{tema.name}</h4>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                      {tema.exercises.map((ex:any) => (
-                        <Link
-                          key={ex.id}
-                          href={`/student/play/${ex.id}`}
-                          className="rounded-lg border p-3 text-center hover:shadow-md"
-                        >
-                          Ejercicio {ex.order}
-                        </Link>
-                      ))}
+                return (
+                  <Link
+                    key={assignment.id}
+                    href={`/student/play/${assignment.exercise_id}`}
+                    className="rounded-lg border p-4 text-center hover:shadow-md transition"
+                  >
+                    <div className="text-sm text-muted-foreground">
+                      {assignment.ordering ?? index + 1}
                     </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </motion.section>
-        ))}
-
-        {blocks.length === 0 && (
-          <div className="text-center text-muted-foreground py-20">
-            No hay ejercicios disponibles para el bloque activo.
-          </div>
-        )}
+                    <div className="font-semibold mt-1">{label}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {exercise?.exercise_type || 'sin_tipo'}
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </motion.section>
       </div>
     </div>
   )

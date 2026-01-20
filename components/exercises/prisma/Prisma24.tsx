@@ -10,10 +10,9 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 24 — Suma de ángulos (x + y + z + w)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico: φ puede variar, y la suma siempre es 180 + φ
-   ✅ Diagrama en CANVAS (arco de φ siempre arriba)
-   ✅ Persist con firma: (exerciseId, temaId, classroomId, sessionId)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Dinámico: f puede variar, y la suma siempre es 180 + f
+   ? Diagrama en CANVAS (arco de f siempre arriba)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -233,17 +232,17 @@ function Diagram({ phi }: { phi: number }) {
     // x está bien (ángulo interior en la base izquierda)
     drawAngle(A, B, E, 20, 'x')
 
-    // 🔁 y debe invertirse (se quiere el ángulo exterior)
+    // ?? y debe invertirse (se quiere el ángulo exterior)
     drawAngle(B, C, A, 20, 'y')
 
-    // 🔁 z también es exterior
+    // ?? z también es exterior
     drawAngle(D, E, F, 20, 'z')
 
-    // 🔁 w es exterior en la base derecha
+    // ?? w es exterior en la base derecha
     drawAngle(E, A, D, 20, 'w')
 
 
-    // Ángulo central φ
+    // Ángulo central f
     const aGB = angle(B, G)
     const aGD = angle(D, G)
     ctx.lineWidth = 3
@@ -316,12 +315,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma24({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -338,7 +335,6 @@ export default function Prisma24({
 
     persistExerciseOnce({
       exerciseId, // 'Prisma24'
-      temaId,
       classroomId,
       sessionId,
 
@@ -395,7 +391,7 @@ export default function Prisma24({
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Ángulos exteriores</div>
+                <div className="font-semibold mb-2">? Paso 1 — Ángulos exteriores</div>
                 <div className="space-y-2">
                   <Tex tex={s1} block />
                   <Tex tex={s2} block />
@@ -403,12 +399,12 @@ export default function Prisma24({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Ángulo “pequeño” del cruce</div>
+                <div className="font-semibold mb-2">? Paso 2 — Ángulo “pequeño” del cruce</div>
                 <Tex tex={s3} block />
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Suma alrededor</div>
+                <div className="font-semibold mb-2">? Paso 3 — Suma alrededor</div>
                 <div className="space-y-2">
                   <Tex tex={s4} block />
                   <Tex tex={s5} block />
@@ -462,3 +458,6 @@ export default function Prisma24({
     </MathJaxContext>
   )
 }
+
+
+

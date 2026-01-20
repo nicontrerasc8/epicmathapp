@@ -10,11 +10,10 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 22 — Perímetro de triángulo (existencia + “doble de un lado”)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico (misma naturaleza del PDF)
-   ✅ Paso clave: desigualdad triangular + probar x = 2a o x = 2b
-   ✅ Persist NUEVO (igual Prisma01/Prisma20):
-      { exerciseId, temaId, classroomId, sessionId, correct, answer:{} }
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Dinámico (misma naturaleza del PDF)
+   ? Paso clave: desigualdad triangular + probar x = 2a o x = 2b
+   ? Persist NUEVO (igual Prisma01/Prisma20):
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -128,9 +127,9 @@ function Diagram({ a, b }: { a: number; b: number }) {
    Generador (misma naturaleza)
    Lados conocidos: a (mayor), b (menor)
    Tercer lado x es doble de uno: x = 2a o x = 2b
-   - Si a>b, 2a NO puede: 2a < a+b ⇒ a<b (contradicción)
-   - Para que 2b sí pueda: 2b < a+b ⇒ b < a (ok)
-     y además: a < b + 2b ⇒ a < 3b  (condición clave)
+   - Si a>b, 2a NO puede: 2a < a+b ? a<b (contradicción)
+   - Para que 2b sí pueda: 2b < a+b ? b < a (ok)
+     y además: a < b + 2b ? a < 3b  (condición clave)
 ========================= */
 function generateExercise() {
   for (let tries = 0; tries < 300; tries++) {
@@ -187,12 +186,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma22({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -208,10 +205,9 @@ export default function Prisma22({
     setSelected(op.value)
     engine.submit(op.correct)
 
-    // ✅ Persist NUEVO (igual Prisma01/Prisma20)
+    // ? Persist NUEVO (igual Prisma01/Prisma20)
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma22'
-      temaId,
       classroomId,
       sessionId,
 
@@ -277,7 +273,7 @@ export default function Prisma22({
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Desigualdad triangular (existencia)</div>
+                <div className="font-semibold mb-2">? Paso 1 — Desigualdad triangular (existencia)</div>
                 <p className="text-muted-foreground">
                   Para que exista el triángulo, el tercer lado <span className="font-mono">x</span> debe cumplir:
                 </p>
@@ -288,7 +284,7 @@ export default function Prisma22({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — “x es doble de uno de los lados”</div>
+                <div className="font-semibold mb-2">? Paso 2 — “x es doble de uno de los lados”</div>
                 <p className="text-muted-foreground">Entonces solo hay 2 posibilidades:</p>
                 <div className="mt-2">
                   <Tex block tex={probar} />
@@ -296,7 +292,7 @@ export default function Prisma22({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Probar cuál sí cumple</div>
+                <div className="font-semibold mb-2">? Paso 3 — Probar cuál sí cumple</div>
                 <div className="mt-2 space-y-2">
                   <Tex block tex={valida1} />
                   <Tex block tex={valida2} />
@@ -307,7 +303,7 @@ export default function Prisma22({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Perímetro</div>
+                <div className="font-semibold mb-2">? Paso 4 — Perímetro</div>
                 <div className="mt-2">
                   <Tex block tex={per} />
                 </div>
@@ -356,3 +352,6 @@ export default function Prisma22({
     </MathJaxContext>
   )
 }
+
+
+

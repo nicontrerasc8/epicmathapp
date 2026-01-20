@@ -9,12 +9,11 @@ import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
 import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
-   PRISMA 6 — Conjuntos por comprensión (L = {ax + b | x∈N, x<k})
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ 100% dinámico: genera a, b, k y opciones
-   ✅ MathJax (better-react-mathjax)
-   ✅ Explicación tipo profe: lista de x, tabla, conjunto L y verificación
-   ✅ Persist NUEVO estilo Prisma01 (exerciseId, temaId, classroomId...)
+   PRISMA 6 — Conjuntos por comprensión (L = {ax + b | x?N, x<k})
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? 100% dinámico: genera a, b, k y opciones
+   ? MathJax (better-react-mathjax)
+   ? Explicación tipo profe: lista de x, tabla, conjunto L y verificación
 ============================================================ */
 
 type Option = {
@@ -87,7 +86,7 @@ function fmtLinearText(a: number, b: number) {
   return `${a}x - ${Math.abs(b)}`
 }
 function setDefinitionLatex(a: number, b: number, k: number) {
-  // L = { ax+b | x ∈ N ∧ x < k }
+  // L = { ax+b | x ? N ? x < k }
   return `L = \\left\\{ ${fmtLinearLatex(a, b)} \\mid x\\in\\mathbb{N} \\;\\wedge\\; x<${k} \\right\\}`
 }
 function membershipLatex(n: number, membership: 'in' | 'notin') {
@@ -102,7 +101,7 @@ function setToLatex(nums: number[]) {
    LÓGICA DE CONJUNTO
 ========================= */
 function buildXValues(k: number) {
-  // OJO: acá asumes N incluye 0 → {0,1,2,...,k-1}
+  // OJO: acá asumes N incluye 0 ? {0,1,2,...,k-1}
   return Array.from({ length: k }, (_, i) => i)
 }
 function computeLValues(a: number, b: number, k: number) {
@@ -131,7 +130,7 @@ function makeNotInCandidates(L: number[]) {
   return big.filter(n => !L.includes(n))
 }
 function buildStatement(n: number, membership: 'in' | 'notin') {
-  return membership === 'in' ? `${n} ∈ L` : `${n} ∉ L`
+  return membership === 'in' ? `${n} ? L` : `${n} ? L`
 }
 
 /* =========================
@@ -165,8 +164,8 @@ function generateExercise() {
       const isCorrect = s.label === correctLabel
 
       // Si la opción debe ser verdadera:
-      // - si dice "∈", el número debe estar en L
-      // - si dice "∉", el número debe NO estar en L
+      // - si dice "?", el número debe estar en L
+      // - si dice "?", el número debe NO estar en L
       // Si la opción debe ser falsa, elegimos lo contrario.
       const shouldBeIn =
         (s.membership === 'in' && isCorrect) || (s.membership === 'notin' && !isCorrect)
@@ -212,10 +211,10 @@ function generateExercise() {
   const { xs, ys, L } = computeLValues(a, b, k)
 
   const options: Option[] = [
-    { label: 'A', membership: 'notin', n: 7, text: '7 ∉ L', correct: false },
-    { label: 'B', membership: 'in', n: 6, text: '6 ∈ L', correct: false },
-    { label: 'C', membership: 'notin', n: 10, text: '10 ∉ L', correct: false },
-    { label: 'D', membership: 'in', n: 13, text: '13 ∈ L', correct: true },
+    { label: 'A', membership: 'notin', n: 7, text: '7 ? L', correct: false },
+    { label: 'B', membership: 'in', n: 6, text: '6 ? L', correct: false },
+    { label: 'C', membership: 'notin', n: 10, text: '10 ? L', correct: false },
+    { label: 'D', membership: 'in', n: 13, text: '13 ? L', correct: true },
   ]
 
   return {
@@ -228,7 +227,7 @@ function generateExercise() {
     prompt: `Si L está definido por comprensión, entonces es cierto que:`,
     options,
     correctLabel: 'D' as const,
-    correctText: '13 ∈ L',
+    correctText: '13 ? L',
     questionLatex: setDefinitionLatex(a, b, k),
   }
 }
@@ -238,12 +237,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma06({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -265,7 +262,6 @@ export default function Prisma06({
 
     persistExerciseOnce({
       exerciseId, // 'Prisma06'
-      temaId,
       classroomId,
       sessionId,
       correct: op.correct,
@@ -307,7 +303,7 @@ export default function Prisma06({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Entender qué significa L</div>
+                <div className="font-semibold mb-2">? Paso 1 — Entender qué significa L</div>
 
                 <div className="rounded-md border bg-background p-3">
                   <div className="font-semibold mb-1">Definición</div>
@@ -329,7 +325,7 @@ export default function Prisma06({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Listar los valores posibles de x</div>
+                <div className="font-semibold mb-2">? Paso 2 — Listar los valores posibles de x</div>
 
                 <p className="text-muted-foreground">
                   Como <Tex tex={`x\\in\\mathbb{N}`} /> y <Tex tex={`x<${ej.k}`} />, entonces:
@@ -343,7 +339,7 @@ export default function Prisma06({
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">
-                  ✅ Paso 3 — Reemplazar cada x en <Tex tex={fmtLinearLatex(ej.a, ej.b)} />
+                  ? Paso 3 — Reemplazar cada x en <Tex tex={fmtLinearLatex(ej.a, ej.b)} />
                 </div>
 
                 <div className="overflow-x-auto">
@@ -383,7 +379,7 @@ export default function Prisma06({
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Verificar cada alternativa</div>
+                <div className="font-semibold mb-2">? Paso 4 — Verificar cada alternativa</div>
 
                 <div className="space-y-2">
                   {ej.options.map(o => {
@@ -464,3 +460,6 @@ export default function Prisma06({
     </MathJaxContext>
   )
 }
+
+
+

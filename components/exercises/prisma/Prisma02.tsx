@@ -105,10 +105,10 @@ const LOGIC_LATEX: Record<LogicOp, string> = {
 }
 
 const LOGIC_RULE: Record<LogicOp, string> = {
-  and: 'Conjunción (A ∧ B): solo es V si ambos son V.',
-  or: 'Disyunción (A ∨ B): es V si al menos uno es V.',
-  imp: 'Condicional (A → B): solo es F cuando A es V y B es F.',
-  iff: 'Bicondicional (A ↔ B): es V cuando ambos tienen el mismo valor.',
+  and: 'Conjunción (A ? B): solo es V si ambos son V.',
+  or: 'Disyunción (A ? B): es V si al menos uno es V.',
+  imp: 'Condicional (A ? B): solo es F cuando A es V y B es F.',
+  iff: 'Bicondicional (A ? B): es V cuando ambos tienen el mismo valor.',
 }
 
 /* =========================
@@ -217,12 +217,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma02({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -244,7 +242,6 @@ export default function Prisma02({
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
       correct: op.correct,
@@ -277,14 +274,14 @@ export default function Prisma02({
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Idea clave</div>
+                <div className="font-semibold mb-2">? Idea clave</div>
                 <p className="text-muted-foreground">
                   Primero resolvemos cada igualdad (V/F) y luego aplicamos el conector lógico.
                 </p>
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">📌 Proposiciones</div>
+                <div className="font-semibold mb-2">?? Proposiciones</div>
                 <Tex block tex={propsLatex} />
               </div>
 
@@ -315,7 +312,7 @@ export default function Prisma02({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Respuesta final</div>
+                <div className="font-semibold mb-2">? Respuesta final</div>
                 <span className="font-mono text-base">{ejercicio.correct}</span>
               </div>
             </div>
@@ -353,3 +350,6 @@ export default function Prisma02({
     </MathJaxContext>
   )
 }
+
+
+

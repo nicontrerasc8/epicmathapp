@@ -5,12 +5,11 @@ import { ExerciseRegistry } from '@/components/exercises'
 import { useExerciseContext } from '@/lib/exercises/useExerciseContext'
 
 
-export default function TemaPlayPage() {
+export default function ExercisePlayPage() {
   const { id } = useParams()
   const exerciseId = typeof id === 'string' ? id : null
 
   const {
-    temaId,
     classroomId,
     sessionId,
     loading,
@@ -25,7 +24,7 @@ export default function TemaPlayPage() {
     return <div className="p-6">Cargando ejercicio…</div>
   }
 
-  if (error || !temaId || !classroomId) {
+  if (error || !classroomId) {
     return (
       <div className="p-6 text-red-500">
         {error ?? 'Error cargando contexto'}
@@ -36,7 +35,6 @@ export default function TemaPlayPage() {
   return (
     <ExerciseRegistry
       exerciseId={exerciseId}
-      temaId={temaId}
       classroomId={classroomId}
       sessionId={sessionId ?? undefined}
     />

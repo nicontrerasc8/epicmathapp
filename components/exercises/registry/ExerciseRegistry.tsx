@@ -97,3 +97,5 @@ export function ExerciseRegistry({ temaPeriodoId }: { temaPeriodoId: string }) {
     />
   )
 }
+
+

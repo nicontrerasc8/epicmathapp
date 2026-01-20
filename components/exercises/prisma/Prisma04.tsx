@@ -9,11 +9,11 @@ import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
 import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
-   PRISMA 4 — "Si ( ... ) → ( ... ) es FALSA, halla p, q, r"
-   ✅ MathJax (better-react-mathjax)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Generación dinámica (sin hardcode)
-   ✅ Persist en formato NUEVO (como Prisma01)
+   PRISMA 4 — "Si ( ... ) ? ( ... ) es FALSA, halla p, q, r"
+   ? MathJax (better-react-mathjax)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Generación dinámica (sin hardcode)
+   ? Persist en formato NUEVO (como Prisma01)
 ============================================================ */
 
 /* =========================
@@ -85,7 +85,7 @@ function toBits(p: boolean, q: boolean, r: boolean) {
 }
 
 /* =========================
-   LÓGICA: (A → B) es F  =>  A = V  y  B = F
+   LÓGICA: (A ? B) es F  =>  A = V  y  B = F
 ========================= */
 function valueForLiteralToBeTrue(l: Literal): boolean {
   // literal verdadero:
@@ -112,7 +112,7 @@ function generateExercise() {
   const latex = exprTex(antP, antQ, consR)
 
   // Implicación falsa => antecedente V y consecuente F
-  // Antecedente: (lit(p) ∧ lit(q)) sea V => ambos literales sean V
+  // Antecedente: (lit(p) ? lit(q)) sea V => ambos literales sean V
   const pVal = valueForLiteralToBeTrue(antP)
   const qVal = valueForLiteralToBeTrue(antQ)
 
@@ -160,12 +160,10 @@ function generateOptions(correct: string): Option[] {
 ========================= */
 export default function Prisma04({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -189,10 +187,9 @@ export default function Prisma04({
     setSelected(op.value)
     engine.submit(op.correct)
 
-    // ✅ Persist NUEVO (igual estructura que Prisma01)
+    // ? Persist NUEVO (igual estructura que Prisma01)
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma04'
-      temaId,
       classroomId,
       sessionId,
 
@@ -243,9 +240,9 @@ export default function Prisma04({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Identificar A y B</div>
+                <div className="font-semibold mb-2">?? Paso 0 — Identificar A y B</div>
                 <p className="text-muted-foreground">
-                  La proposición tiene forma <span className="font-semibold">A → B</span>. Aquí:
+                  La proposición tiene forma <span className="font-semibold">A ? B</span>. Aquí:
                 </p>
 
                 <div className="mt-2 space-y-2">
@@ -256,7 +253,7 @@ export default function Prisma04({
 
                   <div className="flex flex-wrap gap-2">
                     <span className="inline-block px-2 py-1 rounded bg-muted font-mono">
-                      A = {litTex(ejercicio.antP)} ∧ {litTex(ejercicio.antQ)}
+                      A = {litTex(ejercicio.antP)} ? {litTex(ejercicio.antQ)}
                     </span>
                     <span className="inline-block px-2 py-1 rounded bg-muted font-mono">
                       B = {litTex(ejercicio.consR)}
@@ -267,11 +264,11 @@ export default function Prisma04({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Regla clave de la implicación</div>
+                <div className="font-semibold mb-2">? Paso 1 — Regla clave de la implicación</div>
 
                 <div className="rounded-md border bg-background p-3">
                   <p className="text-muted-foreground">
-                    Regla clave: <span className="font-semibold">(A → B)</span> <span className="font-semibold">SOLO</span> es falsa cuando
+                    Regla clave: <span className="font-semibold">(A ? B)</span> <span className="font-semibold">SOLO</span> es falsa cuando
                     <span className="font-semibold"> A es V</span> y <span className="font-semibold">B es F</span>.
                   </p>
                   <div className="mt-2">
@@ -285,7 +282,7 @@ export default function Prisma04({
                       <tr className="bg-muted">
                         <th className="border py-2">A</th>
                         <th className="border py-2">B</th>
-                        <th className="border py-2">A → B</th>
+                        <th className="border py-2">A ? B</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -324,11 +321,11 @@ export default function Prisma04({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Hallar p y q desde el antecedente</div>
+                <div className="font-semibold mb-2">? Paso 2 — Hallar p y q desde el antecedente</div>
 
                 <div className="rounded-md border bg-background p-3">
                   <p className="text-muted-foreground">
-                    El antecedente es una conjunción: <span className="font-semibold">(X ∧ Y)</span>. Eso es verdadero{' '}
+                    El antecedente es una conjunción: <span className="font-semibold">(X ? Y)</span>. Eso es verdadero{' '}
                     <span className="font-semibold">solo</span> si ambos son verdaderos.
                   </p>
                   <div className="mt-2">
@@ -386,7 +383,7 @@ export default function Prisma04({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Hallar r desde el consecuente</div>
+                <div className="font-semibold mb-2">? Paso 3 — Hallar r desde el consecuente</div>
 
                 <div className="mt-2">
                   El consecuente es:
@@ -427,7 +424,7 @@ export default function Prisma04({
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Respuesta final</div>
+                <div className="font-semibold mb-2">? Paso 4 — Respuesta final</div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-semibold">(p,q,r) =</span>
                   <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
@@ -486,3 +483,6 @@ export default function Prisma04({
     </MathJaxContext>
   )
 }
+
+
+

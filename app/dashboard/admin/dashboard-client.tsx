@@ -6,7 +6,6 @@ import {
     Users,
     GraduationCap,
     Building2,
-    BookOpen,
     Target,
     ArrowRight,
     TrendingUp,
@@ -20,7 +19,6 @@ interface Stats {
     students: number
     classrooms: number
     institutions: number
-    temas: number
     recentExercises: number
     accuracy: number
 }

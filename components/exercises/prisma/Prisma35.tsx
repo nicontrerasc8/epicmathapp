@@ -10,12 +10,12 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 35 — Simplifica la expresión
-   P = π(C − S) / R
-   Siendo: S = 9k, C = 10k, R = kπ/20
+   P = p(C - S) / R
+   Siendo: S = 9k, C = 10k, R = kp/20
 
-   ✅ better-react-mathjax (NO KaTeX)
-   ✅ 1 SOLO INTENTO (autocalifica al click)
-   ✅ NUEVO FORMATO persist (como Prisma 29/32)
+   ? better-react-mathjax (NO KaTeX)
+   ? 1 SOLO INTENTO (autocalifica al click)
+   ? NUEVO FORMATO persist (como Prisma 29/32)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -62,7 +62,7 @@ function randInt(min: number, max: number) {
 
 /* =========================
    EJERCICIO (misma idea del PDF)
-   Ojo: el resultado SIEMPRE es 20 (k se cancela), con k≠0.
+   Ojo: el resultado SIEMPRE es 20 (k se cancela), con k?0.
 ========================= */
 function buildExercise() {
   const k = randInt(2, 12)
@@ -88,12 +88,10 @@ function buildExercise() {
 ========================= */
 export default function Prisma35({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -113,7 +111,6 @@ export default function Prisma35({
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
 
@@ -129,8 +126,8 @@ export default function Prisma35({
           exprLatex: ej.exprLatex,
           givenLatex: ej.givenLatex,
           kUsed: ej.k,
-          rule: 'Sustituir y simplificar: k y π se cancelan',
-          note: 'k ≠ 0',
+          rule: 'Sustituir y simplificar: k y p se cancelan',
+          note: 'k ? 0',
         },
       },
     })
@@ -164,7 +161,7 @@ export default function Prisma35({
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Fórmula y datos</div>
+                <div className="font-semibold mb-2">? Paso 1 — Fórmula y datos</div>
                 <div className="mt-2 space-y-2 rounded-md border bg-background p-3">
                   <Tex block tex={step0} />
                   <Tex block tex={step1} />
@@ -172,14 +169,14 @@ export default function Prisma35({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Sustituir</div>
+                <div className="font-semibold mb-2">? Paso 2 — Sustituir</div>
                 <div className="mt-2 space-y-2 rounded-md border bg-background p-3">
                   <Tex block tex={step2} />
                 </div>
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Simplificar</div>
+                <div className="font-semibold mb-2">? Paso 3 — Simplificar</div>
                 <div className="mt-2 space-y-2 rounded-md border bg-background p-3">
                   <Tex block tex={step3} />
                   <Tex block tex={step4} />
@@ -238,3 +235,6 @@ export default function Prisma35({
     </MathJaxContext>
   )
 }
+
+
+

@@ -18,25 +18,10 @@ interface ClassroomExercise {
   id: string
   active: boolean
   ordering: number | null
-  tema: {
-    id: string
-    name: string
-    area?: { name: string } | null
-    subblock?: { name: string } | null
-  } | null
   exercise: {
     id: string
     exercise_type: string
     description: string | null
-  } | null
-}
-
-interface ClassroomTemaOption {
-  tema_id: string
-  tema: {
-    name: string
-    area?: { name: string } | null
-    subblock?: { name: string } | null
   } | null
 }
 
@@ -54,18 +39,6 @@ type Message = {
 const pageSizeOptions = [10, 20, 50, 100]
 
 const columns: ColumnDef<ClassroomExercise>[] = [
-  {
-    key: "tema",
-    header: "Tema",
-    render: (_, row) => (
-      <div>
-        <div className="font-medium">{row.tema?.name || "Sin tema"}</div>
-        <div className="text-xs text-muted-foreground">
-          {row.tema?.area?.name || "Sin area"} / {row.tema?.subblock?.name || "Sin sub-bloque"}
-        </div>
-      </div>
-    ),
-  },
   {
     key: "exercise",
     header: "Ejercicio",
@@ -93,7 +66,6 @@ export default function ClassroomExercisesPage() {
   const classroomId = params.classroomId as string
   const [loading, setLoading] = useState(true)
   const [exercises, setExercises] = useState<ClassroomExercise[]>([])
-  const [temas, setTemas] = useState<ClassroomTemaOption[]>([])
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([])
   const [message, setMessage] = useState<Message | null>(null)
   const [search, setSearch] = useState("")
@@ -101,7 +73,6 @@ export default function ClassroomExercisesPage() {
   const [page, setPage] = useState(1)
 
   const [form, setForm] = useState({
-    tema_id: "",
     exercise_id: "",
     ordering: "",
     active: true,
@@ -111,17 +82,11 @@ export default function ClassroomExercisesPage() {
     const fetchExercises = async () => {
       const supabase = createClient()
       const { data } = await supabase
-        .from("edu_classroom_tema_exercises")
+        .from("edu_exercise_assignments")
         .select(`
           id,
           active,
           ordering,
-          tema:edu_temas (
-            id,
-            name,
-            area:edu_areas ( name ),
-            subblock:edu_academic_subblocks ( name )
-          ),
           exercise:edu_exercises ( id, exercise_type, description )
         `)
         .eq("classroom_id", classroomId)
@@ -131,33 +96,10 @@ export default function ClassroomExercisesPage() {
           id: e.id,
           active: e.active,
           ordering: e.ordering ?? null,
-          tema: e.tema,
           exercise: e.exercise
         })))
       }
       setLoading(false)
-    }
-
-    const fetchTemas = async () => {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from("edu_classroom_temas")
-        .select(`
-          tema_id,
-          tema:edu_temas (
-            name,
-            area:edu_areas ( name ),
-            subblock:edu_academic_subblocks ( name )
-          )
-        `)
-        .eq("classroom_id", classroomId)
-
-      if (data) {
-        setTemas(data.map((t: any) => ({
-          tema_id: t.tema_id,
-          tema: t.tema
-        })))
-      }
     }
 
     const fetchExerciseOptions = async () => {
@@ -174,7 +116,6 @@ export default function ClassroomExercisesPage() {
     }
 
     fetchExercises()
-    fetchTemas()
     fetchExerciseOptions()
   }, [classroomId])
 
@@ -186,16 +127,10 @@ export default function ClassroomExercisesPage() {
     const needle = search.trim().toLowerCase()
     if (!needle) return exercises
     return exercises.filter((row) => {
-      const temaArea = row.tema?.area?.name || ""
-      const temaSubblock = row.tema?.subblock?.name || ""
-      const temaName = row.tema?.name || ""
       const exerciseDesc = row.exercise?.description || ""
       const exerciseType = row.exercise?.exercise_type || ""
       const exerciseId = row.exercise?.id || ""
       return (
-        temaArea.toLowerCase().includes(needle) ||
-        temaSubblock.toLowerCase().includes(needle) ||
-        temaName.toLowerCase().includes(needle) ||
         exerciseDesc.toLowerCase().includes(needle) ||
         exerciseType.toLowerCase().includes(needle) ||
         exerciseId.toLowerCase().includes(needle)
@@ -211,17 +146,11 @@ export default function ClassroomExercisesPage() {
   async function refreshExercises() {
     const supabase = createClient()
     const { data } = await supabase
-      .from("edu_classroom_tema_exercises")
+      .from("edu_exercise_assignments")
       .select(`
         id,
         active,
         ordering,
-        tema:edu_temas (
-          id,
-          name,
-          area:edu_areas ( name ),
-          subblock:edu_academic_subblocks ( name )
-        ),
         exercise:edu_exercises ( id, exercise_type, description )
       `)
       .eq("classroom_id", classroomId)
@@ -231,7 +160,6 @@ export default function ClassroomExercisesPage() {
         id: e.id,
         active: e.active,
         ordering: e.ordering ?? null,
-        tema: e.tema,
         exercise: e.exercise
       })))
     }
@@ -256,7 +184,7 @@ export default function ClassroomExercisesPage() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por tema o ejercicio..."
+                placeholder="Buscar por ejercicio..."
               />
             </div>
             <div className="flex items-center gap-2">
@@ -297,22 +225,22 @@ export default function ClassroomExercisesPage() {
                     onClick: async () => {
                       const supabase = createClient()
                       await supabase
-                        .from("edu_classroom_tema_exercises")
+                        .from("edu_exercise_assignments")
                         .update({ active: !row.active })
                         .eq("id", row.id)
                       await refreshExercises()
                     },
                   },
-                  {
-                    label: "Eliminar",
-                    variant: "destructive",
-                    onClick: async () => {
-                      const supabase = createClient()
-                      await supabase
-                        .from("edu_classroom_tema_exercises")
-                        .delete()
-                        .eq("id", row.id)
-                      await refreshExercises()
+                    {
+                      label: "Eliminar",
+                      variant: "destructive",
+                      onClick: async () => {
+                        const supabase = createClient()
+                        await supabase
+                          .from("edu_exercise_assignments")
+                          .delete()
+                          .eq("id", row.id)
+                        await refreshExercises()
                     },
                   },
                 ]}
@@ -327,27 +255,24 @@ export default function ClassroomExercisesPage() {
             e.preventDefault()
             setMessage(null)
 
-            if (!form.tema_id || !form.exercise_id) {
-              setMessage({ type: "error", text: "Selecciona tema y ejercicio." })
+            if (!form.exercise_id) {
+              setMessage({ type: "error", text: "Selecciona un ejercicio." })
               return
             }
 
             const exists = exercises.some(
-              (row) =>
-                row.tema?.id === form.tema_id &&
-                row.exercise?.id === form.exercise_id
+              (row) => row.exercise?.id === form.exercise_id
             )
             if (exists) {
-              setMessage({ type: "error", text: "Este ejercicio ya esta asignado a ese tema." })
+              setMessage({ type: "error", text: "Este ejercicio ya esta asignado al aula." })
               return
             }
 
             const supabase = createClient()
             const { error } = await supabase
-              .from("edu_classroom_tema_exercises")
+              .from("edu_exercise_assignments")
               .insert({
                 classroom_id: classroomId,
-                tema_id: form.tema_id,
                 exercise_id: form.exercise_id,
                 ordering: form.ordering ? Number(form.ordering) : null,
                 active: form.active,
@@ -360,7 +285,6 @@ export default function ClassroomExercisesPage() {
 
             await refreshExercises()
             setForm({
-              tema_id: "",
               exercise_id: "",
               ordering: "",
               active: true,
@@ -368,23 +292,7 @@ export default function ClassroomExercisesPage() {
             setMessage({ type: "success", text: "Ejercicio asignado." })
           }}
         >
-          <div className="text-sm font-medium">Asignar ejercicio a un tema del salon</div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Tema del salon</label>
-            <select
-              value={form.tema_id}
-              onChange={(e) => setForm((s) => ({ ...s, tema_id: e.target.value }))}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">Selecciona un tema</option>
-              {temas.map((t) => (
-                <option key={t.tema_id} value={t.tema_id}>
-                  {t.tema?.name || "Sin nombre"} - {t.tema?.area?.name || "Sin area"}
-                </option>
-              ))}
-            </select>
-          </div>
+          <div className="text-sm font-medium">Asignar ejercicio al aula</div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Ejercicio</label>
@@ -439,7 +347,6 @@ export default function ClassroomExercisesPage() {
               variant="secondary"
               onClick={() => {
                 setForm({
-                  tema_id: "",
                   exercise_id: "",
                   ordering: "",
                   active: true,

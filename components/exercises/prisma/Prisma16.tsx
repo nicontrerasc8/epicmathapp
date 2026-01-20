@@ -15,11 +15,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    => 1/x = b^{-n} = 1/b^n
    => x = b^n
 
-   ✅ better-react-mathjax (NO KaTeX)
-   ✅ 1 SOLO INTENTO (autocalifica al click)
-   ✅ Generación dinámica
-   ✅ Explicación paso a paso (definición + exponente negativo)
-   ✅ Persist NUEVO (igual Prisma01)
+   ? better-react-mathjax (NO KaTeX)
+   ? 1 SOLO INTENTO (autocalifica al click)
+   ? Generación dinámica
+   ? Explicación paso a paso (definición + exponente negativo)
+   ? Persist NUEVO (igual Prisma01)
 ============================================================ */
 
 type Option = { value: string; correct: boolean }
@@ -117,12 +117,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma16({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -138,10 +136,9 @@ export default function Prisma16({
     setSelected(op.value)
     engine.submit(op.correct)
 
-    // ✅ Persist NUEVO (igual Prisma01/12)
+    // ? Persist NUEVO (igual Prisma01/12)
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma16'
-      temaId,
       classroomId,
       sessionId,
 
@@ -185,7 +182,7 @@ export default function Prisma16({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Definición de logaritmo</div>
+                <div className="font-semibold mb-2">? Paso 1 — Definición de logaritmo</div>
                 <p className="text-muted-foreground">
                   Regla clave: si <span className="font-mono">log_b(A)=c</span>, entonces{' '}
                   <span className="font-mono">b^c=A</span>.
@@ -199,7 +196,7 @@ export default function Prisma16({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Exponente negativo</div>
+                <div className="font-semibold mb-2">? Paso 2 — Exponente negativo</div>
                 <p className="text-muted-foreground">Regla:</p>
 
                 <div className="mt-2 rounded-md border bg-background p-3 space-y-2">
@@ -211,7 +208,7 @@ export default function Prisma16({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Despejar x</div>
+                <div className="font-semibold mb-2">? Paso 3 — Despejar x</div>
 
                 <div className="mt-2 rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={`\\Rightarrow\\; x = ${base}^{${n}}`} />
@@ -226,14 +223,14 @@ export default function Prisma16({
                 </div>
 
                 <div className="mt-3 rounded-md border bg-background p-3">
-                  <div className="font-semibold mb-1">🧠 Chequeo rápido</div>
+                  <div className="font-semibold mb-1">?? Chequeo rápido</div>
                   <p className="text-muted-foreground">
                     Si <span className="font-mono">x={correctNum}</span>, entonces{' '}
                     <span className="font-mono">1/x = 1/{correctNum}</span> y{' '}
                     <span className="font-mono">
                       <Tex tex={`\\log_{${base}}\\left(\\frac{1}{${correctNum}}\\right)`} />
                     </span>{' '}
-                    da <span className="font-semibold">−{n}</span>.
+                    da <span className="font-semibold">-{n}</span>.
                   </p>
                 </div>
               </div>
@@ -283,3 +280,6 @@ export default function Prisma16({
     </MathJaxContext>
   )
 }
+
+
+

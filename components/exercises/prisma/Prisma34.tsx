@@ -10,15 +10,15 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 34 — Radianes / Sexagesimal / Centesimal
-   Dado: 3C − 2S = N  ⇒ hallar R
+   Dado: 3C - 2S = N  ? hallar R
 
    Convenciones Prisma:
      S = 9k
      C = 10k
-     R = (kπ)/20
+     R = (kp)/20
 
-   ✅ FORMATO NUEVO (igual Prisma 29)
-   ✅ 1 intento, autocalifica
+   ? FORMATO NUEVO (igual Prisma 29)
+   ? 1 intento, autocalifica
 ============================================================ */
 
 type OptionKey = 'A' | 'B' | 'C' | 'D'
@@ -111,12 +111,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma34({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -138,7 +136,6 @@ export default function Prisma34({
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
 
@@ -156,7 +153,7 @@ export default function Prisma34({
           rule: {
             S: '9k',
             C: '10k',
-            R: 'kπ/20',
+            R: 'kp/20',
           },
         },
       },
@@ -192,7 +189,7 @@ export default function Prisma34({
           <Tex block tex={promptLatex} />
           <div className="mt-2 text-sm text-muted-foreground">
             Usar: <span className="font-mono">S=9k</span>, <span className="font-mono">C=10k</span>,{' '}
-            <span className="font-mono">R=kπ/20</span>.
+            <span className="font-mono">R=kp/20</span>.
           </div>
         </div>
 
@@ -231,3 +228,6 @@ export default function Prisma34({
     </MathJaxContext>
   )
 }
+
+
+

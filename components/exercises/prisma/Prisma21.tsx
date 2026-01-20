@@ -10,10 +10,9 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 21 — Geometría (Isósceles + Ángulo exterior) (MathJax)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico (misma “naturaleza”)
-   ✅ Explicación tipo profe: isósceles → suplementario → suma triángulo
-   ✅ Persist con firma: (exerciseId, temaId, classroomId, sessionId)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Dinámico (misma “naturaleza”)
+   ? Explicación tipo profe: isósceles ? suplementario ? suma triángulo
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -131,17 +130,17 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
     }
   }
 
-  // ∠A = kx (entre AB y AD)
+  // ?A = kx (entre AB y AD)
   const aAB = angle(B, A)
   const aAD = angle(D, A)
   const aMidA = midAngle(aAB, aAD)
 
-  // ∠ADB = alpha (entre DA y DB)
+  // ?ADB = alpha (entre DA y DB)
   const aDA = angle(A, D)
   const aDB = angle(B, D)
   const aMidD = midAngle(aDA, aDB)
 
-  // ∠C = y (entre CB y CD)
+  // ?C = y (entre CB y CD)
   const aCB = angle(B, C)
   const aCD = angle(D, C)
   const aMidC = midAngle(aCB, aCD)
@@ -231,12 +230,12 @@ function Diagram({ k, alpha }: { k: number; alpha: number }) {
 
 /* =========================
    Generador
-   - ∠A = kx
-   - ∠ADB = α
-   - AB = BD  ⇒ ∠A = ∠ADB
-   - BD = DC  ⇒ ∠DBC = ∠BCD = y
-   - A,D,C colineales ⇒ ∠BDC = 180-α
-   - y+y+(180-α)=180 ⇒ 2y=α ⇒ y=α/2
+   - ?A = kx
+   - ?ADB = a
+   - AB = BD  ? ?A = ?ADB
+   - BD = DC  ? ?DBC = ?BCD = y
+   - A,D,C colineales ? ?BDC = 180-a
+   - y+y+(180-a)=180 ? 2y=a ? y=a/2
 ========================= */
 function generateExercise() {
   const ks = [2, 3, 4, 5, 6]
@@ -245,7 +244,7 @@ function generateExercise() {
     const k = choice(ks)
     const step = lcm(k, 2)
 
-    // α múltiplo de step y < 90
+    // a múltiplo de step y < 90
     const alpha = step * randInt(3, Math.floor(88 / step))
     if (alpha <= 0 || alpha >= 90) continue
     if (alpha % k !== 0) continue
@@ -303,12 +302,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma21({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -326,7 +323,6 @@ export default function Prisma21({
 
     persistExerciseOnce({
       exerciseId, // 'Prisma21'
-      temaId,
       classroomId,
       sessionId,
 
@@ -369,8 +365,8 @@ export default function Prisma21({
           <div className="space-y-3">
             <div className="text-sm">
               En la figura: <span className="font-semibold">AB = BD</span> y <span className="font-semibold">BD = DC</span>. Además,
-              <span className="font-semibold"> ∠A = {ex.k}x</span>, <span className="font-semibold">∠ADB = {ex.alpha}°</span> y{' '}
-              <span className="font-semibold">∠C = y</span>. Halla <span className="font-semibold">x + y</span>.
+              <span className="font-semibold"> ?A = {ex.k}x</span>, <span className="font-semibold">?ADB = {ex.alpha}°</span> y{' '}
+              <span className="font-semibold">?C = y</span>. Halla <span className="font-semibold">x + y</span>.
             </div>
 
             <Diagram k={ex.k} alpha={ex.alpha} />
@@ -389,10 +385,10 @@ export default function Prisma21({
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Triángulo ABD isósceles</div>
+                <div className="font-semibold mb-2">? Paso 1 — Triángulo ABD isósceles</div>
                 <p className="text-muted-foreground">
                   Como <span className="font-mono">AB = BD</span>, el triángulo <span className="font-semibold">ABD</span> es isósceles y
-                  sus ángulos de la base son iguales: <span className="font-semibold">∠A = ∠ADB</span>.
+                  sus ángulos de la base son iguales: <span className="font-semibold">?A = ?ADB</span>.
                 </p>
                 <div className="mt-2 space-y-2">
                   <Tex tex={kxEq} block />
@@ -401,7 +397,7 @@ export default function Prisma21({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Suplementario en D</div>
+                <div className="font-semibold mb-2">? Paso 2 — Suplementario en D</div>
                 <p className="text-muted-foreground">
                   Como <span className="font-semibold">A, D y C</span> están alineados, el ángulo del triángulo <span className="font-semibold">BDC</span> en D es:
                 </p>
@@ -411,10 +407,10 @@ export default function Prisma21({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Triángulo BDC isósceles</div>
+                <div className="font-semibold mb-2">? Paso 3 — Triángulo BDC isósceles</div>
                 <p className="text-muted-foreground">
                   Como <span className="font-mono">BD = DC</span>, el triángulo <span className="font-semibold">BDC</span> es isósceles,
-                  así que <span className="font-semibold">∠DBC = ∠BCD</span>. Pero <span className="font-semibold">∠C = y</span>, entonces ambos son y.
+                  así que <span className="font-semibold">?DBC = ?BCD</span>. Pero <span className="font-semibold">?C = y</span>, entonces ambos son y.
                 </p>
 
                 <div className="mt-2 rounded-md border bg-background p-3">
@@ -428,7 +424,7 @@ export default function Prisma21({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Respuesta</div>
+                <div className="font-semibold mb-2">? Paso 4 — Respuesta</div>
                 <div className="mt-2">
                   <Tex tex={ans} block />
                 </div>
@@ -475,3 +471,6 @@ export default function Prisma21({
     </MathJaxContext>
   )
 }
+
+
+

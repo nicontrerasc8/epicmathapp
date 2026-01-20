@@ -4,13 +4,11 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import {
     Users,
-    BookOpen,
     FileQuestion,
     Target,
     ArrowRight,
     Settings,
     Calendar,
-    Layers
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,9 +27,7 @@ interface ClassroomData {
     edu_institutions: { id: string; name: string; type: string } | null
     edu_institution_grades?: { id: string; name: string; level: string; grade_num: number; code: string } | null
     memberCount: number
-    temasCount: number
     exercisesCount: number
-    blocksCount: number
     accuracy: number
     totalExercises: number
 }
@@ -115,24 +111,12 @@ export default function ClassroomDetailClient({ data }: any) {
             />
 
             {/* Stats */}
-            <StatCardGrid columns={4}>
+            <StatCardGrid columns={3}>
                 <StatCard
                     title="Estudiantes"
                     value={data.memberCount}
                     icon={Users}
                     variant="primary"
-                />
-                <StatCard
-                    title="Bloques"
-                    value={data.blocksCount}
-                    icon={Layers}
-                    variant="default"
-                />
-                <StatCard
-                    title="Temas Asignados"
-                    value={data.temasCount}
-                    icon={BookOpen}
-                    variant="default"
                 />
                 <StatCard
                     title="Ejercicios"
@@ -165,23 +149,9 @@ export default function ClassroomDetailClient({ data }: any) {
                         count={data.memberCount}
                     />
                     <QuickLinkCard
-                        icon={BookOpen}
-                        title="Temas"
-                        description="Asignar temas del curriculum"
-                        href={`/dashboard/admin/classrooms/${data.id}/temas`}
-                        count={data.temasCount}
-                    />
-                    <QuickLinkCard
-                        icon={Layers}
-                        title="Bloques"
-                        description="Asignar bloques academicos al aula"
-                        href={`/dashboard/admin/classrooms/${data.id}/blocks`}
-                        count={data.blocksCount}
-                    />
-                    <QuickLinkCard
                         icon={FileQuestion}
                         title="Ejercicios"
-                        description="Configurar ejercicios por tema"
+                        description="Asignar ejercicios al aula"
                         href={`/dashboard/admin/classrooms/${data.id}/exercises`}
                         count={data.exercisesCount}
                     />

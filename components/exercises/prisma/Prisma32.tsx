@@ -14,12 +14,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    Tipo:
      A = ( ...°  + ...^g + ... rad ) / (... rad)
 
-   ✅ MathJax (better-react-mathjax)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico: arma equivalencias exactas para que A sea 2..4
+   ? MathJax (better-react-mathjax)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Dinámico: arma equivalencias exactas para que A sea 2..4
 
-   ✅ Persist NUEVO:
-     { exerciseId, temaId, classroomId, sessionId, correct, answer:{} }
+   ? Persist NUEVO:
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -104,13 +103,13 @@ function Tex({
    Elegimos un “bloque” D en grados múltiplo de 9:
      D = 9k (k=1..9)
    Entonces:
-     D° ↔ (10k)^g   (porque 1g = 0.9°)
-     D° ↔ (kπ/20) rad  (porque 180° ↔ π rad)
+     D° ? (10k)^g   (porque 1g = 0.9°)
+     D° ? (kp/20) rad  (porque 180° ? p rad)
 
    Hacemos:
-     Numerador = (1·D)° + (m2·(10k))^g + (m3·(kπ/20)) rad
-     Denominador = (kπ/20) rad
-   ⇒ A = 1 + m2 + m3 ∈ {2,3,4}
+     Numerador = (1·D)° + (m2·(10k))^g + (m3·(kp/20)) rad
+     Denominador = (kp/20) rad
+   ? A = 1 + m2 + m3 ? {2,3,4}
 ========================= */
 function generateExercise() {
   for (let tries = 0; tries < 200; tries++) {
@@ -215,12 +214,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma32({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -240,7 +237,6 @@ export default function Prisma32({
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
 
@@ -304,23 +300,23 @@ export default function Prisma32({
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Idea</div>
+                <div className="font-semibold mb-2">?? Paso 0 — Idea</div>
                 <p className="text-muted-foreground">
                   Convertimos todo al mismo sistema (grados) y recién operamos.
                 </p>
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Convertir a grados</div>
+                <div className="font-semibold mb-2">? Paso 1 — Convertir a grados</div>
 
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <div className="text-muted-foreground">
-                    <span className="font-semibold">Gradianes a grados:</span> 400g = 360° ⇒ 1g = 0.9°
+                    <span className="font-semibold">Gradianes a grados:</span> 400g = 360° ? 1g = 0.9°
                   </div>
                   <Tex block tex={gradConv_tex} />
 
                   <div className="pt-2 text-muted-foreground">
-                    <span className="font-semibold">Radianes a grados:</span> 1 rad = 180°/π
+                    <span className="font-semibold">Radianes a grados:</span> 1 rad = 180°/p
                   </div>
                   <Tex block tex={radDenConv_tex} />
                   <Tex block tex={radNumConv_tex} />
@@ -328,7 +324,7 @@ export default function Prisma32({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Operar</div>
+                <div className="font-semibold mb-2">? Paso 2 — Operar</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={numDeg_tex} />
                   <Tex block tex={A_tex} />
@@ -383,3 +379,6 @@ export default function Prisma32({
     </MathJaxContext>
   )
 }
+
+
+

@@ -11,7 +11,6 @@ async function getAdminStats(institutionId: string) {
     studentsResult,
     classroomsResult,
     institutionsResult,
-    temasResult,
     recentExercisesResult
   ] = await Promise.all([
     // Total active students
@@ -36,13 +35,6 @@ async function getAdminStats(institutionId: string) {
       .eq("active", true)
       .eq("id", institutionId),
 
-    // Total temas assigned
-    supabase
-      .from("edu_classroom_temas")
-      .select("id", { count: "exact", head: true })
-      .eq("active", true)
-      .eq("institution_id", institutionId),
-
     // Recent student exercises (last 7 days)
     supabase
       .from("edu_student_exercises")
@@ -65,7 +57,6 @@ async function getAdminStats(institutionId: string) {
     students: studentsResult.count || 0,
     classrooms: classroomsResult.count || 0,
     institutions: institutionsResult.count || 0,
-    temas: temasResult.count || 0,
     recentExercises: totalExercises,
     accuracy,
   }

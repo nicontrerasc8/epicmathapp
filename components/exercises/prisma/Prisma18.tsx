@@ -10,11 +10,10 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 18 — Logaritmos (MathJax)
-   ✅ MathJax (better-react-mathjax) — mismo formato que Prisma 17/01
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico: log_{2^b}(2^n) = n/b (simplificado)
-   ✅ Resolución detallada tipo Prisma
-   ✅ Persist: MISMA estructura que Prisma01 (exerciseId/temaId/classroomId/sessionId)
+   ? MathJax (better-react-mathjax) — mismo formato que Prisma 17/01
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Dinámico: log_{2^b}(2^n) = n/b (simplificado)
+   ? Resolución detallada tipo Prisma
 ============================================================ */
 
 type Option = {
@@ -92,7 +91,7 @@ function Tex({
    Generator
 ========================= */
 function generateProblem() {
-  // base = 2^b, número = 2^n  ⇒  log_{2^b}(2^n) = n/b
+  // base = 2^b, número = 2^n  ?  log_{2^b}(2^n) = n/b
   for (let tries = 0; tries < 200; tries++) {
     const b = choice([2, 3, 4, 5]) // base = 4, 8, 16, 32
     const n = randInt(1, 12) // número = 2^n
@@ -188,12 +187,10 @@ function generateProblem() {
 ========================= */
 export default function Prisma18({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -209,10 +206,9 @@ export default function Prisma18({
     setSelected(op.plain)
     engine.submit(op.correct)
 
-    // ✅ MISMA ESTRUCTURA QUE PRISMA01
+    // ? MISMA ESTRUCTURA QUE PRISMA01
     persistExerciseOnce({
       exerciseId, // 'Prisma18'
-      temaId,
       classroomId,
       sessionId,
 
@@ -265,7 +261,7 @@ export default function Prisma18({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Leer la expresión</div>
+                <div className="font-semibold mb-2">?? Paso 0 — Leer la expresión</div>
                 <p className="text-muted-foreground">
                   La idea es escribir base y número como potencias de 2. Así el resultado sale como una fracción.
                 </p>
@@ -276,7 +272,7 @@ export default function Prisma18({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Escribimos todo como potencia de 2</div>
+                <div className="font-semibold mb-2">? Paso 1 — Escribimos todo como potencia de 2</div>
                 <div className="space-y-2 rounded-md border bg-background p-3">
                   <Tex block tex={`${ex.baseVal} = ${baseAs2}`} />
                   <Tex block tex={`${ex.numVal} = ${numAs2}`} />
@@ -285,7 +281,7 @@ export default function Prisma18({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Propiedad clave</div>
+                <div className="font-semibold mb-2">? Paso 2 — Propiedad clave</div>
                 <div className="text-muted-foreground">
                   Si un número es potencia de 2, entonces <span className="font-mono">\\log_2(2^k)=k</span>.
                 </div>
@@ -299,7 +295,7 @@ export default function Prisma18({
               {/* Paso 3 */}
              <div className="rounded-lg border bg-white p-3">
   <div className="font-semibold mb-2">
-    ✅ Paso 3 — Cambio de base a 2 y simplificación
+    ? Paso 3 — Cambio de base a 2 y simplificación
   </div>
 
   <div className="text-muted-foreground">
@@ -378,3 +374,6 @@ export default function Prisma18({
     </MathJaxContext>
   )
 }
+
+
+

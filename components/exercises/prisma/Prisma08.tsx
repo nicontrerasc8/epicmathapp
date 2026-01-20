@@ -11,13 +11,13 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 8 — Conjuntos por comprensión: suma de elementos
    Tipo:
-     F = { ax + b | x ∈ Z+ ∧ mx < x + c }
+     F = { ax + b | x ? Z+ ? mx < x + c }
    Pedir: suma de elementos de F
 
-   ✅ MathJax (better-react-mathjax) — mismo formato que Prisma 01/17
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Generación dinámica (sin hardcode)
-   ✅ Explicación detallada (inecuación → listar x → armar F → sumar)
+   ? MathJax (better-react-mathjax) — mismo formato que Prisma 01/17
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Generación dinámica (sin hardcode)
+   ? Explicación detallada (inecuación ? listar x ? armar F ? sumar)
 ============================================================ */
 
 type Option = { value: string; correct: boolean }
@@ -101,14 +101,14 @@ function makeDistractors(ex: ReturnType<typeof generateExercise>) {
   const set = new Set<number>()
   set.add(correctSum)
 
-  // 1) Error típico: tomar x ≤ maxX+1 (como si no fuera estricta)
+  // 1) Error típico: tomar x = maxX+1 (como si no fuera estricta)
   {
     const n = maxX + 1
     const sum = a * sum1ToN(n) + b * n
     set.add(sum)
   }
 
-  // 2) Error típico: incluir x=0 (x ∈ Z en vez de Z+)
+  // 2) Error típico: incluir x=0 (x ? Z en vez de Z+)
   {
     const n = maxX // 0..maxX => (n+1) términos
     const sum = a * sum1ToN(n) + b * (n + 1)
@@ -135,12 +135,10 @@ function makeDistractors(ex: ReturnType<typeof generateExercise>) {
 
 export default function Prisma08({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -160,10 +158,9 @@ export default function Prisma08({
     setSelected(op.value)
     engine.submit(op.correct)
 
-    // ✅ mismo contrato/estilo que tu Prisma 01 (persist nuevo)
+    // ? mismo contrato/estilo que tu Prisma 01 (persist nuevo)
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma08'
-      temaId,
       classroomId,
       sessionId,
       correct: op.correct,
@@ -224,7 +221,7 @@ x &< \\frac{${ejercicio.c}}{${ejercicio.m - 1}} = ${bound}
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Qué significa “por comprensión”</div>
+                <div className="font-semibold mb-2">?? Paso 0 — Qué significa “por comprensión”</div>
                 <p className="text-muted-foreground">
                   Primero encontramos qué valores de <span className="font-semibold">x</span> cumplen la condición.
                   Luego calculamos <span className="font-semibold">{ejercicio.a}x + {ejercicio.b}</span> para cada x válido,
@@ -234,7 +231,7 @@ x &< \\frac{${ejercicio.c}}{${ejercicio.m - 1}} = ${bound}
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Resolver la inecuación</div>
+                <div className="font-semibold mb-2">? Paso 1 — Resolver la inecuación</div>
                 <div className="rounded-md border bg-background p-3">
                   <Tex block tex={ineqStepsTex} />
                 </div>
@@ -246,7 +243,7 @@ x &< \\frac{${ejercicio.c}}{${ejercicio.m - 1}} = ${bound}
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Construir el conjunto F</div>
+                <div className="font-semibold mb-2">? Paso 2 — Construir el conjunto F</div>
 
                 <div className="mt-2 overflow-x-auto">
                   <table className="border w-full text-center text-xs">
@@ -276,7 +273,7 @@ x &< \\frac{${ejercicio.c}}{${ejercicio.m - 1}} = ${bound}
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Sumar los elementos</div>
+                <div className="font-semibold mb-2">? Paso 3 — Sumar los elementos</div>
 
                 <div className="rounded-md border bg-background p-3">
                   <div className="text-muted-foreground mb-2">
@@ -334,3 +331,6 @@ x &< \\frac{${ejercicio.c}}{${ejercicio.m - 1}} = ${bound}
     </MathJaxContext>
   )
 }
+
+
+

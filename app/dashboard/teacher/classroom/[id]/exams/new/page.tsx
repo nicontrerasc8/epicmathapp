@@ -7,10 +7,10 @@ import { PageHeader } from "@/components/dashboard/core"
 import { Button } from "@/components/ui/button"
 import { Save } from "lucide-react"
 
-interface Tema {
+interface ExerciseOption {
   id: string
-  areaName: string
-  subblockName: string
+  description: string | null
+  exercise_type: string
 }
 
 export default function NewExamPage() {
@@ -19,33 +19,32 @@ export default function NewExamPage() {
   const params = useParams()
   const classroomId = params.id as string
 
-  const [temas, setTemas] = useState<Tema[]>([])
-  const [selectedTemaId, setSelectedTemaId] = useState("")
+  const [exercises, setExercises] = useState<ExerciseOption[]>([])
+  const [selectedExerciseId, setSelectedExerciseId] = useState("")
   const [description, setDescription] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch temas assigned to this classroom
+      // Fetch exercises assigned to this classroom
       const { data } = await supabase
-        .from("edu_classroom_temas")
+        .from("edu_exercise_assignments")
         .select(`
-          tema:edu_temas (
-            id,
-            area:edu_areas ( name ),
-            subblock:edu_academic_subblocks ( name )
-          )
+          exercise:edu_exercises ( id, description, exercise_type )
         `)
         .eq("classroom_id", classroomId)
         .eq("active", true)
 
       if (data) {
-        setTemas(data.map((t: any) => ({
-          id: t.tema.id,
-          areaName: t.tema.area?.name || "Area",
-          subblockName: t.tema.subblock?.name || "Sub-bloque",
-        })))
+        setExercises(data.map((row: any) => {
+          const exercise = Array.isArray(row.exercise) ? row.exercise[0] : row.exercise
+          return {
+            id: exercise?.id,
+            description: exercise?.description ?? null,
+            exercise_type: exercise?.exercise_type ?? "sin_tipo",
+          }
+        }).filter((e: any) => Boolean(e.id)))
       }
       setLoading(false)
     }
@@ -53,10 +52,10 @@ export default function NewExamPage() {
   }, [classroomId])
 
   const handleCreate = async () => {
-    if (!selectedTemaId) return
+    if (!selectedExerciseId) return
     setSaving(true)
 
-    const tema = temas.find(t => t.id === selectedTemaId)
+    const exercise = exercises.find(t => t.id === selectedExerciseId)
 
     // Fetch classroom grade if needed for quizzes table
     const { data: cls } = await supabase
@@ -67,7 +66,7 @@ export default function NewExamPage() {
 
     const { error } = await supabase.from("quizzes").insert([
       {
-        title: tema ? `${tema.areaName} - ${tema.subblockName}` : "Examen",
+        title: exercise?.description || exercise?.id || "Examen",
         description,
         classroom_id: classroomId,
         grade_target: cls?.grade
@@ -96,16 +95,18 @@ export default function NewExamPage() {
 
       <div className="max-w-xl bg-card border rounded-xl p-6 space-y-6">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Area</label>
+          <label className="text-sm font-medium">Ejercicio</label>
           <select
-            value={selectedTemaId}
-            onChange={(e) => setSelectedTemaId(e.target.value)}
+            value={selectedExerciseId}
+            onChange={(e) => setSelectedExerciseId(e.target.value)}
             className="w-full p-2 rounded-md border bg-background"
             disabled={loading}
           >
-            <option value="">Selecciona un area</option>
-            {temas.map((t) => (
-              <option key={t.id} value={t.id}>{t.areaName} - {t.subblockName}</option>
+            <option value="">Selecciona un ejercicio</option>
+            {exercises.map((t) => (
+              <option key={t.id} value={t.id}>
+                {(t.description || t.id)} - {t.exercise_type}
+              </option>
             ))}
           </select>
         </div>
@@ -121,7 +122,7 @@ export default function NewExamPage() {
         </div>
 
         <div className="flex justify-end">
-          <Button onClick={handleCreate} disabled={!selectedTemaId || saving}>
+          <Button onClick={handleCreate} disabled={!selectedExerciseId || saving}>
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Guardando..." : "Crear Examen"}
           </Button>

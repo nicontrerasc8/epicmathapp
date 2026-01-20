@@ -54,7 +54,6 @@ import PrimariaSumaResta05 from './primaria/PrimariaSumaResta05'
 
 type ExerciseComponentProps = {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }
@@ -114,7 +113,6 @@ const EXERCISE_COMPONENTS: Record<
 
 export const ExerciseRegistry = ({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: ExerciseComponentProps) => {
@@ -142,7 +140,6 @@ export const ExerciseRegistry = ({
         <div className="pt-16">
           <ExerciseComponent
             exerciseId={exerciseId}
-            temaId={temaId}
             classroomId={classroomId}
             sessionId={sessionId}
           />
@@ -151,3 +148,5 @@ export const ExerciseRegistry = ({
     </div>
   )
 }
+
+

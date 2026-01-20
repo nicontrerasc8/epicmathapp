@@ -11,13 +11,12 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 23 — Geometría (doble isósceles + ángulo exterior)
    Tipo PDF:
-     AB = BC, BD = BE, ∠ABD = γ°, hallar x = ∠EDC
-   Resultado: x = γ/2
+     AB = BC, BD = BE, ?ABD = ?°, hallar x = ?EDC
+   Resultado: x = ?/2
 
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico (γ cambia, misma naturaleza)
-   ✅ Diagrama SVG con γ en B y x en D bien colocados
-   ✅ Persist estilo Prisma01: (exerciseId, temaId, classroomId, sessionId, correct, answer)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Dinámico (? cambia, misma naturaleza)
+   ? Diagrama SVG con ? en B y x en D bien colocados
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -225,7 +224,7 @@ function Diagram({ gamma, x }: { gamma: number; x: number }) {
           E
         </text>
 
-        {/* ángulo en B: γ (entre BA y BD) */}
+        {/* ángulo en B: ? (entre BA y BD) */}
         <path d={arcPath(B.x, B.y, 26, aBA, aBD)} stroke="black" strokeWidth="2" fill="none" />
         <text
           x={B.x + 38 * Math.cos(aMidB)}
@@ -256,7 +255,7 @@ function Diagram({ gamma, x }: { gamma: number; x: number }) {
 }
 
 /* =========================
-   Generador (γ par → x entero)
+   Generador (? par ? x entero)
 ========================= */
 function generateExercise() {
   const gammas = [30, 40, 50, 60, 70, 80]
@@ -310,12 +309,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma23({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -333,7 +330,6 @@ export default function Prisma23({
 
     persistExerciseOnce({
       exerciseId, // 'Prisma23'
-      temaId,
       classroomId,
       sessionId,
       correct: op.correct,
@@ -345,7 +341,7 @@ export default function Prisma23({
         extra: {
           gamma: ex.gamma,
           x: ex.answer,
-          rule: 'Siempre x = γ/2',
+          rule: 'Siempre x = ?/2',
         },
       },
     })
@@ -373,7 +369,7 @@ export default function Prisma23({
             <div className="text-sm">
               En la figura, <span className="font-semibold">AB = BC</span> y{' '}
               <span className="font-semibold">BD = BE</span>. Además,{' '}
-              <span className="font-semibold">∠ABD = {ex.gamma}°</span>. Halla{' '}
+              <span className="font-semibold">?ABD = {ex.gamma}°</span>. Halla{' '}
               <span className="font-semibold">x</span>.
             </div>
 
@@ -393,22 +389,22 @@ export default function Prisma23({
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Isósceles en ABC</div>
+                <div className="font-semibold mb-2">? Paso 1 — Isósceles en ABC</div>
                 <Tex block tex={step1} />
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Isósceles en DBE</div>
+                <div className="font-semibold mb-2">? Paso 2 — Isósceles en DBE</div>
                 <Tex block tex={step2} />
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Ángulo exterior en D</div>
+                <div className="font-semibold mb-2">? Paso 3 — Ángulo exterior en D</div>
                 <Tex block tex={step3} />
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Ecuación y resultado</div>
+                <div className="font-semibold mb-2">? Paso 4 — Ecuación y resultado</div>
                 <div className="space-y-2">
                   <Tex block tex={step4} />
                   <Tex block tex={eq} />
@@ -423,7 +419,7 @@ export default function Prisma23({
               </div>
 
               <div className="text-xs text-muted-foreground">
-                Chequeo rápido: en este tipo de figura siempre queda <span className="font-mono">x = γ/2</span>.
+                Chequeo rápido: en este tipo de figura siempre queda <span className="font-mono">x = ?/2</span>.
               </div>
             </div>
           </SolutionBox>
@@ -464,3 +460,6 @@ export default function Prisma23({
     </MathJaxContext>
   )
 }
+
+
+

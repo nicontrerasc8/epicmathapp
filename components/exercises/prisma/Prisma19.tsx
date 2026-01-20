@@ -14,10 +14,9 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
      Si log(a)=m; log(b)=n, calcular
      P = log(a·b)/(m+n)
 
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ 100% dinámico: a,b “bonitos” (sin números gigantes)
-   ✅ Explicación tipo guía: producto → propiedad → reemplazar → simplificar
-   ✅ Persist estilo Prisma01 (exerciseId, temaId, classroomId, sessionId)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? 100% dinámico: a,b “bonitos” (sin números gigantes)
+   ? Explicación tipo guía: producto ? propiedad ? reemplazar ? simplificar
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -121,12 +120,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma19({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -148,7 +145,6 @@ export default function Prisma19({
 
     persistExerciseOnce({
       exerciseId, // 'Prisma19'
-      temaId,
       classroomId,
       sessionId,
       correct: op.correct,
@@ -189,7 +185,7 @@ export default function Prisma19({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — ¿Qué te están dando?</div>
+                <div className="font-semibold mb-2">?? Paso 0 — ¿Qué te están dando?</div>
                 <p className="text-muted-foreground">
                   Te dicen dos “nombres”:
                   <span className="font-semibold">{` \\log(${ej.a}) = m `}</span> y
@@ -202,7 +198,7 @@ export default function Prisma19({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Escribimos P</div>
+                <div className="font-semibold mb-2">? Paso 1 — Escribimos P</div>
                 <Tex block tex={`P=\\frac{\\log(${ej.ab})}{m+n}`} />
                 <p className="mt-2 text-muted-foreground">
                   Nota: <span className="font-semibold">{ej.ab}</span> es el producto{' '}
@@ -216,7 +212,7 @@ export default function Prisma19({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Propiedad del producto</div>
+                <div className="font-semibold mb-2">? Paso 2 — Propiedad del producto</div>
                 <div className="rounded-md border bg-background p-3">
                   <Tex block tex={`\\log(xy)=\\log(x)+\\log(y)`} />
                 </div>
@@ -227,17 +223,17 @@ export default function Prisma19({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Reemplazamos con m y n</div>
+                <div className="font-semibold mb-2">? Paso 3 — Reemplazamos con m y n</div>
                 <Tex block tex={`\\log(${ej.a})=m\\quad\\text{y}\\quad\\log(${ej.b})=n`} />
                 <Tex block tex={`P=\\frac{m+n}{m+n}`} />
               </div>
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Simplificamos</div>
+                <div className="font-semibold mb-2">? Paso 4 — Simplificamos</div>
                 <Tex block tex={`P=1`} />
                 <div className="mt-2 rounded-md border bg-background p-3">
-                  <div className="font-semibold mb-1">🧠 Chequeo rápido</div>
+                  <div className="font-semibold mb-1">?? Chequeo rápido</div>
                   <p className="text-muted-foreground">
                     Esto siempre pasa porque el numerador se convierte exactamente en <span className="font-semibold">m+n</span>.
                   </p>
@@ -285,3 +281,6 @@ export default function Prisma19({
     </MathJaxContext>
   )
 }
+
+
+

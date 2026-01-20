@@ -11,13 +11,13 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
   PRISMA 30 — Hallar x (Incentro + cuadrilátero cíclico)
 
-  ✅ Maqueta SVG grande (no a escala)
-  ✅ 90° dentro del gráfico (en E y G)
-  ✅ Dinámico (no repite): cambia n en ∠BDC = nα
-     - Propiedad del incentro: ∠BDC = 90° + α/2
-     - Entonces: nα = 90° + α/2  → α depende de n
-     - DEFG cíclico (dos ángulos rectos) → nα + x = 180° → x dinámico
-  ✅ 1 intento, autocalifica y persiste
+  ? Maqueta SVG grande (no a escala)
+  ? 90° dentro del gráfico (en E y G)
+  ? Dinámico (no repite): cambia n en ?BDC = na
+     - Propiedad del incentro: ?BDC = 90° + a/2
+     - Entonces: na = 90° + a/2  ? a depende de n
+     - DEFG cíclico (dos ángulos rectos) ? na + x = 180° ? x dinámico
+  ? 1 intento, autocalifica y persiste
 ============================================================ */
 
 type OptionKey = 'A' | 'B' | 'C' | 'D'
@@ -228,7 +228,7 @@ function Prisma30Diagram({ n, mode }: { n: number; mode: DiagramMode }) {
   const tG = 0.58
   const G = add(D, mul(sub(C, D), tG))
 
-  // EF ⟂ BD: como BD es vertical, EF es horizontal
+  // EF ? BD: como BD es vertical, EF es horizontal
   const vEF = P(1, 0)
   const vDC = sub(C, D)
   const vPerpDC = perp(unit(vDC))
@@ -322,11 +322,11 @@ function Prisma30Diagram({ n, mode }: { n: number; mode: DiagramMode }) {
           G
         </text>
 
-        {/* Ángulo α en A */}
-        <AngleArcWithLabel V0={A} P1={B} P2={C} r={46} label="α" labelPush={18} />
+        {/* Ángulo a en A */}
+        <AngleArcWithLabel V0={A} P1={B} P2={C} r={46} label="a" labelPush={18} />
 
-        {/* Ángulo nα en D (entre DB y DC) */}
-        <AngleArcWithLabel V0={D} P1={B} P2={C} r={38} label={`${n}α`} labelPush={18} />
+        {/* Ángulo na en D (entre DB y DC) */}
+        <AngleArcWithLabel V0={D} P1={B} P2={C} r={38} label={`${n}a`} labelPush={18} />
 
         {/* Ángulo x en F (entre FE y FG) */}
         <AngleArcWithLabel V0={F} P1={E} P2={G} r={40} label="x" labelPush={18} />
@@ -351,9 +351,9 @@ function Prisma30Diagram({ n, mode }: { n: number; mode: DiagramMode }) {
 
 /* ============================================================
   Generador dinámico (exacto, sin redondeos):
-    nα = 90 + α/2  → (n - 1/2)α = 90  → α = 180/(2n-1)
-    x = 180 - nα
-  Elegimos n con α entero y “bonito”.
+    na = 90 + a/2  ? (n - 1/2)a = 90  ? a = 180/(2n-1)
+    x = 180 - na
+  Elegimos n con a entero y “bonito”.
 ============================================================ */
 type ExData = {
   n: number
@@ -364,17 +364,17 @@ type ExData = {
 }
 
 function computeAlphaExact(n: number) {
-  // α = 180/(2n-1)
+  // a = 180/(2n-1)
   return 180 / (2 * n - 1)
 }
 
 function buildExercise(recentNs: number[]): ExData {
   // 2n-1 debe dividir a 180 y ser impar.
-  // Opciones “bonitas” (α razonable):
-  // n=2 -> α=60 -> x=60
-  // n=3 -> α=36 -> x=72
-  // n=5 -> α=20 -> x=80
-  // n=8 -> α=12 -> x=84
+  // Opciones “bonitas” (a razonable):
+  // n=2 -> a=60 -> x=60
+  // n=3 -> a=36 -> x=72
+  // n=5 -> a=20 -> x=80
+  // n=8 -> a=12 -> x=84
   const pool = [2, 3, 5, 8]
   const candidates = pool.filter(v => !recentNs.includes(v))
   const n = choice(candidates.length ? candidates : pool)
@@ -411,12 +411,10 @@ function buildExercise(recentNs: number[]): ExData {
 ============================================================ */
 export default function Prisma30({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -433,14 +431,13 @@ export default function Prisma30({
   setSelectedKey(op.key)
   engine.submit(op.correct)
 
-  // 🔒 Opciones SIEMPRE ordenadas A–D
+  // ?? Opciones SIEMPRE ordenadas A–D
   const ordered = ex.options
     .slice()
     .sort((a, b) => a.key.localeCompare(b.key))
 
   persistExerciseOnce({
     exerciseId,
-    temaId,
     classroomId,
     sessionId,
 
@@ -457,7 +454,7 @@ export default function Prisma30({
         n: ex.n,
         alpha: ex.alpha,
         nAlpha: ex.n * ex.alpha,
-        rule: 'Incentro: ∠BDC = 90° + α/2; cuadrilátero cíclico: ángulos opuestos suman 180°',
+        rule: 'Incentro: ?BDC = 90° + a/2; cuadrilátero cíclico: ángulos opuestos suman 180°',
         labeledOptions: ordered.map(o => `${o.key}.\\ ${o.value}^{\\circ}`),
       },
     },
@@ -505,8 +502,8 @@ export default function Prisma30({
             <div className="text-sm text-muted-foreground">
               En la figura, <span className="font-semibold">BD</span> y{' '}
               <span className="font-semibold">CD</span> son bisectrices internas. Si{' '}
-              <span className="font-semibold">∠A = α</span> y{' '}
-              <span className="font-semibold">∠BDC = {n}α</span>, halla{' '}
+              <span className="font-semibold">?A = a</span> y{' '}
+              <span className="font-semibold">?BDC = {n}a</span>, halla{' '}
               <span className="font-semibold">x</span>.
             </div>
           </div>
@@ -519,15 +516,15 @@ export default function Prisma30({
         solution={
           <SolutionBox>
             <div className="space-y-4">
-              {/* ✅ primero el gráfico */}
+              {/* ? primero el gráfico */}
               <Prisma30Diagram n={n} mode="solution" />
 
-              {/* ✅ abajo la resolución */}
+              {/* ? abajo la resolución */}
               <div className="rounded-2xl border bg-white p-4 space-y-4 text-sm text-muted-foreground">
                 <div className="font-semibold text-foreground">Resolución</div>
 
                 <div className="rounded-lg border bg-background p-3 space-y-2">
-                  <div className="font-semibold text-foreground">✅ Paso 1 — Propiedad del incentro</div>
+                  <div className="font-semibold text-foreground">? Paso 1 — Propiedad del incentro</div>
                   <Tex tex={step1a} block />
                   <Tex tex={step1b} block />
                   <Tex tex={step1c} block />
@@ -536,7 +533,7 @@ export default function Prisma30({
                 </div>
 
                 <div className="rounded-lg border bg-background p-3 space-y-2">
-                  <div className="font-semibold text-foreground">✅ Paso 2 — Cuadrilátero cíclico</div>
+                  <div className="font-semibold text-foreground">? Paso 2 — Cuadrilátero cíclico</div>
                   <Tex tex={step2a} block />
                   <Tex tex={step2b} block />
                   <Tex tex={step2c} block />
@@ -602,3 +599,6 @@ export default function Prisma30({
     </MathJaxContext>
   )
 }
+
+
+

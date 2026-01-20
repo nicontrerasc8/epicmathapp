@@ -12,11 +12,10 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
    PRISMA 15 — Reduce (potencias) — estilo Prisma + MathJax
    Forma: M = (3^x · 9^(x+a) · 27^(x+b)) / 3^(6x+c)
 
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico (a,b,c cambian)
-   ✅ Resolución paso a paso tipo profe
-   ✅ MathJax (better-react-mathjax)
-   ✅ Persist NUEVO estilo Prisma01 (exerciseId, temaId, classroomId...)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Dinámico (a,b,c cambian)
+   ? Resolución paso a paso tipo profe
+   ? MathJax (better-react-mathjax)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: string; correct: boolean }
@@ -148,12 +147,10 @@ function Tex({
 ========================= */
 export default function Prisma15({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -184,7 +181,6 @@ export default function Prisma15({
 
     persistExerciseOnce({
       exerciseId, // 'Prisma15'
-      temaId,
       classroomId,
       sessionId,
       correct: op.correct,
@@ -226,7 +222,7 @@ export default function Prisma15({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Pasamos todo a base 3</div>
+                <div className="font-semibold mb-2">? Paso 1 — Pasamos todo a base 3</div>
                 <p className="text-muted-foreground">
                   Escribimos <Tex tex={`9`} /> y <Tex tex={`27`} /> como potencias de <Tex tex={`3`} />:
                 </p>
@@ -243,7 +239,7 @@ export default function Prisma15({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Potencia de potencia</div>
+                <div className="font-semibold mb-2">? Paso 2 — Potencia de potencia</div>
                 <p className="text-muted-foreground">
                   Regla: <Tex tex={`(a^m)^n=a^{m\\cdot n}`} />.
                 </p>
@@ -265,7 +261,7 @@ export default function Prisma15({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Sumar exponentes del numerador</div>
+                <div className="font-semibold mb-2">? Paso 3 — Sumar exponentes del numerador</div>
                 <p className="text-muted-foreground">
                   Regla: <Tex tex={`3^u\\cdot 3^v=3^{u+v}`} />.
                 </p>
@@ -291,7 +287,7 @@ export default function Prisma15({
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Dividir potencias</div>
+                <div className="font-semibold mb-2">? Paso 4 — Dividir potencias</div>
                 <p className="text-muted-foreground">
                   Regla: <Tex tex={`\\frac{3^u}{3^v}=3^{u-v}`} />.
                 </p>
@@ -317,7 +313,7 @@ export default function Prisma15({
 
               {/* Respuesta */}
               <div className="rounded-lg border bg-muted p-3">
-                <div className="font-semibold">✅ Respuesta final</div>
+                <div className="font-semibold">? Respuesta final</div>
                 <div className="mt-2 space-y-1">
                   <Tex block tex={`M=3^{${kFinal}}`} />
                   <div className="font-mono text-base">{answer}</div>
@@ -365,3 +361,6 @@ export default function Prisma15({
     </MathJaxContext>
   )
 }
+
+
+

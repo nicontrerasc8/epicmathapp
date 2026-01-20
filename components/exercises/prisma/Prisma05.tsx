@@ -10,11 +10,10 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 5 — Implicación falsa (p, q, r, t) + MathJax
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ 100% dinámico (genera literales con ¬ y variables)
-   ✅ Explicación súper detallada + tabla de comprobación
-   ✅ Usa "better-react-mathjax" (NO KaTeX)
-   ✅ Persist con la MISMA firma que Prisma01 (exerciseId/temaId/classroomId/sessionId + correct + answer)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? 100% dinámico (genera literales con ¬ y variables)
+   ? Explicación súper detallada + tabla de comprobación
+   ? Usa "better-react-mathjax" (NO KaTeX)
 ============================================================ */
 
 /* =========================
@@ -105,7 +104,7 @@ function evalExpr(expr: Expr, val: Record<VarName, boolean>): boolean {
     case 'or':
       return evalExpr(expr.left, val) || evalExpr(expr.right, val)
     case 'imp':
-      // A → B ≡ (¬A ∨ B)  (solo es F cuando A=V y B=F)
+      // A ? B = (¬A ? B)  (solo es F cuando A=V y B=F)
       return !evalExpr(expr.left, val) || evalExpr(expr.right, val)
   }
 }
@@ -143,9 +142,9 @@ function litToLatex(l: Literal) {
 /* =========================
    GENERACIÓN (con solución única)
    Queremos:
-     (L1 ∧ L2) → (L3 ∨ L4)
+     (L1 ? L2) ? (L3 ? L4)
    y sabemos "la proposición es FALSA"
-   ⇒ antecedente V y consecuente F
+   ? antecedente V y consecuente F
 
    Para que haya una única respuesta tipo
    “qué proposiciones SON VERDADERAS”
@@ -271,12 +270,10 @@ function buildScenario() {
 ========================= */
 export default function Prisma05({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -294,7 +291,6 @@ export default function Prisma05({
 
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma05'
-      temaId,
       classroomId,
       sessionId,
 
@@ -345,7 +341,7 @@ export default function Prisma05({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — La proposición</div>
+                <div className="font-semibold mb-2">?? Paso 0 — La proposición</div>
                 <p className="text-muted-foreground mb-2">
                   Te dicen que la proposición compuesta es <span className="font-semibold">FALSA</span>:
                 </p>
@@ -354,9 +350,9 @@ export default function Prisma05({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Regla clave de la implicación</div>
+                <div className="font-semibold mb-2">? Paso 1 — Regla clave de la implicación</div>
                 <p className="text-muted-foreground">
-                  Una implicación <span className="font-semibold">A → B</span> solo es{' '}
+                  Una implicación <span className="font-semibold">A ? B</span> solo es{' '}
                   <span className="font-semibold">FALSA</span> en un caso:
                 </p>
                 <div className="mt-2 rounded-md border bg-background p-3">
@@ -367,7 +363,7 @@ export default function Prisma05({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Identificamos A y B</div>
+                <div className="font-semibold mb-2">? Paso 2 — Identificamos A y B</div>
                 <p className="text-muted-foreground">Separamos antecedente (A) y consecuente (B):</p>
 
                 <div className="mt-2 space-y-2">
@@ -392,9 +388,9 @@ export default function Prisma05({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Hacemos que el antecedente sea V</div>
+                <div className="font-semibold mb-2">? Paso 3 — Hacemos que el antecedente sea V</div>
                 <p className="text-muted-foreground">
-                  El antecedente es una conjunción: <span className="font-semibold">(X ∧ Y)</span>. Para que sea{' '}
+                  El antecedente es una conjunción: <span className="font-semibold">(X ? Y)</span>. Para que sea{' '}
                   <span className="font-semibold">V</span>, ambos deben ser verdaderos.
                 </p>
 
@@ -412,9 +408,9 @@ export default function Prisma05({
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Hacemos que el consecuente sea F</div>
+                <div className="font-semibold mb-2">? Paso 4 — Hacemos que el consecuente sea F</div>
                 <p className="text-muted-foreground">
-                  El consecuente es una disyunción: <span className="font-semibold">(X ∨ Y)</span>. Para que sea{' '}
+                  El consecuente es una disyunción: <span className="font-semibold">(X ? Y)</span>. Para que sea{' '}
                   <span className="font-semibold">F</span>, ambos deben ser falsos.
                 </p>
 
@@ -432,7 +428,7 @@ export default function Prisma05({
 
               {/* Paso 5 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 5 — Valores de p, q, r, t</div>
+                <div className="font-semibold mb-2">? Paso 5 — Valores de p, q, r, t</div>
 
                 <div className="overflow-x-auto">
                   <table className="border w-full text-center text-xs">
@@ -454,7 +450,7 @@ export default function Prisma05({
                 </div>
 
                 <div className="mt-3 rounded-lg border bg-white p-3">
-                  <div className="font-semibold">✅ Proposiciones verdaderas:</div>
+                  <div className="font-semibold">? Proposiciones verdaderas:</div>
                   <div className="mt-1">
                     <span className="inline-block px-2 py-1 rounded bg-muted font-mono">
                       {ejercicio.trueVars.join(' y ')}
@@ -468,11 +464,11 @@ export default function Prisma05({
 
               {/* Paso 6 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 6 — Comprobación rápida</div>
+                <div className="font-semibold mb-2">? Paso 6 — Comprobación rápida</div>
                 <p className="text-muted-foreground">
                   Confirmamos: queda <span className="font-semibold">A = V</span> y{' '}
                   <span className="font-semibold">B = F</span>, por lo tanto{' '}
-                  <span className="font-semibold">A → B = F</span>.
+                  <span className="font-semibold">A ? B = F</span>.
                 </p>
 
                 <div className="mt-2 overflow-x-auto">
@@ -517,7 +513,7 @@ export default function Prisma05({
                 </div>
 
                 <div className="mt-2 rounded-md border bg-background p-3">
-                  <div className="font-semibold mb-1">🧠 Mini recordatorio</div>
+                  <div className="font-semibold mb-1">?? Mini recordatorio</div>
                   <Tex block tex={`A\\to B\\text{ es F solo si }(A=V\\ \\wedge\\ B=F)`} />
                 </div>
               </div>
@@ -566,3 +562,6 @@ export default function Prisma05({
     </MathJaxContext>
   )
 }
+
+
+

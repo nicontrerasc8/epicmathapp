@@ -32,25 +32,9 @@ async function getClassroomData(classroomId: string, institutionId: string) {
     .eq("institution_id", institutionId)
     .eq("active", true)
 
-  // Get temas count
-  const { count: temasCount } = await supabase
-    .from("edu_classroom_temas")
-    .select("id", { count: "exact", head: true })
-    .eq("classroom_id", classroomId)
-    .eq("institution_id", institutionId)
-    .eq("active", true)
-
   // Get exercises count
   const { count: exercisesCount } = await supabase
-    .from("edu_classroom_tema_exercises")
-    .select("id", { count: "exact", head: true })
-    .eq("classroom_id", classroomId)
-    .eq("institution_id", institutionId)
-    .eq("active", true)
-
-  // Get blocks count
-  const { count: blocksCount } = await supabase
-    .from("edu_classroom_blocks")
+    .from("edu_exercise_assignments")
     .select("id", { count: "exact", head: true })
     .eq("classroom_id", classroomId)
     .eq("active", true)
@@ -73,9 +57,7 @@ async function getClassroomData(classroomId: string, institutionId: string) {
   return {
     ...classroom,
     memberCount: memberCount || 0,
-    temasCount: temasCount || 0,
     exercisesCount: exercisesCount || 0,
-    blocksCount: blocksCount || 0,
     accuracy,
     totalExercises,
   }

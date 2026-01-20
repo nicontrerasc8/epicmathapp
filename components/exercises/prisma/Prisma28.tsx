@@ -11,17 +11,16 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
   PRISMA 28 — Bisectriz + Altura (hallar x)
 
-  ✅ Estilo Prisma27:
+  ? Estilo Prisma27:
      - Diagrama grande en SVG (maqueta, no a escala)
-     - Variables visibles: mx, nx, γ°, 90°
+     - Variables visibles: mx, nx, ?°, 90°
      - 1 intento, autocalifica al elegir opción
      - "Siguiente" genera otro (evita repetidos recientes)
-  ✅ Propiedad:
-     γ = (|∠A − ∠C|)/2  y  ∠A=mx, ∠C=nx  ⇒  γ = ((m−n)x)/2
-     ⇒ x = 2γ/(m−n)
+  ? Propiedad:
+     ? = (|?A - ?C|)/2  y  ?A=mx, ?C=nx  ?  ? = ((m-n)x)/2
+     ? x = 2?/(m-n)
 
-  ✅ Persist estilo Prisma01:
-     persistExerciseOnce({ exerciseId, temaId, classroomId, sessionId, correct, answer })
+  ? Persist estilo Prisma01:
 ============================================================ */
 
 type OptionKey = 'A' | 'B' | 'C' | 'D'
@@ -284,7 +283,7 @@ function Prisma28Diagram({
         <AngleArcWithLabel V0={A} P1={B} P2={C} r={48} label={`${m}x`} labelPush={22} />
         <AngleArcWithLabel V0={C} P1={A} P2={B} r={48} label={`${n}x`} labelPush={22} />
 
-        {/* γ en B entre BH y BD */}
+        {/* ? en B entre BH y BD */}
         <path
           d={arcPath(B.x, B.y, 46, angleDeg(B, H), angleDeg(B, D)).d}
           fill="none"
@@ -457,12 +456,10 @@ function buildExercise(excludeSigs: string[]): ExData {
 ============================================================ */
 export default function Prisma28({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -487,7 +484,6 @@ export default function Prisma28({
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
       correct: op.correct,
@@ -500,7 +496,7 @@ export default function Prisma28({
           gamma: ex.gamma,
           A: `${ex.m}x`,
           C: `${ex.n}x`,
-          formula: 'x = 2γ/(m−n)',
+          formula: 'x = 2?/(m-n)',
         },
       },
     })
@@ -535,9 +531,9 @@ export default function Prisma28({
               <span className="font-semibold">BH</span> es altura.
             </div>
             <div className="text-sm text-muted-foreground">
-              En la figura: <span className="font-semibold">∠A = {ex.m}x</span>,{' '}
-              <span className="font-semibold">∠C = {ex.n}x</span>, y{' '}
-              <span className="font-semibold">∠(BH, BD) = {ex.gamma}°</span>.
+              En la figura: <span className="font-semibold">?A = {ex.m}x</span>,{' '}
+              <span className="font-semibold">?C = {ex.n}x</span>, y{' '}
+              <span className="font-semibold">?(BH, BD) = {ex.gamma}°</span>.
             </div>
           </div>
         }
@@ -556,7 +552,7 @@ export default function Prisma28({
 
                 <div className="space-y-4 text-sm text-muted-foreground">
                   <div>
-                    <div className="font-semibold text-foreground mb-1">✅ Paso 1 — Propiedad clave</div>
+                    <div className="font-semibold text-foreground mb-1">? Paso 1 — Propiedad clave</div>
                     <div className="rounded-lg border bg-background p-3 space-y-2">
                       <Tex tex={s1} block />
                       <div className="text-xs text-muted-foreground">
@@ -566,7 +562,7 @@ export default function Prisma28({
                   </div>
 
                   <div>
-                    <div className="font-semibold text-foreground mb-1">✅ Paso 2 — Sustituir ∠A y ∠C</div>
+                    <div className="font-semibold text-foreground mb-1">? Paso 2 — Sustituir ?A y ?C</div>
                     <div className="rounded-lg border bg-background p-3 space-y-2">
                       <Tex tex={s2} block />
                       <Tex tex={s3} block />
@@ -574,7 +570,7 @@ export default function Prisma28({
                   </div>
 
                   <div>
-                    <div className="font-semibold text-foreground mb-1">✅ Paso 3 — Despejar x</div>
+                    <div className="font-semibold text-foreground mb-1">? Paso 3 — Despejar x</div>
                     <div className="rounded-lg border bg-background p-3 space-y-2">
                       <Tex tex={s4} block />
                       <Tex tex={s5} block />
@@ -640,3 +636,6 @@ export default function Prisma28({
     </MathJaxContext>
   )
 }
+
+
+

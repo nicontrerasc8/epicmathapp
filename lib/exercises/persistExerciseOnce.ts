@@ -3,7 +3,6 @@ import { fetchStudentSession } from '@/lib/student-session-client'
 
 type PersistExerciseInput = {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 
@@ -22,7 +21,6 @@ export async function persistExerciseOnce(input: PersistExerciseInput) {
     student_id: studentSession.id,
     classroom_id: input.classroomId,
     exercise_id: input.exerciseId,
-    tema_id: input.temaId,
     session_id: input.sessionId ?? null,
     answer: input.answer,
     correct: input.correct,

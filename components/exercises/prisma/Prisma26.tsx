@@ -11,19 +11,18 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 26 — Bisectrices (Incentro)
    Enunciado tipo Prisma:
-     En ΔABC, AD y CD son bisectrices (D es incentro).
-     Si m∠B = β y m∠ADC = 2x, hallar x.
+     En ?ABC, AD y CD son bisectrices (D es incentro).
+     Si m?B = ß y m?ADC = 2x, hallar x.
 
    Propiedad clave (incentro I):
-     ∠AIC = 90° + (∠B)/2
+     ?AIC = 90° + (?B)/2
    Aquí D cumple el rol de I, por eso:
-     ∠ADC = 90° + (∠B)/2
+     ?ADC = 90° + (?B)/2
 
-   ✅ 1 SOLO INTENTO
-   ✅ Dinámico (β múltiplo de 4 para que x sea entero)
-   ✅ Diagrama SVG claro con arcos y 2x en D
-   ✅ Persist NUEVO:
-      { exerciseId, temaId, classroomId, sessionId, correct, answer:{} }
+   ? 1 SOLO INTENTO
+   ? Dinámico (ß múltiplo de 4 para que x sea entero)
+   ? Diagrama SVG claro con arcos y 2x en D
+   ? Persist NUEVO:
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -163,7 +162,7 @@ function Diagram({ beta }: { beta: number }) {
           D
         </text>
 
-        {/* Ángulo β en B */}
+        {/* Ángulo ß en B */}
         <path d={arcPath(B.x, B.y, 24, aBA, aBC)} stroke="black" strokeWidth="2" fill="none" />
         <text
           x={B.x + 36 * Math.cos(mB)}
@@ -206,8 +205,8 @@ function Diagram({ beta }: { beta: number }) {
 
 /* =========================
    Generador (dinámico)
-   Elegimos β múltiplo de 4:
-     2x = 90 + β/2  =>  x = (180 + β)/4 = 45 + β/4  (entero si β múltiplo de 4)
+   Elegimos ß múltiplo de 4:
+     2x = 90 + ß/2  =>  x = (180 + ß)/4 = 45 + ß/4  (entero si ß múltiplo de 4)
 ========================= */
 function generateExercise() {
   for (let tries = 0; tries < 200; tries++) {
@@ -257,12 +256,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma26({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -279,7 +276,6 @@ export default function Prisma26({
 
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma26'
-      temaId,
       classroomId,
       sessionId,
 
@@ -293,7 +289,7 @@ export default function Prisma26({
         extra: {
           beta: ex.beta,
           labeledOptions: ex.options.map(o => `${o.label}. ${o.value}°`),
-          property: '∠ADC = 90° + ∠B/2',
+          property: '?ADC = 90° + ?B/2',
         },
       },
     })
@@ -321,8 +317,8 @@ export default function Prisma26({
           <div className="space-y-3">
             <div className="text-sm">
               En el triángulo, <span className="font-semibold">AD</span> y <span className="font-semibold">CD</span>{' '}
-              son bisectrices (D es el incentro). Si <span className="font-semibold">m∠B = {ex.beta}°</span> y{' '}
-              <span className="font-semibold">m∠ADC = 2x</span>, halla <span className="font-semibold">x</span>.
+              son bisectrices (D es el incentro). Si <span className="font-semibold">m?B = {ex.beta}°</span> y{' '}
+              <span className="font-semibold">m?ADC = 2x</span>, halla <span className="font-semibold">x</span>.
             </div>
 
             <Diagram beta={ex.beta} />
@@ -341,7 +337,7 @@ export default function Prisma26({
           <SolutionBox>
             <div className="space-y-4 text-sm leading-relaxed">
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Propiedad del incentro</div>
+                <div className="font-semibold mb-2">? Propiedad del incentro</div>
                 <div className="space-y-2">
                   <Tex block tex={s1} />
                   <Tex block tex={s2} />
@@ -349,7 +345,7 @@ export default function Prisma26({
               </div>
 
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Usamos el dato y despejamos</div>
+                <div className="font-semibold mb-2">? Usamos el dato y despejamos</div>
                 <div className="space-y-2">
                   <Tex block tex={s3} />
                   <Tex block tex={s4} />
@@ -400,3 +396,6 @@ export default function Prisma26({
     </MathJaxContext>
   )
 }
+
+
+

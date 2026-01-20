@@ -10,11 +10,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 10 — Conjuntos A y B + validar 4 afirmaciones (I–IV)
-   (A ⊂ B, B ⊂ A, A = B, A ≠ B)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ 100% dinámico: genera A explícito y B por comprensión
-   ✅ MathJax PRO: datos, afirmaciones y solución con TeX
-   ✅ Persist con la MISMA firma que Prisma01/05
+   (A ? B, B ? A, A = B, A ? B)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? 100% dinámico: genera A explícito y B por comprensión
+   ? MathJax PRO: datos, afirmaciones y solución con TeX
+   ? Persist con la MISMA firma que Prisma01/05
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: string; correct: boolean }
@@ -33,7 +33,7 @@ function uniq(nums: number[]) {
 }
 
 function buildUniverse(limit: number) {
-  // ℕ incluyendo 0, hasta < limit
+  // N incluyendo 0, hasta < limit
   return Array.from({ length: limit }, (_, i) => i)
 }
 function buildB_evenLessThan(limit: number) {
@@ -51,7 +51,7 @@ function isEqual(A: number[], B: number[]) {
 
 /* =========================
    GENERACIÓN A y B
-   B: { x / x∈N, x es par, x < m }
+   B: { x / x?N, x es par, x < m }
    A: conjunto explícito, según escenario
 ========================= */
 type Scenario = 'equal' | 'A_subset_B' | 'B_subset_A' | 'mix'
@@ -213,12 +213,10 @@ function listCandidatesTeX(limit: number) {
 ========================= */
 export default function Prisma10({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -240,7 +238,7 @@ export default function Prisma10({
   const AdefTex = `A=${Atex}`
 
   const prompt =
-    `Si: A = { ${ej.A.join('; ')} }  y  B = { x / x ∈ ℕ ; x es par, x < ${ej.limit} }.\n` +
+    `Si: A = { ${ej.A.join('; ')} }  y  B = { x / x ? N ; x es par, x < ${ej.limit} }.\n` +
     `Entonces la validez de las afirmaciones I–IV es:`
 
   function pickOption(op: Option) {
@@ -252,7 +250,6 @@ export default function Prisma10({
     // Persist (misma firma que Prisma01)
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma10'
-      temaId,
       classroomId,
       sessionId,
 
@@ -307,7 +304,7 @@ export default function Prisma10({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Qué significa cada afirmación</div>
+                <div className="font-semibold mb-2">?? Paso 0 — Qué significa cada afirmación</div>
                 <div className="space-y-2 text-muted-foreground">
                   <div>
                     <Tex tex={`A\\subset B`} /> significa: todo elemento de A está en B,
@@ -325,7 +322,7 @@ export default function Prisma10({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Construimos el conjunto B</div>
+                <div className="font-semibold mb-2">? Paso 1 — Construimos el conjunto B</div>
                 <div className="rounded border p-3">
                   <Tex block tex={BdefTex} />
                 </div>
@@ -354,7 +351,7 @@ export default function Prisma10({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Ya tenemos A</div>
+                <div className="font-semibold mb-2">? Paso 2 — Ya tenemos A</div>
                 <div className="mt-2 rounded border p-3 bg-white">
                   <Tex block tex={AdefTex} />
                 </div>
@@ -362,7 +359,7 @@ export default function Prisma10({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Comparamos A y B (idea clave)</div>
+                <div className="font-semibold mb-2">? Paso 3 — Comparamos A y B (idea clave)</div>
 
                 <div className="rounded-md border bg-background p-3">
                   <div className="font-semibold mb-1">Miramos qué “sobra” en cada uno</div>
@@ -377,7 +374,7 @@ export default function Prisma10({
                         <Tex tex={`A\\setminus B`} /> (en A pero no en B)
                       </div>
                       <div className="mt-2 font-mono">
-                        {AminusB.length === 0 ? '∅ (vacío)' : `{ ${AminusB.join('; ')} }`}
+                        {AminusB.length === 0 ? 'Ø (vacío)' : `{ ${AminusB.join('; ')} }`}
                       </div>
                     </div>
 
@@ -386,7 +383,7 @@ export default function Prisma10({
                         <Tex tex={`B\\setminus A`} /> (en B pero no en A)
                       </div>
                       <div className="mt-2 font-mono">
-                        {BminusA.length === 0 ? '∅ (vacío)' : `{ ${BminusA.join('; ')} }`}
+                        {BminusA.length === 0 ? 'Ø (vacío)' : `{ ${BminusA.join('; ')} }`}
                       </div>
                     </div>
                   </div>
@@ -399,7 +396,7 @@ export default function Prisma10({
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Evaluamos I, II, III y IV</div>
+                <div className="font-semibold mb-2">? Paso 4 — Evaluamos I, II, III y IV</div>
 
                 <div className="space-y-3">
                   {/* I */}
@@ -603,3 +600,6 @@ export default function Prisma10({
     </MathJaxContext>
   )
 }
+
+
+

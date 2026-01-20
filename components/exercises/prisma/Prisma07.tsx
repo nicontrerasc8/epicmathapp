@@ -10,11 +10,10 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 7 — Conjuntos unitarios e iguales (A={...}, B={...})
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Todo dinámico (a,b,c cambian siempre)
-   ✅ Resolución tipo profe
-   ✅ Usa better-react-mathjax (NO KaTeX)
-   ✅ Persist: MISMA estructura que Prisma01 (exerciseId/temaId/classroomId/sessionId)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Todo dinámico (a,b,c cambian siempre)
+   ? Resolución tipo profe
+   ? Usa better-react-mathjax (NO KaTeX)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: number; correct: boolean }
@@ -126,7 +125,7 @@ function texLinear_mb_t(m: number, t: number) {
    GENERADOR CONTROLADO
    A = {E1, c}
    B = {2c - d, mb + t}
-   "unitarios e iguales" ⇒ E1 = c = 2c - d = mb + t
+   "unitarios e iguales" ? E1 = c = 2c - d = mb + t
 
    Elegimos (a,b,c) numéricos, y construimos:
    - d = c para que c = 2c - d se cumpla.
@@ -214,12 +213,10 @@ function generateProblem() {
 ========================= */
 export default function Prisma07({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -235,10 +232,9 @@ export default function Prisma07({
     setSelected(op.value)
     engine.submit(op.correct)
 
-    // ✅ MISMA ESTRUCTURA QUE PRISMA01
+    // ? MISMA ESTRUCTURA QUE PRISMA01
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma07'
-      temaId,
       classroomId,
       sessionId,
 
@@ -294,7 +290,7 @@ export default function Prisma07({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — ¿Qué significa “unitarios e iguales”?</div>
+                <div className="font-semibold mb-2">?? Paso 0 — ¿Qué significa “unitarios e iguales”?</div>
                 <p className="text-muted-foreground">
                   Si un conjunto es <span className="font-semibold">unitario</span>, entonces todos los “elementos”
                   dentro del conjunto representan <span className="font-semibold">el mismo valor</span> (para que al
@@ -310,7 +306,7 @@ export default function Prisma07({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Hallamos c</div>
+                <div className="font-semibold mb-2">? Paso 1 — Hallamos c</div>
                 <p className="text-muted-foreground">Usamos la igualdad: \(c = 2c - d\).</p>
 
                 <div className="mt-2 rounded-md border bg-background p-3">
@@ -329,7 +325,7 @@ export default function Prisma07({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Hallamos b</div>
+                <div className="font-semibold mb-2">? Paso 2 — Hallamos b</div>
                 <p className="text-muted-foreground">
                   Ahora usamos: \(mb + t = c\) y reemplazamos \(c\).
                 </p>
@@ -350,7 +346,7 @@ export default function Prisma07({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Hallamos a</div>
+                <div className="font-semibold mb-2">? Paso 3 — Hallamos a</div>
                 <p className="text-muted-foreground">
                   Usamos: \(pa + qb + r = c\) y reemplazamos \(b\) y \(c\).
                 </p>
@@ -373,7 +369,7 @@ export default function Prisma07({
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Piden \(a+b+c\)</div>
+                <div className="font-semibold mb-2">? Paso 4 — Piden \(a+b+c\)</div>
 
                 <div className="mt-2 rounded-md border bg-background p-3">
                   <Tex block tex={[`a+b+c=${a}+${b}+${c}`, `a+b+c=${a + b + c}`].join('\\\\')} />
@@ -433,3 +429,6 @@ export default function Prisma07({
     </MathJaxContext>
   )
 }
+
+
+

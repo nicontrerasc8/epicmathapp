@@ -11,11 +11,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
    PRISMA 11 — Potencias con exponente - (n^0) y elevación final
    Forma: R = [ A - (p/q)^(-(n^0)) ]^2
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico (A, p, q, n cambian)
-   ✅ MathJax PRO (sin KaTeX)
-   ✅ Explicación tipo profe (muy clara)
-   ✅ Persist NUEVO (igual Prisma01)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Dinámico (A, p, q, n cambian)
+   ? MathJax PRO (sin KaTeX)
+   ? Explicación tipo profe (muy clara)
+   ? Persist NUEVO (igual Prisma01)
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: string; correct: boolean }
@@ -67,7 +67,7 @@ function fracToStr(a: Frac): string {
 /* =========================
    GENERADOR
    R = [ A - (p/q)^(-n^0) ]^2
-   - n^0 = 1 ⇒ exponente = -1
+   - n^0 = 1 ? exponente = -1
    - (p/q)^(-1) = q/p
    - Elegimos q = A·p - t para que A - q/p = t/p (bonito)
 ========================= */
@@ -83,14 +83,14 @@ function generateProblem() {
     const nBase = randInt(2, 9)
 
     // Correcto:
-    // n^0=1 ⇒ (p/q)^(-1)=q/p ⇒ A - q/p = t/p ⇒ R=(t/p)^2
+    // n^0=1 ? (p/q)^(-1)=q/p ? A - q/p = t/p ? R=(t/p)^2
     const diff: Frac = reduceFrac({ n: t, d: p })
     const correct: Frac = fracPow2(diff)
 
     // Distractores típicos
     const wrong1 = fracPow2(fracSub({ n: A, d: 1 }, { n: p, d: q })) // no invierte por -1
     const wrong2 = diff // olvida elevar al cuadrado
-    const wrong3: Frac = { n: (A - 1) * (A - 1), d: 1 } // cree que n^0=0 ⇒ (p/q)^0=1 ⇒ (A-1)^2
+    const wrong3: Frac = { n: (A - 1) * (A - 1), d: 1 } // cree que n^0=0 ? (p/q)^0=1 ? (A-1)^2
 
     const correctStr = fracToStr(correct)
     const set = new Set<string>([correctStr])
@@ -185,12 +185,10 @@ function Tex({
 ========================= */
 export default function Prisma11({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -225,10 +223,9 @@ export default function Prisma11({
     setSelected(op.value)
     engine.submit(op.correct)
 
-    // ✅ Persist NUEVO (igual Prisma01)
+    // ? Persist NUEVO (igual Prisma01)
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma11'
-      temaId,
       classroomId,
       sessionId,
 
@@ -276,7 +273,7 @@ export default function Prisma11({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Resolver el exponente con cero</div>
+                <div className="font-semibold mb-2">? Paso 1 — Resolver el exponente con cero</div>
                 <p className="text-muted-foreground">
                   Regla clave: si <Tex tex={`a\\neq 0`} /> entonces <Tex tex={`a^0=1`} />.
                 </p>
@@ -288,7 +285,7 @@ export default function Prisma11({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Sustituir en la expresión</div>
+                <div className="font-semibold mb-2">? Paso 2 — Sustituir en la expresión</div>
 
                 <div className="space-y-2">
                   <div className="rounded border bg-white p-3">
@@ -310,7 +307,7 @@ export default function Prisma11({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Exponente negativo (recíproco)</div>
+                <div className="font-semibold mb-2">? Paso 3 — Exponente negativo (recíproco)</div>
                 <p className="text-muted-foreground">
                   Regla: <Tex tex={`\\left(\\frac{a}{b}\\right)^{-1}=\\frac{b}{a}`} /> (se invierte la fracción).
                 </p>
@@ -327,7 +324,7 @@ export default function Prisma11({
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Restar número entero con fracción</div>
+                <div className="font-semibold mb-2">? Paso 4 — Restar número entero con fracción</div>
                 <p className="text-muted-foreground">
                   Para restar, convertimos <Tex tex={`${A}`} /> a una fracción con denominador <Tex tex={`${p}`} />:{' '}
                   <Tex tex={`${A}=\\frac{${A}\\cdot ${p}}{${p}}`} />.
@@ -354,7 +351,7 @@ export default function Prisma11({
 
               {/* Paso 5 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 5 — Elevar al cuadrado</div>
+                <div className="font-semibold mb-2">? Paso 5 — Elevar al cuadrado</div>
                 <p className="text-muted-foreground">
                   Regla: <Tex tex={`\\left(\\frac{a}{b}\\right)^2=\\frac{a^2}{b^2}`} />.
                 </p>
@@ -375,7 +372,7 @@ export default function Prisma11({
 
               {/* Respuesta */}
               <div className="rounded-lg border bg-muted p-3">
-                <div className="font-semibold">✅ Respuesta final</div>
+                <div className="font-semibold">? Respuesta final</div>
                 <div className="mt-2">
                   <Tex
                     block
@@ -425,3 +422,6 @@ export default function Prisma11({
     </MathJaxContext>
   )
 }
+
+
+

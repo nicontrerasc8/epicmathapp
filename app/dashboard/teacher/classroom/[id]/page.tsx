@@ -26,11 +26,10 @@ export default async function TeacherClassroomHub({
   if (!classroom) notFound()
 
   // Fetch stats
-  const { count: temaCount } = await supabase
-    .from("edu_classroom_temas")
+  const { count: exerciseCount } = await supabase
+    .from("edu_exercise_assignments")
     .select("id", { count: "exact", head: true })
     .eq("classroom_id", id)
-    .eq("institution_id", institution.id)
     .eq("active", true)
 
   // Calculate active students
@@ -44,19 +43,6 @@ export default async function TeacherClassroomHub({
   const activeStudents = students?.filter(s => s.active).length || 0
   const studentCount = students?.length || 0
 
-  const { data: activeBlocks } = await supabase
-    .from("edu_classroom_blocks")
-    .select(`
-      id,
-      active,
-      started_at,
-      ended_at,
-      block:edu_academic_blocks ( id, name, block_type, academic_year )
-    `)
-    .eq("classroom_id", id)
-    .eq("active", true)
-
-
   return (
     <TeacherClassroomHubClient
       classroom={{
@@ -68,9 +54,8 @@ export default async function TeacherClassroomHub({
       stats={{
         studentCount,
         activeStudents,
-        temaCount: temaCount || 0,
+        exerciseCount: exerciseCount || 0,
       }}
-      blocks={activeBlocks ?? []}
     />
   )
 }

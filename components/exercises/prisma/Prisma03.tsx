@@ -80,7 +80,7 @@ function powi(a: number, b: number) {
 function VF(x: boolean) {
   return x ? 'V' : 'F'
 }
-function ruleTextForSchema(id: (typeof SCHEMAS)[number]['id']) { if (id === 'E1') { return [ 'Primero calculamos (p ∧ q).', 'Luego aplicamos la implicación: A → B solo es F cuando A=V y B=F.', ] } if (id === 'E2') { return [ 'Primero calculamos (p → r).', 'Luego hacemos conjunción con q: (A ∧ B) solo es V cuando ambos son V.', ] } return [ 'Primero calculamos (q → r).', 'Luego hacemos conjunción con p: (A ∧ B) solo es V cuando ambos son V.', ] }
+function ruleTextForSchema(id: (typeof SCHEMAS)[number]['id']) { if (id === 'E1') { return [ 'Primero calculamos (p ? q).', 'Luego aplicamos la implicación: A ? B solo es F cuando A=V y B=F.', ] } if (id === 'E2') { return [ 'Primero calculamos (p ? r).', 'Luego hacemos conjunción con q: (A ? B) solo es V cuando ambos son V.', ] } return [ 'Primero calculamos (q ? r).', 'Luego hacemos conjunción con p: (A ? B) solo es V cuando ambos son V.', ] }
 /* =========================
    LaTeX helpers
 ========================= */
@@ -88,26 +88,33 @@ function vfLatex(b: boolean) {
   return b ? '\\text{V}' : '\\text{F}'
 }
 function statementToLatex(s: string) {
-  return s.replace(/(\d+)\^(\d+)/g, (_, a, b) => `${a}^{${b}}`).replace(/≠/g, '\\ne')
+  return s
+    .replace(/(\d+)\^(\d+)/g, (_, a, b) => `${a}^{${b}}`)
+    .replace(/\?/g, '\\ne')
 }
+
 function schemaToLatex(s: string) {
-  return s.replace(/∧/g, '\\land').replace(/→/g, '\\to')
+  return s
+    .replace(/\?/g, '\\land')
+    .replace(/→/g, '\\to')
 }
+
 function stepToLatex(step: string) {
   if (step.startsWith('Comparo:')) {
     const m = step.match(
-      /Comparo:\s*([0-9]+)\s*([=≠><])\s*([0-9]+)\s*→\s*([VF])/
+      /Comparo:\s*([0-9]+)\s*([=?><])\s*([0-9]+)\s*?\s*([VF])/
     )
     if (m) {
       const left = m[1]
       const opRaw = m[2]
       const right = m[3]
       const res = m[4] === 'V' ? '\\text{V}' : '\\text{F}'
-      const op = opRaw === '≠' ? '\\ne' : opRaw
+      const op = opRaw === '?' ? '\\ne' : opRaw
       return `${left}\\;${op}\\;${right}\\;\\Rightarrow\\;${res}`
     }
   }
-  return statementToLatex(step).replace(/→/g, '\\Rightarrow')
+ return statementToLatex(step).replace(/\?/g, '\\Rightarrow')
+
 }
 
 /* =========================
@@ -149,7 +156,7 @@ function genAtom(name: VarName): Atom {
         `${a}^${b} = ${v1}`,
         `${c}^${d} = ${v2}`,
         `${v1} + ${v2} = ${left}`,
-        `Comparo: ${left} ${value ? '=' : '≠'} ${right}  →  ${VF(value)}`,
+        `Comparo: ${left} ${value ? '=' : '?'} ${right}  ?  ${VF(value)}`,
       ],
     }
   }
@@ -167,7 +174,7 @@ function genAtom(name: VarName): Atom {
       value,
       steps: [
         `${x}^2 = ${left}`,
-        `Comparo: ${left} ${value ? '=' : '≠'} ${right}  →  ${VF(value)}`,
+        `Comparo: ${left} ${value ? '=' : '?'} ${right}  ?  ${VF(value)}`,
       ],
     }
   }
@@ -194,7 +201,7 @@ function genAtom(name: VarName): Atom {
       `${t.y}^2 = ${t.y * t.y}`,
       `${t.x * t.x} + ${t.y * t.y} = ${left}`,
       `${z}^2 = ${right}`,
-      `Comparo: ${left} > ${right}  →  ${VF(value)}`,
+      `Comparo: ${left} > ${right}  ?  ${VF(value)}`,
     ],
   }
 }
@@ -203,9 +210,9 @@ function genAtom(name: VarName): Atom {
    ESQUEMAS
 ========================= */
 const SCHEMAS = [
-  { id: 'E1', text: '(p ∧ q) → r' },
-  { id: 'E2', text: '(p → r) ∧ q' },
-  { id: 'E3', text: 'p ∧ (q → r)' },
+  { id: 'E1', text: '(p ? q) ? r' },
+  { id: 'E2', text: '(p ? r) ? q' },
+  { id: 'E3', text: 'p ? (q ? r)' },
 ] as const
 
 function evalSchemas(p: boolean, q: boolean, r: boolean) {
@@ -238,12 +245,10 @@ function generateOptions(correct: string): Option[] {
 ========================= */
 export default function Prisma03({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -279,7 +284,6 @@ r:&\\ ${statementToLatex(r.statement)}\\\\[4pt]
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
       correct: op.correct,
@@ -322,7 +326,7 @@ r:&\\ ${statementToLatex(r.statement)}\\\\[4pt]
     <div className="space-y-4 text-sm leading-relaxed">
       {/* Paso 1 */}
       <div className="rounded-lg border bg-white p-3">
-        <div className="font-semibold mb-2">✅ Paso 1 — Primero hallamos p, q y r</div>
+        <div className="font-semibold mb-2">? Paso 1 — Primero hallamos p, q y r</div>
 
         <div className="grid md:grid-cols-3 gap-3">
           {[ejercicio.p, ejercicio.q, ejercicio.r].map(atom => (
@@ -351,7 +355,7 @@ r:&\\ ${statementToLatex(r.statement)}\\\\[4pt]
 
       {/* Paso 2 */}
       <div className="rounded-lg border bg-white p-3">
-        <div className="font-semibold mb-2">✅ Paso 2 — Evaluamos cada esquema molecular</div>
+        <div className="font-semibold mb-2">? Paso 2 — Evaluamos cada esquema molecular</div>
 
         <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground">
           <div className="font-semibold text-foreground mb-1">Recordatorio rápido</div>
@@ -457,7 +461,7 @@ r:&\\ ${statementToLatex(r.statement)}\\\\[4pt]
 
       {/* Paso 3 */}
       <div className="rounded-lg border bg-white p-3">
-        <div className="font-semibold mb-2">✅ Paso 3 — Respuesta final (en orden 1,2,3)</div>
+        <div className="font-semibold mb-2">? Paso 3 — Respuesta final (en orden 1,2,3)</div>
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">Patrón:</span>
           <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
@@ -504,3 +508,6 @@ r:&\\ ${statementToLatex(r.statement)}\\\\[4pt]
     </MathJaxContext>
   )
 }
+
+
+

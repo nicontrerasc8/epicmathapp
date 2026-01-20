@@ -10,11 +10,10 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 9 — Subconjuntos propios de un conjunto B (con elementos que son conjuntos)
-   ✅ better-react-mathjax (NO KaTeX)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico: B con n elementos (algunos pueden ser {2; 3} etc.)
-   ✅ Explicación tipo profe: n(B), 2^n, propios = 2^n - 1
-   ✅ Persist: MISMA estructura que Prisma01 (exerciseId/temaId/classroomId/sessionId)
+   ? better-react-mathjax (NO KaTeX)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Dinámico: B con n elementos (algunos pueden ser {2; 3} etc.)
+   ? Explicación tipo profe: n(B), 2^n, propios = 2^n - 1
 ============================================================ */
 
 type Option = { label: 'A' | 'B' | 'C' | 'D'; value: string; correct: boolean }
@@ -115,7 +114,7 @@ function buildScenario() {
   const B_latex = `\\left\\{${elements.join('; ')}\\right\\}`
 
   const totalSubsets = 2 ** n
-  // según tu material: propios = todos menos B (incluye ∅)
+  // según tu material: propios = todos menos B (incluye Ø)
   const correctNum = totalSubsets - 1
 
   // distractores típicos + cercanos
@@ -157,12 +156,10 @@ function buildScenario() {
 ========================= */
 export default function Prisma09({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -178,10 +175,9 @@ export default function Prisma09({
     setSelected(op.value)
     engine.submit(op.correct)
 
-    // ✅ MISMA ESTRUCTURA QUE PRISMA01
+    // ? MISMA ESTRUCTURA QUE PRISMA01
     persistExerciseOnce({
       exerciseId, // 'Prisma09'
-      temaId,
       classroomId,
       sessionId,
 
@@ -197,7 +193,7 @@ export default function Prisma09({
           n: ex.n,
           elements: ex.elements,
           totalSubsets: ex.totalSubsets,
-          rule: 'subconjuntos propios = 2^n - 1 (incluye ∅, excluye B)',
+          rule: 'subconjuntos propios = 2^n - 1 (incluye Ø, excluye B)',
         },
       },
     })
@@ -224,7 +220,7 @@ export default function Prisma09({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Identificamos los elementos de B</div>
+                <div className="font-semibold mb-2">? Paso 1 — Identificamos los elementos de B</div>
 
                 <div className="rounded-md border bg-background p-3">
                   <Tex block tex={`B=${ex.B_latex}`} />
@@ -263,7 +259,7 @@ export default function Prisma09({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Fórmula de subconjuntos</div>
+                <div className="font-semibold mb-2">? Paso 2 — Fórmula de subconjuntos</div>
                 <p className="text-muted-foreground">
                   Si un conjunto tiene <span className="font-semibold">n</span> elementos, entonces el número de{' '}
                   <span className="font-semibold">subconjuntos</span> es:
@@ -275,7 +271,7 @@ export default function Prisma09({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Subconjuntos propios</div>
+                <div className="font-semibold mb-2">? Paso 3 — Subconjuntos propios</div>
                 <p className="text-muted-foreground">
                   En este material, “subconjuntos propios” significa: <span className="font-semibold">todos</span> los
                   subconjuntos excepto el mismo <span className="font-semibold">B</span> (sí incluye el vacío).
@@ -287,7 +283,7 @@ export default function Prisma09({
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Cálculo</div>
+                <div className="font-semibold mb-2">? Paso 4 — Cálculo</div>
 
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={`n(B)=${ex.n}`} />
@@ -306,7 +302,7 @@ export default function Prisma09({
                 </div>
 
                 <div className="mt-3 rounded-md border bg-background p-3">
-                  <div className="font-semibold mb-1">🧠 Chequeo rápido</div>
+                  <div className="font-semibold mb-1">?? Chequeo rápido</div>
                   <p className="text-muted-foreground">
                     Si alguien usa <span className="font-mono">2^n-2</span>, es porque excluye también el vacío.
                     Aquí <span className="font-semibold">sí contamos</span> el vacío; solo quitamos a B.
@@ -359,3 +355,6 @@ export default function Prisma09({
     </MathJaxContext>
   )
 }
+
+
+

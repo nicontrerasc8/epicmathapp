@@ -9,19 +9,18 @@ import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
 import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
-  PRISMA 29 — Bisectrices exteriores (φ + β) → hallar x
+  PRISMA 29 — Bisectrices exteriores (f + ß) ? hallar x
 
-  ✅ Maqueta fija (NO a escala)
-  ✅ Dinámico (no repite): cambia S = φ + β y opciones.
-  ✅ 1 intento: autocalifica.
-  ✅ Propiedad:
-     En ΔABD:  ∠D = 180° − (φ + β)
+  ? Maqueta fija (NO a escala)
+  ? Dinámico (no repite): cambia S = f + ß y opciones.
+  ? 1 intento: autocalifica.
+  ? Propiedad:
+     En ?ABD:  ?D = 180° - (f + ß)
      Bisectrices exteriores en A y B:
-     x = 90° − ∠D/2
-     ⇒ x = (φ + β)/2
+     x = 90° - ?D/2
+     ? x = (f + ß)/2
 
-  ✅ Persist NUEVO:
-     { exerciseId, temaId, classroomId, sessionId, correct, answer:{} }
+  ? Persist NUEVO:
 ============================================================ */
 
 type OptionKey = 'A' | 'B' | 'C' | 'D'
@@ -216,10 +215,10 @@ function Prisma29Diagram({ sum, mode }: { sum: number; mode: DiagramMode }) {
   const baseW = 5.2
   const thinW = 3.2
 
-  // ✅ Posición segura del texto “φ + β = …°”
+  // ? Posición segura del texto “f + ß = …°”
   const sumPos = P(735, 92)
 
-  // En solución: mostrar ∠D (para justificar el Paso 1)
+  // En solución: mostrar ?D (para justificar el Paso 1)
   const DLabelPos = add(D, P(0, -18))
 
   return (
@@ -245,8 +244,8 @@ function Prisma29Diagram({ sum, mode }: { sum: number; mode: DiagramMode }) {
           Diagrama referencial (no a escala)
         </text>
 
-        {/* ✅ Texto condición (NO se cruza con rectas) */}
-        <OutlinedLabel text={`φ + β = ${sum}°`} x={sumPos.x} y={sumPos.y} size={24} weight={900} />
+        {/* ? Texto condición (NO se cruza con rectas) */}
+        <OutlinedLabel text={`f + ß = ${sum}°`} x={sumPos.x} y={sumPos.y} size={24} weight={900} />
 
         {/* Recta base (D—E) */}
         <path
@@ -351,11 +350,11 @@ function Prisma29Diagram({ sum, mode }: { sum: number; mode: DiagramMode }) {
           C
         </text>
 
-        {/* Ángulos φ en A (entre AD y AB) */}
-        <AngleArcWithLabel V0={A} P1={D} P2={B} r={46} label="φ" labelPush={18} />
+        {/* Ángulos f en A (entre AD y AB) */}
+        <AngleArcWithLabel V0={A} P1={D} P2={B} r={46} label="f" labelPush={18} />
 
-        {/* Ángulos β en B (entre BD y BA) */}
-        <AngleArcWithLabel V0={B} P1={D} P2={A} r={40} label="β" labelPush={18} />
+        {/* Ángulos ß en B (entre BD y BA) */}
+        <AngleArcWithLabel V0={B} P1={D} P2={A} r={40} label="ß" labelPush={18} />
 
         {/* Ángulo x en C (entre CA y CB) */}
         <AngleArcWithLabel V0={C} P1={A} P2={B} r={40} label="x" labelPush={18} />
@@ -368,7 +367,7 @@ function Prisma29Diagram({ sum, mode }: { sum: number; mode: DiagramMode }) {
         <ArcWithTick V0={B} P1={Bext} P2={C} r={56} />
         <ArcWithTick V0={B} P1={C} P2={A} r={56} />
 
-        {/* En solución: mostrar ∠D */}
+        {/* En solución: mostrar ?D */}
         {mode === 'solution' && (
           <>
             <path
@@ -379,7 +378,7 @@ function Prisma29Diagram({ sum, mode }: { sum: number; mode: DiagramMode }) {
               strokeLinecap="round"
               opacity={0.9}
             />
-            <OutlinedLabel text="∠D" x={DLabelPos.x + 46} y={DLabelPos.y - 8} size={20} weight={900} />
+            <OutlinedLabel text="?D" x={DLabelPos.x + 46} y={DLabelPos.y - 8} size={20} weight={900} />
           </>
         )}
       </svg>
@@ -434,12 +433,10 @@ function buildExercise(excludeSums: number[]): ExData {
 ============================================================ */
 export default function Prisma29({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -460,7 +457,6 @@ export default function Prisma29({
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
 
@@ -474,7 +470,7 @@ export default function Prisma29({
         extra: {
           sum: ex.sum,
           labeledOptions: ordered.map(o => `${o.key}.\\ ${o.value}^{\\circ}`),
-          rule: 'x = (φ + β)/2',
+          rule: 'x = (f + ß)/2',
         },
       },
     })
@@ -501,13 +497,13 @@ export default function Prisma29({
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 29 — Bisectrices exteriores (φ + β)"
+        title="Prisma 29 — Bisectrices exteriores (f + ß)"
         prompt={
           <div className="space-y-2">
             <div className="text-sm text-muted-foreground">
               En la figura, <span className="font-semibold">AC</span> y <span className="font-semibold">BC</span> son
               bisectrices exteriores. Calcula <span className="font-semibold">x</span> si{' '}
-              <span className="font-semibold">φ + β = {ex.sum}°</span>.
+              <span className="font-semibold">f + ß = {ex.sum}°</span>.
             </div>
           </div>
         }
@@ -525,20 +521,20 @@ export default function Prisma29({
                 <div className="font-semibold text-foreground">Resolución</div>
 
                 <div className="rounded-lg border bg-background p-3">
-                  <div className="font-semibold text-foreground mb-2">✅ Paso 1 — Hallar el ángulo en D</div>
+                  <div className="font-semibold text-foreground mb-2">? Paso 1 — Hallar el ángulo en D</div>
                   <Tex tex={s1} block />
                 </div>
 
                 <div className="rounded-lg border bg-background p-3">
                   <div className="font-semibold text-foreground mb-2">
-                    ✅ Paso 2 — Propiedad de bisectrices exteriores
+                    ? Paso 2 — Propiedad de bisectrices exteriores
                   </div>
                   <Tex tex={s2} block />
                   <Tex tex={s3} block />
                 </div>
 
                 <div className="rounded-lg border bg-background p-3">
-                  <div className="font-semibold text-foreground mb-2">✅ Paso 3 — Regla rápida</div>
+                  <div className="font-semibold text-foreground mb-2">? Paso 3 — Regla rápida</div>
                   <Tex tex={s4} block />
 
                   <div className="mt-3 flex items-center gap-2">
@@ -598,3 +594,6 @@ export default function Prisma29({
     </MathJaxContext>
   )
 }
+
+
+

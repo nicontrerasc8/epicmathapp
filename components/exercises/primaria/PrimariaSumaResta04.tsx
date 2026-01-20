@@ -4,7 +4,6 @@ import { PrimariaSumaRestaBase } from './PrimariaSumaRestaBase'
 
 type Props = {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }
@@ -26,3 +25,5 @@ export default function PrimariaSumaResta04(props: Props) {
     />
   )
 }
+
+

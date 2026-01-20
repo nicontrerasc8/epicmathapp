@@ -10,11 +10,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
    PRISMA 13 — Potencias: “Se reduce a z^m, halle m/4”
-   ✅ MathJax (better-react-mathjax) — mismo formato que Prisma 01/17
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Dinámico (genera E con exponentes tipo -2^2, 2^-2, 2^-1)
-   ✅ Explicación tipo profe con pasos + cálculo de m/4
-   ✅ Persist (MISMA firma que Prisma01/10)
+   ? MathJax (better-react-mathjax) — mismo formato que Prisma 01/17
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Dinámico (genera E con exponentes tipo -2^2, 2^-2, 2^-1)
+   ? Explicación tipo profe con pasos + cálculo de m/4
+   ? Persist (MISMA firma que Prisma01/10)
 ============================================================ */
 
 type Option = { value: string; correct: boolean }
@@ -74,8 +74,8 @@ function Tex({
    Forma (siempre):
      E = (z^{-k})^{-2^2} · (z^{4u})^{2^{-2}} · (z^{2v})^{2^{-1}}
 
-   Donde u+v = 4w  ⇒  m = 4k + u + v = 4k + 4w = 4(k+w)
-   ⇒ m/4 = k+w (entero, lindo para alternativas)
+   Donde u+v = 4w  ?  m = 4k + u + v = 4k + 4w = 4(k+w)
+   ? m/4 = k+w (entero, lindo para alternativas)
 ========================= */
 function buildScenario() {
   const k = randInt(2, 9)
@@ -125,12 +125,10 @@ function buildScenario() {
 ========================= */
 export default function Prisma13({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -148,7 +146,6 @@ export default function Prisma13({
 
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma13'
-      temaId,
       classroomId,
       sessionId,
 
@@ -213,7 +210,7 @@ export default function Prisma13({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Leer la expresión</div>
+                <div className="font-semibold mb-2">?? Paso 0 — Leer la expresión</div>
                 <p className="text-muted-foreground">
                   Primero simplificamos los exponentes numéricos (ojo con <span className="font-mono">-2^2</span>: el “-”
                   va afuera).
@@ -225,7 +222,7 @@ export default function Prisma13({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Reducimos exponentes numéricos</div>
+                <div className="font-semibold mb-2">? Paso 1 — Reducimos exponentes numéricos</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={step1_tex} />
                   <Tex block tex={step1b_tex} />
@@ -239,7 +236,7 @@ export default function Prisma13({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Reescribimos E</div>
+                <div className="font-semibold mb-2">? Paso 2 — Reescribimos E</div>
                 <div className="rounded-md border bg-background p-3">
                   <Tex block tex={rewritten_tex} />
                 </div>
@@ -247,7 +244,7 @@ export default function Prisma13({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Potencia de potencia</div>
+                <div className="font-semibold mb-2">? Paso 3 — Potencia de potencia</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={rule_powpow_tex} />
                   <Tex block tex={t1_tex} />
@@ -258,7 +255,7 @@ export default function Prisma13({
 
               {/* Paso 4 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 4 — Multiplicamos potencias (misma base)</div>
+                <div className="font-semibold mb-2">? Paso 4 — Multiplicamos potencias (misma base)</div>
                 <div className="rounded-md border bg-background p-3 space-y-2">
                   <Tex block tex={mult_tex} />
                   <Tex block tex={m_tex} />
@@ -267,7 +264,7 @@ export default function Prisma13({
 
               {/* Paso 5 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 5 — Piden m/4</div>
+                <div className="font-semibold mb-2">? Paso 5 — Piden m/4</div>
                 <div className="rounded-md border bg-background p-3">
                   <Tex block tex={asked_tex} />
                 </div>
@@ -320,3 +317,6 @@ export default function Prisma13({
     </MathJaxContext>
   )
 }
+
+
+

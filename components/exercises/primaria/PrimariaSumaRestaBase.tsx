@@ -27,7 +27,6 @@ type Option = {
 
 type ExerciseProps = {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
   config: ExerciseConfig
@@ -86,7 +85,6 @@ function buildOptions(correct: number, minAnswer = 0): Option[] {
 
 export function PrimariaSumaRestaBase({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
   config,
@@ -109,7 +107,6 @@ export function PrimariaSumaRestaBase({
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
       correct: op.correct,
@@ -196,3 +193,5 @@ export function PrimariaSumaRestaBase({
     </ExerciseShell>
   )
 }
+
+

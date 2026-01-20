@@ -14,11 +14,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
      P = ( m^eN repetido k veces · m^(eD·a) ) / ( m^eD repetido (u + a) veces )
    y se reduce a m^r (independiente de "a") si eD·a cancela.
 
-   ✅ better-react-mathjax (NO KaTeX)
-   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
-   ✅ Generación dinámica (sin hardcode)
-   ✅ Explicación tipo profe (pasos con potencias)
-   ✅ Persist NUEVO (igual Prisma01)
+   ? better-react-mathjax (NO KaTeX)
+   ? 1 SOLO INTENTO (autocalifica al elegir opción)
+   ? Generación dinámica (sin hardcode)
+   ? Explicación tipo profe (pasos con potencias)
+   ? Persist NUEVO (igual Prisma01)
 ============================================================ */
 
 type Option = { value: string; correct: boolean }
@@ -145,12 +145,10 @@ function generateExercise() {
 ========================= */
 export default function Prisma12({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -184,10 +182,9 @@ export default function Prisma12({
     setSelected(op.value)
     engine.submit(op.correct)
 
-    // ✅ Persist NUEVO (igual Prisma01/11)
+    // ? Persist NUEVO (igual Prisma01/11)
     persistExerciseOnce({
       exerciseId, // ej: 'Prisma12'
-      temaId,
       classroomId,
       sessionId,
 
@@ -238,7 +235,7 @@ export default function Prisma12({
             <div className="space-y-4 text-sm leading-relaxed">
               {/* Paso 0 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">👀 Paso 0 — Identificar qué se repite</div>
+                <div className="font-semibold mb-2">?? Paso 0 — Identificar qué se repite</div>
                 <p className="text-muted-foreground">
                   Arriba se repite <span className="font-mono">m^{ejercicio.eN}</span> (k veces) y además aparece{' '}
                   <span className="font-mono">m^{ejercicio.eD}a</span>. Abajo se repite{' '}
@@ -252,7 +249,7 @@ export default function Prisma12({
 
               {/* Paso 1 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 1 — Convertir repeticiones en potencias</div>
+                <div className="font-semibold mb-2">? Paso 1 — Convertir repeticiones en potencias</div>
                 <p className="text-muted-foreground">
                   Regla: si un mismo factor se repite <span className="font-semibold">k</span> veces, se convierte en
                   potencia:
@@ -277,7 +274,7 @@ export default function Prisma12({
 
               {/* Paso 2 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 2 — Juntar exponentes (misma base)</div>
+                <div className="font-semibold mb-2">? Paso 2 — Juntar exponentes (misma base)</div>
                 <p className="text-muted-foreground">
                   Regla: <span className="font-mono">m^A · m^B = m^{`{A+B}`}</span>.
                 </p>
@@ -296,7 +293,7 @@ export default function Prisma12({
 
               {/* Paso 3 */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Paso 3 — Dividir potencias (restar exponentes)</div>
+                <div className="font-semibold mb-2">? Paso 3 — Dividir potencias (restar exponentes)</div>
                 <p className="text-muted-foreground">
                   Regla: <span className="font-mono">m^A / m^B = m^{`{A-B}`}</span>.
                 </p>
@@ -311,7 +308,7 @@ export default function Prisma12({
                 </div>
 
                 <div className="mt-3 rounded-md border bg-background p-3">
-                  <div className="font-semibold mb-1">💡 Lo clave</div>
+                  <div className="font-semibold mb-1">?? Lo clave</div>
                   <p className="text-muted-foreground">
                     El término <span className="font-mono">+{ejercicio.eD}a</span> aparece arriba y abajo, por eso se{' '}
                     <span className="font-semibold">cancela</span>. La respuesta no depende de{' '}
@@ -322,7 +319,7 @@ export default function Prisma12({
 
               {/* Resultado */}
               <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">✅ Resultado</div>
+                <div className="font-semibold mb-2">? Resultado</div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold">Respuesta:</span>
                   <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
@@ -378,3 +375,6 @@ export default function Prisma12({
     </MathJaxContext>
   )
 }
+
+
+

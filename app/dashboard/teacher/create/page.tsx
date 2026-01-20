@@ -536,7 +536,7 @@ function LevelEditor({ level, onUpdate, onGenerateVariant, onGenerateCanvas, onD
               onChange={(e: any) => handleUpdate("name", e.target.value)}
               className="text-lg font-bold"
             />
-            <label className="block text-sm font-medium">Tema (Topic)</label>
+            <label className="block text-sm font-medium">Contexto (Topic)</label>
             <Input
               placeholder="Topic (ej: finanzas_basicas)"
               value={level.dsl.topic}
@@ -600,7 +600,7 @@ function LevelEditor({ level, onUpdate, onGenerateVariant, onGenerateCanvas, onD
               {loadingStates.canvas ? "Generando..." : "🚀 Generar Script de Canvas con IA"}
             </Button>
             <p className="text-xs text-muted-foreground">
-              La IA usará el 'Tema' y las 'Variables' para crear un script visual.
+              La IA usara el 'Contexto' y las 'Variables' para crear un script visual.
             </p>
             <textarea
               placeholder="El script de canvas generado por IA aparecerá aquí..."

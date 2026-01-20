@@ -11,13 +11,12 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 /* ============================================================
   PRISMA 27 — MAQUETA (NO a escala) — hallar x + y
 
-  ✅ Maqueta fija: el triángulo NO cambia (no se mide el dibujo).
-  ✅ SOLO cambian variables: α, x, y, θ.
-  ✅ “90°” dentro del gráfico en:
-     - F (BF ⟂ AC)
-     - D (CD ⟂ AB)  <-- el que marcaste en rojo, ahora sí dentro
-  ✅ Ejercicio dinámico: α cambia siempre y evita repetir recientes.
-  ✅ Persist con firma: (exerciseId, temaId, classroomId, sessionId)
+  ? Maqueta fija: el triángulo NO cambia (no se mide el dibujo).
+  ? SOLO cambian variables: a, x, y, ?.
+  ? “90°” dentro del gráfico en:
+     - F (BF ? AC)
+     - D (CD ? AB)  <-- el que marcaste en rojo, ahora sí dentro
+  ? Ejercicio dinámico: a cambia siempre y evita repetir recientes.
 ============================================================ */
 
 type OptionKey = 'A' | 'B' | 'C' | 'D'
@@ -109,12 +108,12 @@ type DiagramMode = 'question' | 'solution'
 const VB_W = 1000
 const VB_H = 560
 
-// ✅ MAQUETA FIJA (igual siempre)
+// ? MAQUETA FIJA (igual siempre)
 const A = P(160, 480)
 const C = P(940, 480)
 const B = P(320, 140)
 
-// ✅ D fijo para que CD se vea “horizontal/estable”
+// ? D fijo para que CD se vea “horizontal/estable”
 const D_RATIO = 0.55
 
 function OutlinedLabel({
@@ -205,12 +204,12 @@ function Prisma27Diagram({ alpha, mode }: { alpha: number; mode: DiagramMode }) 
   const auxW = 3.2
   const dash = '10 10'
 
-  // --- 90° en F (BF ⟂ AC)
+  // --- 90° en F (BF ? AC)
   const uBase = unit(sub(C, A))
   const vUp = unit(sub(B, F))
   const rightF = <RightAngleMarker V0={F} u={uBase} v={vUp} s={20} />
 
-  // --- 90° en D (CD ⟂ AB) -> orientamos el cuadrito hacia "adentro"
+  // --- 90° en D (CD ? AB) -> orientamos el cuadrito hacia "adentro"
   const centroid = P((A.x + B.x + C.x) / 3, (A.y + B.y + C.y) / 3)
 
   // u: dirección sobre AB (hacia B)
@@ -222,7 +221,7 @@ function Prisma27Diagram({ alpha, mode }: { alpha: number; mode: DiagramMode }) 
 
   const rightD = <RightAngleMarker V0={D} u={uAB} v={vPerp} s={18} />
 
-  // ✅ POSICIONES DE “90°” DENTRO:
+  // ? POSICIONES DE “90°” DENTRO:
   const ninetyF = P(F.x + 40, F.y - 22)
   const ninetyD = add(D, add(mul(uAB, 30), mul(vPerp, 14)))
 
@@ -281,7 +280,7 @@ function Prisma27Diagram({ alpha, mode }: { alpha: number; mode: DiagramMode }) 
         {rightF}
         {rightD}
 
-        {/* ✅ 90° dentro del gráfico (F y D) */}
+        {/* ? 90° dentro del gráfico (F y D) */}
         <OutlinedLabel text="90°" x={ninetyF.x} y={ninetyF.y} size={18} weight={800} />
         <OutlinedLabel text="90°" x={ninetyD.x} y={ninetyD.y} size={18} weight={800} />
 
@@ -304,7 +303,7 @@ function Prisma27Diagram({ alpha, mode }: { alpha: number; mode: DiagramMode }) 
         <AngleArcWithLabel V0={A} P1={B} P2={C} r={48} label={`${alpha}°`} labelPush={22} />
         <AngleArcWithLabel V0={B} P1={F} P2={C} r={44} label="x" labelPush={20} />
         <AngleArcWithLabel V0={C} P1={B} P2={D} r={44} label="y" labelPush={20} />
-        {mode === 'solution' && <AngleArcWithLabel V0={O} P1={B} P2={C} r={38} label="θ" labelPush={20} />}
+        {mode === 'solution' && <AngleArcWithLabel V0={O} P1={B} P2={C} r={38} label="?" labelPush={20} />}
 
         {/* Puntos y letras */}
         <circle cx={A.x} cy={A.y} r={4.5} fill="#111" />
@@ -387,12 +386,10 @@ function buildExercise(excludeRecentAlphas: number[]) {
 ============================================================ */
 export default function Prisma27({
   exerciseId,
-  temaId,
   classroomId,
   sessionId,
 }: {
   exerciseId: string
-  temaId: string
   classroomId: string
   sessionId?: string
 }) {
@@ -415,7 +412,6 @@ export default function Prisma27({
 
     persistExerciseOnce({
       exerciseId,
-      temaId,
       classroomId,
       sessionId,
 
@@ -459,7 +455,7 @@ export default function Prisma27({
 
                 <div className="space-y-4 text-sm text-muted-foreground">
                   <div>
-                    <div className="font-semibold text-foreground mb-1">• Propiedad de alturas (hallar θ)</div>
+                    <div className="font-semibold text-foreground mb-1">• Propiedad de alturas (hallar ?)</div>
                     <div className="rounded-lg border bg-background p-3 space-y-2">
                       <Tex tex={`\\theta + ${ex.alpha}^{\\circ} = 180^{\\circ}`} block />
                       <Tex tex={`\\theta = 180^{\\circ} - ${ex.alpha}^{\\circ} = ${theta}^{\\circ}`} block />
@@ -467,7 +463,7 @@ export default function Prisma27({
                   </div>
 
                   <div>
-                    <div className="font-semibold text-foreground mb-1">• En el triángulo ΔBOC</div>
+                    <div className="font-semibold text-foreground mb-1">• En el triángulo ?BOC</div>
                     <div className="rounded-lg border bg-background p-3 space-y-2">
                       <Tex tex={`x + y + \\theta = 180^{\\circ}`} block />
                       <Tex
@@ -543,3 +539,6 @@ export default function Prisma27({
     </MathJaxContext>
   )
 }
+
+
+
