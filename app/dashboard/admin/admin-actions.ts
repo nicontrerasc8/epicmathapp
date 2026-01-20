@@ -10,6 +10,53 @@ const supabaseAdmin = createAdminClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
 )
 
+const allowedClassroomGrades = new Set([
+    "1-Primaria",
+    "2-Primaria",
+    "3-Primaria",
+    "4-Primaria",
+    "5-Primaria",
+    "6-Primaria",
+    "1-Secundaria",
+    "2-Secundaria",
+    "3-Secundaria",
+    "4-Secundaria",
+    "5-Secundaria",
+])
+
+const normalizeInstitutionCode = (value: string) =>
+    value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+
+const buildClassroomCode = (input: {
+    institutionCode: string
+    grade: string
+    section?: string | null
+    academicYear: number
+}) => {
+    const [gradeNumber, levelName] = input.grade.split("-")
+    const levelCode = levelName === "Primaria" ? "PRI" : "SEC"
+    const section = input.section?.trim().toUpperCase() || ""
+    return `${input.institutionCode}-${levelCode}-${gradeNumber}${section}-${input.academicYear}`
+}
+
+const getInstitutionCode = async (
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    institutionId: string,
+) => {
+    const { data, error } = await supabase
+        .from("edu_institutions")
+        .select("code, name")
+        .eq("id", institutionId)
+        .single()
+    if (error || !data) {
+        throw new Error(error?.message || "Institucion no encontrada")
+    }
+
+    const raw = (data.code || data.name || "INST").trim()
+    const normalized = normalizeInstitutionCode(raw)
+    return normalized || "INST"
+}
+
 const getInstitutionId = async () => {
     const institution = await requireInstitution()
     return institution.id
@@ -463,16 +510,26 @@ export async function createClassroomAction(input: {
     active: boolean
 }) {
     const supabase = await createClient()
+    const institutionId = await getInstitutionId()
+    if (input.institution_id !== institutionId) throw new Error("Institucion invalida")
     if (!input.grade.trim()) throw new Error("Grado requerido")
 
     const grade = input.grade.trim()
+    if (!allowedClassroomGrades.has(grade)) throw new Error("Grado invalido")
     const section = input.section?.trim() || null
+    const institutionCode = await getInstitutionCode(supabase, institutionId)
+    const classroomCode = buildClassroomCode({
+        institutionCode,
+        grade,
+        section,
+        academicYear: input.academic_year,
+    })
     const payload = {
-        institution_id: input.institution_id,
+        institution_id: institutionId,
         grade,
         section,
         academic_year: input.academic_year,
-        classroom_code: input.classroom_code?.trim() || null,
+        classroom_code: classroomCode,
         active: input.active,
     }
 
@@ -527,15 +584,26 @@ export async function updateClassroomAction(
     },
 ) {
     if (!classroomId) throw new Error("Aula invalida")
-    if (!input.grade.trim()) throw new Error("Grado requerido")
     const supabase = await createClient()
+    const institutionId = await getInstitutionId()
+    if (input.institution_id !== institutionId) throw new Error("Institucion invalida")
+    if (!input.grade.trim()) throw new Error("Grado requerido")
 
+    const grade = input.grade.trim()
+    if (!allowedClassroomGrades.has(grade)) throw new Error("Grado invalido")
+    const institutionCode = await getInstitutionCode(supabase, institutionId)
+    const classroomCode = buildClassroomCode({
+        institutionCode,
+        grade,
+        section: input.section,
+        academicYear: input.academic_year,
+    })
     const payload = {
-        institution_id: input.institution_id,
-        grade: input.grade.trim(),
+        institution_id: institutionId,
+        grade,
         section: input.section?.trim() || null,
         academic_year: input.academic_year,
-        classroom_code: input.classroom_code?.trim() || null,
+        classroom_code: classroomCode,
         active: input.active,
     }
 
@@ -543,6 +611,9 @@ export async function updateClassroomAction(
         .from("edu_classrooms")
         .update(payload)
         .eq("id", classroomId)
+        .eq("institution_id", institutionId)
+        .select("id")
+        .single()
 
     if (error) throw new Error(error.message)
     return { id: classroomId }

@@ -47,6 +47,22 @@ type Institution = {
 
 
 const pageSizeOptions = [10, 20, 50, 100]
+const primaryGrades = [
+  "1-Primaria",
+  "2-Primaria",
+  "3-Primaria",
+  "4-Primaria",
+  "5-Primaria",
+  "6-Primaria",
+]
+const secondaryGrades = [
+  "1-Secundaria",
+  "2-Secundaria",
+  "3-Secundaria",
+  "4-Secundaria",
+  "5-Secundaria",
+]
+const allowedGrades = [...primaryGrades, ...secondaryGrades]
 
 function getGradeLabel(classroom: Classroom): string {
   const grade = classroom.grade || ""
@@ -156,7 +172,6 @@ export default function ClassroomsTable() {
     grade: "",
     section: "",
     academicYear: String(new Date().getFullYear()),
-    classroomCode: "",
     active: true,
   })
 
@@ -172,7 +187,7 @@ export default function ClassroomsTable() {
       setLoading(true)
       setError(null)
       const data = await listClassroomsAction()
-      setRows(data as Classroom[])
+      setRows(Array.isArray(data) ? (data as Classroom[]) : [])
     } catch (e: any) {
       setError(e?.message ?? "Error cargando aulas")
     } finally {
@@ -186,7 +201,6 @@ export default function ClassroomsTable() {
       grade: "",
       section: "",
       academicYear: String(new Date().getFullYear()),
-      classroomCode: "",
       active: true,
     })
     setCreateError(null)
@@ -210,6 +224,17 @@ export default function ClassroomsTable() {
     }
     loadInstitutions()
   }, [showCreate])
+
+  useEffect(() => {
+    if (!showCreate) return
+    if (form.institutionId) return
+    if (institutions.length === 1) {
+      setForm((s) => ({
+        ...s,
+        institutionId: institutions[0].id,
+      }))
+    }
+  }, [showCreate, institutions, form.institutionId])
 
   useEffect(() => {
     setPage(1)
@@ -272,7 +297,6 @@ export default function ClassroomsTable() {
               grade: row.grade || "",
               section: row.section || "",
               academicYear: String(row.academic_year ?? new Date().getFullYear()),
-              classroomCode: row.classroom_code || "",
               active: Boolean(row.active),
             })
           },
@@ -306,6 +330,11 @@ export default function ClassroomsTable() {
       return
     }
 
+    if (!allowedGrades.includes(form.grade)) {
+      setCreateError("Selecciona un grado valido.")
+      return
+    }
+
     const year = Number(form.academicYear)
     if (!Number.isFinite(year) || year < 2000) {
       setCreateError("Ingresa un ano valido.")
@@ -320,7 +349,6 @@ export default function ClassroomsTable() {
           grade: form.grade,
           section: form.section || null,
           academic_year: year,
-          classroom_code: form.classroomCode || null,
           active: form.active,
         })
       } else {
@@ -329,7 +357,6 @@ export default function ClassroomsTable() {
           grade: form.grade,
           section: form.section || null,
           academic_year: year,
-          classroom_code: form.classroomCode || null,
           active: form.active,
         })
       }
@@ -363,6 +390,18 @@ export default function ClassroomsTable() {
       </div>
     )
   }
+
+  const selectedInstitution = institutions.find((inst) => inst.id === form.institutionId)
+  const institutionCode = (selectedInstitution?.code || selectedInstitution?.name || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+  const codePreview = (() => {
+    if (!institutionCode || !form.grade || !form.academicYear) return ""
+    const [gradeNumber, levelName] = form.grade.split("-")
+    const levelCode = levelName === "Primaria" ? "PRI" : "SEC"
+    const section = form.section.trim().toUpperCase()
+    return `${institutionCode}-${levelCode}-${gradeNumber}${section}-${form.academicYear}`
+  })()
 
   return (
     <div className="space-y-6">
@@ -401,6 +440,7 @@ export default function ClassroomsTable() {
                     institutionId: e.target.value,
                   }))
                 }}
+                disabled={institutions.length <= 1}
                 className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
               >
                 <option value="">Selecciona institucion</option>
@@ -413,11 +453,28 @@ export default function ClassroomsTable() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="grade">Grado</Label>
-              <Input
+              <select
                 id="grade"
                 value={form.grade}
                 onChange={(e) => setForm((s) => ({ ...s, grade: e.target.value }))}
-              />
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+              >
+                <option value="">Selecciona grado</option>
+                <optgroup label="Primaria">
+                  {primaryGrades.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Secundaria">
+                  {secondaryGrades.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="section">Seccion</Label>
@@ -440,11 +497,7 @@ export default function ClassroomsTable() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="classroomCode">Codigo</Label>
-              <Input
-                id="classroomCode"
-                value={form.classroomCode}
-                onChange={(e) => setForm((s) => ({ ...s, classroomCode: e.target.value }))}
-              />
+              <Input id="classroomCode" value={codePreview} readOnly />
             </div>
           </div>
           <div className="flex items-center gap-2">
