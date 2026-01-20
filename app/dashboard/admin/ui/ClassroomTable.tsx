@@ -69,7 +69,8 @@ function getGradeLabel(classroom: Classroom): string {
   const section = classroom.section || ""
   return `${grade} ${section}`.trim()
 }
-
+
+
 
 // Helper to get institution name (handles both array and object from Supabase)
 function getInstitutionName(classroom: Classroom): string {
@@ -122,7 +123,8 @@ const columns: ColumnDef<Classroom>[] = [
     render: (_, row) => (
       <span className="font-medium">{getGradeLabel(row)}</span>
     ),
-  },
+  },
+
   {
     key: "academic_year",
     header: "Año",
@@ -187,7 +189,7 @@ export default function ClassroomsTable() {
       setLoading(true)
       setError(null)
       const data = await listClassroomsAction()
-      setRows(Array.isArray(data) ? (data as Classroom[]) : [])
+      setRows(Array.isArray(data) ? (data as any[]) : [])
     } catch (e: any) {
       setError(e?.message ?? "Error cargando aulas")
     } finally {
@@ -483,7 +485,8 @@ export default function ClassroomsTable() {
                 value={form.section}
                 onChange={(e) => setForm((s) => ({ ...s, section: e.target.value }))}
               />
-            </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="academicYear">Ano</Label>
               <Input
