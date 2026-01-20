@@ -28,15 +28,34 @@ type Subblock = {
 type Block = {
   id: string
   name: string
-  type: string
+  block_type: string
   subblocks: Subblock[]
+}
+
+type AssignmentRow = {
+  exercise_id: string
+  ordering: number | null
+  tema: {
+    id: string
+    name: string
+    area: { name: string } | null
+    subblock: {
+      id: string
+      name: string
+      block: {
+        id: string
+        name: string
+        block_type: string
+      } | null
+    } | null
+  } | null
 }
 
 export default function StudentDashboardPage() {
   const supabase = createClient()
 
   const [loading, setLoading] = useState(true)
-  const [blocks, setBlocks] = useState<Block[]>([])
+  const [blocks, setBlocks] = useState<any>([])
   const [activeBlockLabel, setActiveBlockLabel] = useState<string | null>(null)
 
   useEffect(() => {
@@ -76,10 +95,10 @@ export default function StudentDashboardPage() {
         .order('started_at', { ascending: false })
         .limit(1)
 
-      const activeBlock = activeBlocks?.[0]?.block
+      const activeBlock:any = activeBlocks?.[0]?.block
       if (!activeBlock?.id) {
-        setLoading(false)
         setBlocks([])
+        setLoading(false)
         return
       }
 
@@ -88,18 +107,15 @@ export default function StudentDashboardPage() {
       const { data: assignments, error } = await supabase
         .from('edu_classroom_tema_exercises')
         .select(`
-          id,
           exercise_id,
           ordering,
           tema:edu_temas (
             id,
             name,
-            ordering,
             area:edu_areas ( name ),
             subblock:edu_academic_subblocks (
               id,
               name,
-              ordering,
               block:edu_academic_blocks ( id, name, block_type )
             )
           )
@@ -123,7 +139,7 @@ export default function StudentDashboardPage() {
           blockMap.set(block.id, {
             id: block.id,
             name: block.name,
-            type: block.block_type,
+            block_type: block.block_type,
             subblocks: [],
           })
         }
@@ -134,11 +150,7 @@ export default function StudentDashboardPage() {
 
         let sub = blockEntry.subblocks.find(s => s.id === subblock.id)
         if (!sub) {
-          sub = {
-            id: subblock.id,
-            name: subblock.name,
-            temas: [],
-          }
+          sub = { id: subblock.id, name: subblock.name, temas: [] }
           blockEntry.subblocks.push(sub)
         }
 
@@ -150,14 +162,14 @@ export default function StudentDashboardPage() {
           temaEntry = {
             id: tema.id,
             name: tema.name,
-            areaName: tema.area?.name || 'Area',
-            subblockName: subblock.name || 'Sub-bloque',
+            areaName: tema.area?.name ?? 'Área',
+            subblockName: subblock.name,
             exercises: [],
           }
           sub.temas.push(temaEntry)
         }
 
-        if (!temaEntry.exercises.find(e => e.id === row.exercise_id)) {
+        if (!temaEntry.exercises.some(e => e.id === row.exercise_id)) {
           temaEntry.exercises.push({
             id: row.exercise_id,
             order: row.ordering ?? 0,
@@ -165,13 +177,13 @@ export default function StudentDashboardPage() {
         }
       })
 
-      blockMap.forEach(block => {
-        block.subblocks.forEach(sub => {
-          sub.temas.forEach(tema => {
-            tema.exercises.sort((a, b) => a.order - b.order)
-          })
-        })
-      })
+      blockMap.forEach(block =>
+        block.subblocks.forEach(sub =>
+          sub.temas.forEach(tema =>
+            tema.exercises.sort((a, b) => a.order - b.order),
+          ),
+        ),
+      )
 
       setBlocks(Array.from(blockMap.values()))
       setLoading(false)
@@ -184,7 +196,7 @@ export default function StudentDashboardPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <span className="text-muted-foreground text-lg animate-pulse">
-          Cargando practica academica...
+          Cargando práctica académica...
         </span>
       </div>
     )
@@ -193,66 +205,44 @@ export default function StudentDashboardPage() {
   return (
     <div className="min-h-screen bg-background p-6 sm:p-10">
       <div className="max-w-7xl mx-auto space-y-12">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">
-            Practica academica
-          </h1>
+        <header>
+          <h1 className="text-3xl font-bold">Práctica académica</h1>
           <p className="text-muted-foreground">
             {activeBlockLabel
               ? `Bloque activo: ${activeBlockLabel}`
-              : 'No hay bloque activo asignado.'}
+              : 'No hay bloque activo asignado'}
           </p>
         </header>
 
-        {blocks.map((block, bi) => (
+        {blocks.map((block:any, bi:any) => (
           <motion.section
             key={block.id}
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: bi * 0.08 }}
-            className="rounded-2xl border bg-card p-6 space-y-8 shadow-sm"
+            className="rounded-2xl border bg-card p-6 space-y-8"
           >
-            <div>
-              <h2 className="text-2xl font-semibold">{block.name}</h2>
-              <span className="text-sm text-muted-foreground">
-                {block.type}
-              </span>
-            </div>
+            <h2 className="text-2xl font-semibold">{block.name}</h2>
 
-            {block.subblocks.map(sub => (
-              <div key={sub.id} className="space-y-6">
+            {block.subblocks.map((sub:any) => (
+              <div key={sub.id}>
                 <h3 className="text-lg font-medium text-primary">
                   {sub.name}
                 </h3>
 
-                {sub.temas.map(tema => (
-                  <div
-                    key={tema.id}
-                    className="rounded-xl border bg-background p-4 space-y-4"
-                  >
-                    <div className="space-y-1">
-                      <h4 className="font-semibold">{tema.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {tema.areaName} · {tema.subblockName}
-                      </p>
-                    </div>
+                {sub.temas.map((tema:any) => (
+                  <div key={tema.id} className="border rounded-xl p-4">
+                    <h4 className="font-semibold">{tema.name}</h4>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {tema.exercises.map(ex => (
-                        <motion.div
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                      {tema.exercises.map((ex:any) => (
+                        <Link
                           key={ex.id}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.97 }}
+                          href={`/student/play/${ex.id}`}
+                          className="rounded-lg border p-3 text-center hover:shadow-md"
                         >
-                          <Link
-                            href={`/student/play/${ex.id}`}
-                            className="block rounded-lg border bg-card p-4 text-center hover:shadow-md transition"
-                          >
-                            <span className="text-sm font-semibold">
-                              Ejercicio {ex.order}
-                            </span>
-                          </Link>
-                        </motion.div>
+                          Ejercicio {ex.order}
+                        </Link>
                       ))}
                     </div>
                   </div>
