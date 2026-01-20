@@ -54,7 +54,7 @@ interface Membership {
     id: string
     academic_year: number
     grade: string
-    edu_institution_grades?: { name: string; code: string } | null
+    section?: string | null
   } | null
 }
 
@@ -63,9 +63,9 @@ interface ClassroomOption {
   institution_id: string | null
   academic_year: number
   grade: string
+  section?: string | null
   active?: boolean
   edu_institutions?: { id: string; name: string } | null
-  edu_institution_grades?: { name: string; code: string } | null
 }
 
 function getPrimaryMembership(memberships: Membership[]) {
@@ -74,19 +74,15 @@ function getPrimaryMembership(memberships: Membership[]) {
 }
 
 function getMembershipGrade(m: Membership) {
-  const grade = m.edu_classrooms?.edu_institution_grades as any
-  if (Array.isArray(grade)) {
-    return grade[0]?.name || grade[0]?.code || m.edu_classrooms?.grade || ""
-  }
-  return grade?.name || grade?.code || m.edu_classrooms?.grade || ""
+  const grade = m.edu_classrooms?.grade || ""
+  const section = m.edu_classrooms?.section || ""
+  return `${grade} ${section}`.trim()
 }
 
 function getClassroomLabel(cls: ClassroomOption) {
-  const grade = cls.edu_institution_grades as any
-  const gradeLabel = Array.isArray(grade)
-    ? grade[0]?.name || grade[0]?.code || cls.grade
-    : grade?.name || grade?.code || cls.grade
-  return `${gradeLabel}`.trim()
+  const grade = cls.grade || ""
+  const section = cls.section || ""
+  return `${grade} ${section}`.trim()
 }
 
 export default function StudentDetail({ studentId }: StudentDetailProps) {
@@ -99,6 +95,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    role: "student",
     classroomId: "",
     active: true,
   })
@@ -112,7 +109,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
       const result = await getStudentDetailAction(studentId)
       setData(result as any)
     } catch (e: any) {
-      setError(e?.message ?? "Error cargando estudiante")
+      setError(e?.message ?? "Error cargando usuario")
     } finally {
       setLoading(false)
     }
@@ -144,6 +141,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
     setForm({
       firstName: data.profile.first_name,
       lastName: data.profile.last_name,
+      role: (data.profile.global_role as string) || "student",
       classroomId: primary?.classroom_id || "",
       active: Boolean(data.profile.active),
     })
@@ -167,12 +165,13 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
         last_name: form.lastName,
         classroom_id: form.classroomId || null,
         active: form.active,
+        role: form.role as any,
       })
-      setFormSuccess("Estudiante actualizado.")
+      setFormSuccess("Usuario actualizado.")
       setEditing(false)
       await fetchData()
     } catch (e: any) {
-      setFormError(e?.message ?? "Error actualizando estudiante")
+      setFormError(e?.message ?? "Error actualizando usuario")
     } finally {
       setSaving(false)
     }
@@ -186,15 +185,15 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Estudiante"
+          title="Usuario"
           breadcrumbs={[
             { label: "Admin", href: "/dashboard/admin" },
-            { label: "Estudiantes", href: "/dashboard/admin/students" },
+            { label: "Usuarios", href: "/dashboard/admin/students" },
             { label: "Detalle" },
           ]}
         />
         <ErrorState
-          message={error || "No se encontro el estudiante"}
+          message={error || "No se encontro el usuario"}
           onRetry={() => window.location.reload()}
         />
       </div>
@@ -222,7 +221,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
         }}
         breadcrumbs={[
           { label: "Admin", href: "/dashboard/admin" },
-          { label: "Estudiantes", href: "/dashboard/admin/students" },
+          { label: "Usuarios", href: "/dashboard/admin/students" },
           { label: fullName },
         ]}
         actions={
@@ -297,6 +296,18 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
                 value={form.lastName}
                 onChange={(e) => setForm((s) => ({ ...s, lastName: e.target.value }))}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="studentEditRole">Rol</Label>
+              <select
+                id="studentEditRole"
+                value={form.role}
+                onChange={(e) => setForm((s) => ({ ...s, role: e.target.value }))}
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+              >
+                <option value="student">Estudiante</option>
+                <option value="teacher">Profesor</option>
+              </select>
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="studentEditClassroom">Aula</Label>

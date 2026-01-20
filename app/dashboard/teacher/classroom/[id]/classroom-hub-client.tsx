@@ -17,6 +17,7 @@ interface TeacherClassroomHubProps {
     classroom: {
         id: string
         grade: string
+        section?: string | null
         academic_year: number
         active: boolean
         institution: { name: string }
@@ -66,7 +67,7 @@ function QuickActionCard({
 }
 
 export default function TeacherClassroomHubClient({ classroom, stats }: TeacherClassroomHubProps) {
-    const gradeLabel = `${classroom.grade}`
+    const gradeLabel = `${classroom.grade}${classroom.section ? ` ${classroom.section}` : ""}`.trim()
 
     return (
         <div className="space-y-8">

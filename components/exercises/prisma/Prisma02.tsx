@@ -263,7 +263,7 @@ export default function Prisma02({
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 2 — Valores de verdad"
+        title="Valores de verdad"
         prompt="Indica los valores de verdad de las proposiciones I–IV."
         status={engine.status}
         attempts={engine.attempts}

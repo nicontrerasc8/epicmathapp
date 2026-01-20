@@ -209,7 +209,7 @@ x &< \\frac{${ejercicio.c}}{${ejercicio.m - 1}} = ${bound}
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 8 — Suma de elementos de un conjunto"
+        title="Suma de elementos de un conjunto"
         prompt="Calcular la suma de los elementos de F."
         status={engine.status}
         attempts={engine.attempts}

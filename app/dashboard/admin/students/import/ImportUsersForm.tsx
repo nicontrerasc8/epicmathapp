@@ -64,7 +64,7 @@ export default function ImportUsersForm() {
     const ws = XLSX.utils.json_to_sheet(sample, { header: headers })
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Plantilla")
-    XLSX.writeFile(wb, "plantilla_estudiantes.xlsx")
+    XLSX.writeFile(wb, "plantilla_usuarios.xlsx")
   }
 
   const parseSheet = (data: ArrayBuffer) => {

@@ -77,6 +77,7 @@ export async function importUsersAction(rows: Row[]) {
         first_name: firstName,
         last_name: lastName,
         global_role: role,
+        active: true,
       })
       if (profileErr) throw profileErr
 
@@ -86,6 +87,7 @@ export async function importUsersAction(rows: Row[]) {
         institution_id: institutionId,
         classroom_id: row.classroom_id ?? null,
         role,
+        active: true,
       })
       if (memberErr) throw memberErr
 

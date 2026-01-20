@@ -291,7 +291,7 @@ export default function Prisma06({
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 6 — Conjuntos por comprensión"
+        title="Conjuntos por comprensión"
         prompt={ej.prompt}
         status={engine.status}
         attempts={engine.attempts}

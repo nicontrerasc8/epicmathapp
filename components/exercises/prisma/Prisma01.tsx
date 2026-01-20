@@ -1,18 +1,31 @@
 ﻿'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MathJax, MathJaxContext } from 'better-react-mathjax'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Trophy,
+  Flame,
+  Timer,
+  Rocket,
+  Sparkles,
+  ShieldCheck,
+  XCircle,
+  CheckCircle2,
+} from 'lucide-react'
 
+import { createClient } from '@/utils/supabase/client'
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
 import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
 import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 /* ============================================================
-   PRISMA 1 — Tablas de verdad (p, q) + MathJax (better-react-mathjax)
-   ? 1 SOLO INTENTO (autocalifica al elegir opción)
-   ? Generación algorítmica (sin hardcode)
-   ? Explicación tipo profe + subexpresiones + tablas por paso
+   PRISMA 1 — Tablas de verdad (p, q) + MathJax
+   ✅ 1 SOLO INTENTO (autocalifica al elegir opción)
+   ✅ Generación algorítmica (sin hardcode)
+   ✅ Explicación tipo profe + subexpresiones + tablas por paso
+   ✅ GAMIFICATION: trofeos + streak + timer + cohetes + HUD
 ============================================================ */
 
 /* =========================
@@ -30,6 +43,20 @@ type Expr = VarExpr | NotExpr | AndExpr | OrExpr | ImpExpr
 
 type Option = { value: string; correct: boolean }
 
+type GamificationRow = {
+  student_id: string
+  exercise_id: string
+  attempts: number
+  correct_attempts: number
+  wrong_attempts: number
+  trophies: number
+  streak: number
+  last_played_at: string | null
+}
+
+/* =========================
+   CONSTANTES
+========================= */
 const VARS: VarName[] = ['p', 'q']
 const BIN_OPS: Array<'and' | 'or' | 'imp'> = ['and', 'or', 'imp']
 
@@ -39,6 +66,12 @@ const COMBINATIONS = [
   { p: false, q: true },
   { p: false, q: false },
 ] as const
+
+// Trofeos (tu regla)
+const TROPHY_MAX = 30
+const TROPHY_MIN = 16
+const TROPHY_STEP_SECONDS = 15
+const WRONG_PENALTY = 15
 
 /* =========================
    MathJax Config + Tex helper
@@ -87,6 +120,19 @@ function coin(p = 0.5) {
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
+function clamp(n: number, a: number, b: number) {
+  return Math.max(a, Math.min(b, n))
+}
+function formatTime(seconds: number) {
+  const s = Math.max(0, Math.floor(seconds))
+  const mm = Math.floor(s / 60)
+  const ss = s % 60
+  return mm > 0 ? `${mm}:${String(ss).padStart(2, '0')}` : `${ss}s`
+}
+function computeTrophyGain(timeSeconds: number) {
+  const steps = Math.floor(Math.max(0, timeSeconds) / TROPHY_STEP_SECONDS)
+  return Math.max(TROPHY_MIN, TROPHY_MAX - steps)
+}
 
 /* =========================
    EVALUACIÓN LÓGICA (exacta)
@@ -102,7 +148,7 @@ function evalExpr(expr: Expr, p: boolean, q: boolean): boolean {
     case 'or':
       return evalExpr(expr.left, p, q) || evalExpr(expr.right, p, q)
     case 'imp':
-      // A ? B = (~A ? B)   (solo es F cuando A=V y B=F)
+      // A → B = (~A ∨ B)  (solo es F cuando A=V y B=F)
       return !evalExpr(expr.left, p, q) || evalExpr(expr.right, p, q)
   }
 }
@@ -110,7 +156,6 @@ function evalExpr(expr: Expr, p: boolean, q: boolean): boolean {
 /* =========================
    TEX / PRETTY
 ========================= */
-// TeX “bonito” (para MathJax)
 function toTeX(expr: Expr): string {
   switch (expr.type) {
     case 'var':
@@ -118,8 +163,11 @@ function toTeX(expr: Expr): string {
     case 'not': {
       const inner = expr.expr
       const innerTeX = toTeX(inner)
-      const needsParens = inner.type === 'and' || inner.type === 'or' || inner.type === 'imp'
-      return needsParens ? `\\lnot\\left(${innerTeX}\\right)` : `\\lnot ${innerTeX}`
+      const needsParens =
+        inner.type === 'and' || inner.type === 'or' || inner.type === 'imp'
+      return needsParens
+        ? `\\lnot\\left(${innerTeX}\\right)`
+        : `\\lnot ${innerTeX}`
     }
     case 'and':
       return `\\left(${toTeX(expr.left)}\\ \\land\\ ${toTeX(expr.right)}\\right)`
@@ -130,22 +178,22 @@ function toTeX(expr: Expr): string {
   }
 }
 
-// Texto “rápido” (para logs / prompt sin MathJax)
 function toPretty(expr: Expr): string {
   switch (expr.type) {
     case 'var':
       return expr.name
     case 'not': {
       const inner = expr.expr
-      const needsParens = inner.type === 'and' || inner.type === 'or' || inner.type === 'imp'
+      const needsParens =
+        inner.type === 'and' || inner.type === 'or' || inner.type === 'imp'
       return needsParens ? `~(${toPretty(inner)})` : `~${toPretty(inner)}`
     }
     case 'and':
-      return `(${toPretty(expr.left)} ? ${toPretty(expr.right)})`
+      return `(${toPretty(expr.left)} ∧ ${toPretty(expr.right)})`
     case 'or':
-      return `(${toPretty(expr.left)} ? ${toPretty(expr.right)})`
+      return `(${toPretty(expr.left)} ∨ ${toPretty(expr.right)})`
     case 'imp':
-      return `(${toPretty(expr.left)} ? ${toPretty(expr.right)})`
+      return `(${toPretty(expr.left)} → ${toPretty(expr.right)})`
   }
 }
 
@@ -265,9 +313,23 @@ function generateExpr(depth: number, maxDepth: number): Expr {
   if (r < 0.55) return { type: 'not', expr: generateExpr(depth + 1, maxDepth) }
 
   const op = choice(BIN_OPS)
-  if (op === 'and') return { type: 'and', left: generateExpr(depth + 1, maxDepth), right: generateExpr(depth + 1, maxDepth) }
-  if (op === 'or') return { type: 'or', left: generateExpr(depth + 1, maxDepth), right: generateExpr(depth + 1, maxDepth) }
-  return { type: 'imp', left: generateExpr(depth + 1, maxDepth), right: generateExpr(depth + 1, maxDepth) }
+  if (op === 'and')
+    return {
+      type: 'and',
+      left: generateExpr(depth + 1, maxDepth),
+      right: generateExpr(depth + 1, maxDepth),
+    }
+  if (op === 'or')
+    return {
+      type: 'or',
+      left: generateExpr(depth + 1, maxDepth),
+      right: generateExpr(depth + 1, maxDepth),
+    }
+  return {
+    type: 'imp',
+    left: generateExpr(depth + 1, maxDepth),
+    right: generateExpr(depth + 1, maxDepth),
+  }
 }
 
 function generateQualityExpr(): Expr {
@@ -279,8 +341,16 @@ function generateQualityExpr(): Expr {
 
   const fallback: Expr = {
     type: 'and',
-    left: { type: 'imp', left: { type: 'var', name: 'p' }, right: { type: 'var', name: 'q' } },
-    right: { type: 'imp', left: { type: 'not', expr: { type: 'var', name: 'q' } }, right: { type: 'not', expr: { type: 'var', name: 'p' } } },
+    left: {
+      type: 'imp',
+      left: { type: 'var', name: 'p' },
+      right: { type: 'var', name: 'q' },
+    },
+    right: {
+      type: 'imp',
+      left: { type: 'not', expr: { type: 'var', name: 'q' } },
+      right: { type: 'not', expr: { type: 'var', name: 'p' } },
+    },
   }
   return simplify(fallback)
 }
@@ -303,9 +373,14 @@ function mutateExprOneStep(expr: Expr): Expr {
 
   if (r < 0.66) {
     const swap = (e: Expr): Expr => {
-      if (e.type === 'var') return { type: 'var', name: e.name === 'p' ? 'q' : 'p' }
+      if (e.type === 'var')
+        return { type: 'var', name: e.name === 'p' ? 'q' : 'p' }
       if (e.type === 'not') return { type: 'not', expr: swap(e.expr) }
-      return { ...(e as any), left: swap((e as any).left), right: swap((e as any).right) } as Expr
+      return {
+        ...(e as any),
+        left: swap((e as any).left),
+        right: swap((e as any).right),
+      } as Expr
     }
     return simplify(swap(expr))
   }
@@ -368,11 +443,9 @@ function serialize(expr: Expr): string {
       return `imp(${serialize(expr.left)},${serialize(expr.right)})`
   }
 }
-
 function isBinary(expr: Expr): expr is AndExpr | OrExpr | ImpExpr {
   return expr.type === 'and' || expr.type === 'or' || expr.type === 'imp'
 }
-
 function getSubexpressionsInOrder(expr: Expr): Expr[] {
   const out: Expr[] = []
   const seen = new Set<string>()
@@ -399,15 +472,15 @@ function getSubexpressionsInOrder(expr: Expr): Expr[] {
 
 function opRuleText(e: Expr): string {
   if (e.type === 'not') {
-    return 'Regla de negación: invierte el valor. (V ? F, F ? V)'
+    return 'Regla de negación: invierte el valor. (V → F, F → V)'
   }
   if (e.type === 'and') {
-    return 'Regla de conjunción (A ? B): solo es V si A es V y B es V. Si falla una, es F.'
+    return 'Conjunción (A ∧ B): solo es V si A y B son V. Si falla una, es F.'
   }
   if (e.type === 'or') {
-    return 'Regla de disyunción (A ? B): es V si al menos una es V. Solo es F si ambas son F.'
+    return 'Disyunción (A ∨ B): es V si al menos una es V. Solo es F si ambas son F.'
   }
-  return 'Regla de implicación (A ? B): solo es F cuando A es V y B es F. En los demás casos es V.'
+  return 'Implicación (A → B): solo es F cuando A es V y B es F. En los demás casos es V.'
 }
 
 function evalBitsForExpr(e: Expr): string {
@@ -422,8 +495,84 @@ function detailedNarrative(expr: Expr) {
 }
 
 /* =========================
-   PRISMA 01 (UI)
+   FX: Rocket Burst (Framer Motion)
 ========================= */
+function RocketBurst({ play }: { play: boolean }) {
+  const particles = useMemo(() => {
+    return Array.from({ length: 14 }).map((_, i) => ({
+      id: i,
+      x: randInt(-120, 120),
+      y: randInt(-140, -40),
+      s: randInt(6, 12),
+      d: Math.random() * 0.25,
+      r: randInt(-40, 40),
+    }))
+  }, [play])
+
+  return (
+    <AnimatePresence>
+      {play ? (
+        <motion.div
+          className="pointer-events-none absolute inset-0"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          {particles.map(p => (
+            <motion.span
+              key={p.id}
+              className="absolute left-1/2 top-[55%] rounded-full bg-foreground/15"
+              style={{ width: p.s, height: p.s }}
+              initial={{ x: 0, y: 0, scale: 0.8, rotate: 0, opacity: 0 }}
+              animate={{
+                x: p.x,
+                y: p.y,
+                scale: [0.9, 1.1, 0.6],
+                rotate: p.r,
+                opacity: [0, 1, 0],
+              }}
+              transition={{ duration: 0.9, delay: p.d, ease: 'easeOut' }}
+            />
+          ))}
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  )
+}
+
+/* =========================
+   UI: HUD Badge
+========================= */
+function StatPill({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: React.ReactNode
+  hint?: string
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border bg-background">
+          {icon}
+        </span>
+        <div className="flex-1">
+          <div className="font-medium">{label}</div>
+          {hint ? <div className="text-[11px] opacity-80">{hint}</div> : null}
+        </div>
+        <div className="text-base font-semibold text-foreground">{value}</div>
+      </div>
+    </div>
+  )
+}
+
+/* ============================================================
+   PRISMA 01 (GOD MODE)
+============================================================ */
 export default function Prisma01({
   exerciseId,
   classroomId,
@@ -433,9 +582,25 @@ export default function Prisma01({
   classroomId: string
   sessionId?: string
 }) {
+  const supabase = createClient()
   const engine = useExerciseEngine({ maxAttempts: 1 })
+
+  // ejercicio
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
+
+  // gamification state
+  const [studentId, setStudentId] = useState<string | null>(null)
+  const [gami, setGami] = useState<GamificationRow | null>(null)
+  const [gamiLoading, setGamiLoading] = useState(true)
+
+  // timer
+  const startedAtRef = useRef<number>(Date.now())
+  const [elapsed, setElapsed] = useState(0)
+
+  // fx
+  const [delta, setDelta] = useState<{ value: number; correct: boolean } | null>(null)
+  const [rocket, setRocket] = useState(false)
 
   const ejercicio = useMemo(() => {
     const expr = generateQualityExpr()
@@ -447,20 +612,119 @@ export default function Prisma01({
     return { expr, pretty, tex, correct, options, explain }
   }, [nonce])
 
-  function pickOption(op: Option) {
+  // start timer when new exercise generated
+  useEffect(() => {
+    startedAtRef.current = Date.now()
+    setElapsed(0)
+    setDelta(null)
+    setRocket(false)
+  }, [nonce])
+
+  // tick timer while canAnswer
+  useEffect(() => {
     if (!engine.canAnswer) return
+    const t = setInterval(() => {
+      const now = Date.now()
+      const secs = (now - startedAtRef.current) / 1000
+      setElapsed(secs)
+    }, 250)
+    return () => clearInterval(t)
+  }, [engine.canAnswer, nonce])
+
+  const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
+
+  // load auth user & gamification row
+  useEffect(() => {
+    let alive = true
+    const run = async () => {
+      setGamiLoading(true)
+
+      const { data } = await supabase.auth.getUser()
+      const uid = data?.user?.id ?? null
+      if (!alive) return
+      setStudentId(uid)
+
+      if (!uid) {
+        setGami(null)
+        setGamiLoading(false)
+        return
+      }
+
+      const { data: row, error } = await supabase
+        .from('edu_student_gamification')
+        .select(
+          'student_id, exercise_id, attempts, correct_attempts, wrong_attempts, trophies, streak, last_played_at'
+        )
+        .eq('student_id', uid)
+        .eq('exercise_id', exerciseId)
+        .maybeSingle()
+
+      if (!alive) return
+
+      if (error) {
+        console.warn('[Prisma01] gamification load error', error)
+        setGami(null)
+      } else {
+        setGami((row as any) ?? null)
+      }
+
+      setGamiLoading(false)
+    }
+
+    run()
+    return () => {
+      alive = false
+    }
+  }, [supabase, exerciseId])
+
+  async function refreshGami(uid: string) {
+    const { data: row } = await supabase
+      .from('edu_student_gamification')
+      .select(
+        'student_id, exercise_id, attempts, correct_attempts, wrong_attempts, trophies, streak, last_played_at'
+      )
+      .eq('student_id', uid)
+      .eq('exercise_id', exerciseId)
+      .maybeSingle()
+
+    setGami((row as any) ?? null)
+  }
+
+  async function applyGamification(params: {
+    uid: string
+    correct: boolean
+    timeSeconds: number
+  }) {
+    // RPC (tu función)
+    const { error } = await supabase.rpc('fn_apply_student_gamification', {
+      p_student_id: params.uid,
+      p_exercise_id: exerciseId,
+      p_correct: params.correct,
+      p_time_seconds: Math.floor(params.timeSeconds),
+    })
+
+    if (error) {
+      console.warn('[Prisma01] rpc fn_apply_student_gamification error', error)
+      return
+    }
+
+    await refreshGami(params.uid)
+  }
+
+  async function pickOption(op: Option) {
+    if (!engine.canAnswer) return
+
+    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
 
     setSelected(op.value)
     engine.submit(op.correct)
 
+    // Persist intento (tu pipeline actual)
     persistExerciseOnce({
-      exerciseId,        // 'Prisma01'
+      exerciseId,
       classroomId,
       sessionId,
-
       correct: op.correct,
-
-
       answer: {
         selected: op.value,
         correctAnswer: ejercicio.correct,
@@ -469,10 +733,31 @@ export default function Prisma01({
         extra: {
           pretty: ejercicio.pretty,
           truthBitsCorrect: ejercicio.correct,
+          time_seconds: Math.floor(timeSeconds),
+          trophy_preview: computeTrophyGain(timeSeconds),
         },
       },
     })
 
+    // FX local inmediato (sin esperar DB)
+    if (op.correct) {
+      const gain = computeTrophyGain(timeSeconds)
+      setDelta({ value: gain, correct: true })
+      setRocket(true)
+      setTimeout(() => setRocket(false), 950)
+    } else {
+      setDelta({ value: -WRONG_PENALTY, correct: false })
+      setRocket(false)
+    }
+
+    // Sync DB gamification
+    if (studentId) {
+      await applyGamification({
+        uid: studentId,
+        correct: op.correct,
+        timeSeconds,
+      })
+    }
   }
 
   function siguiente() {
@@ -481,195 +766,375 @@ export default function Prisma01({
     setNonce(n => n + 1)
   }
 
+  const difficultyHint = useMemo(() => {
+    // mini “director” simple: mientras más rápido, más premio (ya lo haces)
+    // acá solo damos feedback
+    if (engine.status === 'idle') return 'Piensa rápido, pero con orden: TT, TF, FT, FF.'
+    if (engine.status === 'revealed') return 'Tranqui. Mira las reglas y vuelve con todo.'
+    return ''
+  }, [engine.status])
+
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
-      <ExerciseShell
-        title="Tablas de verdad"
-        prompt="Elige la alternativa correcta: la tabla de verdad de la proposición es…"
-        status={engine.status}
-        attempts={engine.attempts}
-        maxAttempts={engine.maxAttempts}
-        onVerify={() => { }}
-        onNext={siguiente}
-        solution={
-          <SolutionBox>
-            <div className="space-y-4 text-sm leading-relaxed">
-              {/* Paso 0 */}
-              <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">?? Paso 0 — Qué estamos buscando</div>
-                <p className="text-muted-foreground">
-                  Vamos a evaluar la proposición en 4 filas (TT, TF, FT, FF). Al final obtendremos un
-                  “código” de 4 letras (V/F). Ese código debe coincidir con una alternativa.
-                </p>
-              </div>
+      <div className="relative min-h-[calc(100vh-64px)] bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.12),transparent_55%),radial-gradient(circle_at_bottom,rgba(168,85,247,0.10),transparent_55%)]">
+        {/* FX */}
+        <RocketBurst play={rocket} />
 
-              {/* Paso 1 */}
-              <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">? Paso 1 — Orden de filas (SIEMPRE el mismo)</div>
-
-                <div className="mt-2 overflow-x-auto">
-                  <table className="border w-full text-center text-xs">
-                    <thead>
-                      <tr className="bg-muted">
-                        <th className="border py-2">Fila</th>
-                        <th className="border py-2">p</th>
-                        <th className="border py-2">q</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {COMBINATIONS.map((c, i) => (
-                        <tr key={i}>
-                          <td className="border py-2">{i + 1}</td>
-                          <td className="border py-2">{c.p ? 'V' : 'F'}</td>
-                          <td className="border py-2">{c.q ? 'V' : 'F'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="mt-3 rounded-md border bg-background p-3">
-                  <div className="font-semibold mb-1">Tip</div>
-                  <p className="text-muted-foreground">
-                    Si cambias el orden de filas, te cambia el “código” final, aunque hayas hecho bien las reglas.
-                  </p>
-                </div>
-              </div>
-
-              {/* Paso 2 */}
-              <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">? Paso 2 — Proposición a evaluar</div>
-                <p className="text-muted-foreground">
-                  Esta es la proposición del ejercicio. La evaluaremos de adentro hacia afuera (subexpresiones).
-                </p>
-                <div className="mt-2 rounded border p-3">
-                  <Tex block tex={ejercicio.explain.finalTeX} />
-                </div>
-              </div>
-
-              {/* Paso 3 */}
-              <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">? Paso 3 — Subexpresiones (de adentro hacia afuera)</div>
-                <p className="text-muted-foreground">
-                  Calculamos primero las partes pequeñas. Cada subexpresión produce su propio código de 4 letras.
-                  La última que calculemos será la proposición completa.
-                </p>
-
-                <div className="mt-3 space-y-3">
-                  {ejercicio.explain.sub.map((e, idx) => {
-                    const tex = toTeX(e)
-                    const bits = evalBitsForExpr(e)
-
-                    return (
-                      <div key={serialize(e)} className="rounded-lg border bg-white p-3">
-                        <div className="font-semibold">
-                          Paso 3.{idx + 1} — Calculamos: <Tex tex={tex} />
-                        </div>
-
-                        <div className="mt-1 text-muted-foreground">{opRuleText(e)}</div>
-
-                        <div className="mt-2 flex items-center gap-2">
-                          <span className="font-semibold">Código:</span>
-                          <span className="inline-block px-2 py-1 rounded bg-muted font-mono">{bits}</span>
-                        </div>
-
-                        <div className="mt-2 overflow-x-auto">
-                          <table className="border w-full text-center text-xs">
-                            <thead>
-                              <tr className="bg-muted">
-                                <th className="border py-2">Fila</th>
-                                <th className="border py-2">p</th>
-                                <th className="border py-2">q</th>
-                                <th className="border py-2">
-                                  <Tex tex={tex} />
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {COMBINATIONS.map((c, i) => (
-                                <tr key={i}>
-                                  <td className="border py-2">{i + 1}</td>
-                                  <td className="border py-2">{c.p ? 'V' : 'F'}</td>
-                                  <td className="border py-2">{c.q ? 'V' : 'F'}</td>
-                                  <td className="border py-2 font-semibold">
-                                    {evalExpr(e, c.p, c.q) ? 'V' : 'F'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Paso 4 */}
-              <div className="rounded-lg border bg-white p-3">
-                <div className="font-semibold mb-2">? Paso 4 — Respuesta final</div>
-                <p className="text-muted-foreground">
-                  La proposición completa queda con este código (en el orden TT, TF, FT, FF):
-                </p>
-
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-sm font-semibold">Respuesta:</span>
-                  <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
-                    {ejercicio.explain.finalBits}
-                  </span>
-                </div>
-
-                <div className="mt-3 rounded-md border bg-background p-3">
-                  <div className="font-semibold mb-1">?? Chequeo rápido</div>
-                  <p className="text-muted-foreground">
-                    Si tu código no coincide con ninguna opción, revisa:
-                    (1) el orden de filas, y (2) la regla de <span className="font-semibold">?</span>
-                    (solo es F cuando V ? F).
-                  </p>
-                </div>
-              </div>
-            </div>
-          </SolutionBox>
-        }
-      >
-        {/* Card de la proposición (como Prisma17) */}
-        <div className="rounded-xl border bg-white p-4 mb-4">
-          <div className="font-semibold mb-2">Proposición:</div>
-          <Tex block tex={ejercicio.tex} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {ejercicio.options.map(op => {
-            const isSelected = selected === op.value
-            const showCorrect = engine.status !== 'idle' && op.correct
-            const showWrong = engine.status === 'revealed' && isSelected && !op.correct
-
-            return (
-              <button
-                key={op.value}
-                type="button"
-                disabled={!engine.canAnswer}
-                onClick={() => pickOption(op)}
+        {/* FLOATING DELTA */}
+        <AnimatePresence>
+          {delta ? (
+            <motion.div
+              key={`${delta.correct}-${delta.value}-${nonce}`}
+              className="pointer-events-none absolute left-1/2 top-24 z-50 -translate-x-1/2"
+              initial={{ opacity: 0, y: 16, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -18, scale: 0.98 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+            >
+              <div
                 className={[
-                  'border rounded-xl p-4 text-center transition',
-                  'hover:shadow-sm hover:-translate-y-0.5',
-                  isSelected && 'ring-2 ring-primary',
-                  showCorrect && 'bg-green-400',
-                  showWrong && 'bg-red-400',
-                  !engine.canAnswer && 'opacity-80 cursor-not-allowed',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
+                  'inline-flex items-center gap-2 rounded-2xl border bg-background px-4 py-2 shadow-sm',
+                  delta.correct ? 'border-green-500/30' : 'border-red-500/30',
+                ].join(' ')}
               >
-                <div className="font-mono text-lg">{op.value}</div>
-              </button>
-            )
-          })}
-        </div>
-      </ExerciseShell>
+                <Trophy className="h-4 w-4" />
+                <span className="text-sm font-semibold">
+                  {delta.correct ? `+${delta.value}` : `${delta.value}`} trofeos
+                </span>
+                {delta.correct ? (
+                  <Sparkles className="h-4 w-4" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <ExerciseShell
+          title="Tablas de verdad"
+          prompt="Elige la alternativa correcta: la tabla de verdad de la proposición es…"
+          status={engine.status}
+          attempts={engine.attempts}
+          maxAttempts={engine.maxAttempts}
+          onVerify={() => {}}
+          onNext={siguiente}
+          solution={
+            <SolutionBox>
+              <div className="space-y-4 text-sm leading-relaxed">
+                <div className="rounded-xl border bg-card p-4">
+                  <div className="font-semibold mb-2 flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4" />
+                    Paso 0 — Qué estamos buscando
+                  </div>
+                  <p className="text-muted-foreground">
+                    Evaluamos la proposición en 4 filas (TT, TF, FT, FF). Al final obtienes un
+                    código de 4 letras (V/F) que debe coincidir con una alternativa.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border bg-card p-4">
+                  <div className="font-semibold mb-2 flex items-center gap-2">
+                    <Timer className="h-4 w-4" />
+                    Paso 1 — Orden de filas (SIEMPRE el mismo)
+                  </div>
+
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="border w-full text-center text-xs">
+                      <thead>
+                        <tr className="bg-muted">
+                          <th className="border py-2">Fila</th>
+                          <th className="border py-2">p</th>
+                          <th className="border py-2">q</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {COMBINATIONS.map((c, i) => (
+                          <tr key={i}>
+                            <td className="border py-2">{i + 1}</td>
+                            <td className="border py-2">{c.p ? 'V' : 'F'}</td>
+                            <td className="border py-2">{c.q ? 'V' : 'F'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-3 rounded-lg border bg-background p-3">
+                    <div className="font-semibold mb-1">Tip</div>
+                    <p className="text-muted-foreground">
+                      Si cambias el orden de filas, cambia el código final aunque las reglas estén bien.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border bg-card p-4">
+                  <div className="font-semibold mb-2">Paso 2 — Proposición a evaluar</div>
+                  <p className="text-muted-foreground">
+                    Evaluaremos de adentro hacia afuera (subexpresiones).
+                  </p>
+                  <div className="mt-2 rounded-lg border bg-background p-3">
+                    <Tex block tex={ejercicio.explain.finalTeX} />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border bg-card p-4">
+                  <div className="font-semibold mb-2">Paso 3 — Subexpresiones (adentro → afuera)</div>
+                  <p className="text-muted-foreground">
+                    Cada subexpresión produce su propio código (4 letras). La última es la proposición completa.
+                  </p>
+
+                  <div className="mt-3 space-y-3">
+                    {ejercicio.explain.sub.map((e, idx) => {
+                      const tex = toTeX(e)
+                      const bits = evalBitsForExpr(e)
+
+                      return (
+                        <div key={serialize(e)} className="rounded-xl border bg-background p-4">
+                          <div className="font-semibold">
+                            Paso 3.{idx + 1} — Calculamos: <Tex tex={tex} />
+                          </div>
+
+                          <div className="mt-1 text-muted-foreground">{opRuleText(e)}</div>
+
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="font-semibold">Código:</span>
+                            <span className="inline-block px-2 py-1 rounded bg-muted font-mono">
+                              {bits}
+                            </span>
+                          </div>
+
+                          <div className="mt-2 overflow-x-auto">
+                            <table className="border w-full text-center text-xs">
+                              <thead>
+                                <tr className="bg-muted">
+                                  <th className="border py-2">Fila</th>
+                                  <th className="border py-2">p</th>
+                                  <th className="border py-2">q</th>
+                                  <th className="border py-2">
+                                    <Tex tex={tex} />
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {COMBINATIONS.map((c, i) => (
+                                  <tr key={i}>
+                                    <td className="border py-2">{i + 1}</td>
+                                    <td className="border py-2">{c.p ? 'V' : 'F'}</td>
+                                    <td className="border py-2">{c.q ? 'V' : 'F'}</td>
+                                    <td className="border py-2 font-semibold">
+                                      {evalExpr(e, c.p, c.q) ? 'V' : 'F'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border bg-card p-4">
+                  <div className="font-semibold mb-2">Paso 4 — Respuesta final</div>
+                  <p className="text-muted-foreground">
+                    La proposición completa queda con este código (TT, TF, FT, FF):
+                  </p>
+
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-sm font-semibold">Respuesta:</span>
+                    <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
+                      {ejercicio.explain.finalBits}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 rounded-lg border bg-background p-3">
+                    <div className="font-semibold mb-1">Chequeo rápido</div>
+                    <p className="text-muted-foreground">
+                      Si no coincide con ninguna opción: (1) revisa el orden TT,TF,FT,FF, y (2) recuerda:
+                      en (A → B) solo es F cuando A=V y B=F.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </SolutionBox>
+          }
+        >
+          {/* Layout: left game / right HUD */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* LEFT: GAME */}
+            <motion.div
+              className="lg:col-span-8"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+            >
+              {/* Card proposición */}
+              <div className="relative overflow-hidden rounded-2xl border bg-card p-5">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(56,189,248,0.18),transparent_35%),radial-gradient(circle_at_80%_100%,rgba(168,85,247,0.14),transparent_40%)]" />
+                <div className="relative">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Proposición</div>
+                      <div className="mt-1 font-semibold text-lg">Resuelve y elige el código correcto</div>
+                    </div>
+
+                    
+                  </div>
+
+                  <div className="mt-4 rounded-xl border bg-background p-4">
+                    <Tex block tex={ejercicio.tex} />
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Timer className="h-4 w-4" />
+                      <span className="text-muted-foreground">Tiempo:</span>
+                      <span className="font-semibold">{formatTime(elapsed)}</span>
+                    </div>
+
+             
+                  </div>
+
+                  {/* “barrita” de urgencia */}
+                  <div className="mt-3">
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <motion.div
+                        className="h-full bg-foreground/30"
+                        initial={false}
+                        animate={{
+                          width: `${clamp(((trophyPreview - TROPHY_MIN) / (TROPHY_MAX - TROPHY_MIN)) * 100, 0, 100)}%`,
+                        }}
+                        transition={{ duration: 0.25 }}
+                      />
+                    </div>
+                    <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+                      <span>{TROPHY_MIN}</span>
+                      <span>{TROPHY_MAX}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Opciones */}
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {ejercicio.options.map(op => {
+                  const isSelected = selected === op.value
+                  const showCorrect = engine.status !== 'idle' && op.correct
+                  const showWrong =
+                    engine.status === 'revealed' && isSelected && !op.correct
+
+                  return (
+                    <motion.button
+                      key={op.value}
+                      type="button"
+                      disabled={!engine.canAnswer}
+                      onClick={() => pickOption(op)}
+                      whileHover={engine.canAnswer ? { y: -2 } : undefined}
+                      whileTap={engine.canAnswer ? { scale: 0.99 } : undefined}
+                      className={[
+                        'relative overflow-hidden rounded-2xl border p-4 text-left transition',
+                        'bg-card hover:shadow-sm',
+                        isSelected && 'ring-2 ring-primary',
+                        showCorrect && 'border-green-500/40 bg-green-500/10',
+                        showWrong && 'border-red-500/40 bg-red-500/10',
+                        !engine.canAnswer && 'opacity-80 cursor-not-allowed',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_60%)]" />
+                      <div className="relative">
+                        <div className="flex items-center justify-between gap-3">
+                  
+                          {showCorrect ? (
+                            <span className="inline-flex items-center gap-1 rounded-lg border bg-background px-2 py-1 text-xs">
+                              <CheckCircle2 className="h-4 w-4" /> Correcta
+                            </span>
+                          ) : showWrong ? (
+                            <span className="inline-flex items-center gap-1 rounded-lg border bg-background px-2 py-1 text-xs">
+                              <XCircle className="h-4 w-4" /> Incorrecta
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-2 font-mono text-2xl font-semibold tracking-wide">
+                          {op.value}
+                        </div>
+
+                      </div>
+                    </motion.button>
+                  )
+                })}
+              </div>
+            </motion.div>
+
+            {/* RIGHT: HUD */}
+            <motion.aside
+              className="lg:col-span-4 space-y-4"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: 'easeOut', delay: 0.05 }}
+            >
+              <div className="rounded-2xl border bg-card p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Tu progreso</div>
+                    <div className="text-lg font-semibold">Arena de Trofeos</div>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-xl border bg-background px-3 py-2">
+                    <Trophy className="h-4 w-4" />
+                    <span className="font-semibold">
+                      {gamiLoading ? '—' : gami?.trophies ?? 0}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-3">
+                  <StatPill
+                    icon={<Flame className="h-4 w-4" />}
+                    label="Racha"
+                    value={gamiLoading ? '—' : gami?.streak ?? 0}
+                    hint="Aciertos seguidos"
+                  />
+                  <StatPill
+                    icon={<Timer className="h-4 w-4" />}
+                    label="Tiempo"
+                    value={formatTime(elapsed)}
+                    hint={`Ahora mismo ganas +${trophyPreview} si aciertas`}
+                  />
+                  <StatPill
+                    icon={<CheckCircle2 className="h-4 w-4" />}
+                    label="Aciertos"
+                    value={gamiLoading ? '—' : gami?.correct_attempts ?? 0}
+                  />
+                  <StatPill
+                    icon={<XCircle className="h-4 w-4" />}
+                    label="Errores"
+                    value={gamiLoading ? '—' : gami?.wrong_attempts ?? 0}
+                    hint={`Cada error: -${WRONG_PENALTY} (sin bajar de 0)`}
+                  />
+                </div>
+
+                {!studentId ? (
+                  <div className="mt-3 rounded-xl border bg-background p-3 text-xs text-muted-foreground">
+                    No se detectó usuario logueado. Los trofeos no se guardarán.
+                  </div>
+                ) : !gamiLoading && !gami ? (
+                  <div className="mt-3 rounded-xl border bg-background p-3 text-xs text-muted-foreground">
+                    No encontré tu fila en <span className="font-mono">edu_student_gamification</span>.
+                    (Tu trigger debería crearla cuando el alumno entra al aula).
+                  </div>
+                ) : null}
+              </div>
+
+
+           
+            </motion.aside>
+          </div>
+        </ExerciseShell>
+      </div>
     </MathJaxContext>
   )
 }
-
-
-

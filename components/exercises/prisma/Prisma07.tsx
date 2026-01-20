@@ -278,7 +278,7 @@ export default function Prisma07({
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 7 — Conjuntos unitarios e iguales"
+        title="Conjuntos unitarios e iguales"
         prompt="Si los siguientes conjuntos son unitarios e iguales, calcule a + b + c."
         status={engine.status}
         attempts={engine.attempts}

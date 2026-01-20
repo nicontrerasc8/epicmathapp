@@ -19,7 +19,7 @@ export default async function ContentsPage() {
             .order("name", { ascending: true }),
         supabase
             .from("edu_classrooms")
-            .select("id, institution_id, grade, academic_year, active, created_at")
+            .select("id, institution_id, grade, section, academic_year, active, created_at")
             .eq("institution_id", institution.id)
             .order("academic_year", { ascending: false })
             .order("grade", { ascending: true }),
@@ -29,7 +29,7 @@ export default async function ContentsPage() {
             .order("created_at", { ascending: false }),
         supabase
             .from("edu_exercise_assignments")
-            .select("classroom_id, exercise_id, ordering, active, created_at")
+            .select("classroom_id, exercise_id, active, created_at")
             .order("created_at", { ascending: false }),
     ])
 

@@ -38,9 +38,9 @@ async function getAdminStats(institutionId: string) {
     // Recent student exercises (last 7 days)
     supabase
       .from("edu_student_exercises")
-      .select("id, correct, created_at")
+      .select("id, correct, created_at, edu_classrooms!inner ( institution_id )")
       .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-      .eq("institution_id", institutionId)
+      .eq("edu_classrooms.institution_id", institutionId)
       .order("created_at", { ascending: false })
       .limit(500),
   ])
@@ -70,11 +70,10 @@ async function getRecentClassrooms(institutionId: string) {
     .select(`
       id,
       grade,
-      grade_id,
+      section,
       academic_year,
       active,
-      edu_institutions ( name ),
-      edu_institution_grades ( name, code )
+      edu_institutions ( name )
     `)
     .eq("active", true)
     .eq("institution_id", institutionId)

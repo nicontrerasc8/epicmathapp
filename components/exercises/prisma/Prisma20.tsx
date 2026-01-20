@@ -152,7 +152,7 @@ export default function Prisma20({
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 20 — Logaritmos (telescópico)"
+        title="Logaritmos (telescópico)"
         prompt="Halle el valor de E."
         status={engine.status}
         attempts={engine.attempts}

@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input"
 interface ClassroomExercise {
   id: string
   active: boolean
-  ordering: number | null
   exercise: {
     id: string
     exercise_type: string
@@ -50,11 +49,6 @@ const columns: ColumnDef<ClassroomExercise>[] = [
     ),
   },
   {
-    key: "ordering",
-    header: "Orden",
-    render: (val) => val ?? "-",
-  },
-  {
     key: "active",
     header: "Estado",
     render: (val) => <StatusBadge active={val} />,
@@ -74,7 +68,6 @@ export default function ClassroomExercisesPage() {
 
   const [form, setForm] = useState({
     exercise_id: "",
-    ordering: "",
     active: true,
   })
 
@@ -86,7 +79,6 @@ export default function ClassroomExercisesPage() {
         .select(`
           id,
           active,
-          ordering,
           exercise:edu_exercises ( id, exercise_type, description )
         `)
         .eq("classroom_id", classroomId)
@@ -95,7 +87,6 @@ export default function ClassroomExercisesPage() {
         setExercises(data.map((e: any) => ({
           id: e.id,
           active: e.active,
-          ordering: e.ordering ?? null,
           exercise: e.exercise
         })))
       }
@@ -150,7 +141,6 @@ export default function ClassroomExercisesPage() {
       .select(`
         id,
         active,
-        ordering,
         exercise:edu_exercises ( id, exercise_type, description )
       `)
       .eq("classroom_id", classroomId)
@@ -159,7 +149,6 @@ export default function ClassroomExercisesPage() {
       setExercises(data.map((e: any) => ({
         id: e.id,
         active: e.active,
-        ordering: e.ordering ?? null,
         exercise: e.exercise
       })))
     }
@@ -274,7 +263,6 @@ export default function ClassroomExercisesPage() {
               .insert({
                 classroom_id: classroomId,
                 exercise_id: form.exercise_id,
-                ordering: form.ordering ? Number(form.ordering) : null,
                 active: form.active,
               })
 
@@ -286,7 +274,6 @@ export default function ClassroomExercisesPage() {
             await refreshExercises()
             setForm({
               exercise_id: "",
-              ordering: "",
               active: true,
             })
             setMessage({ type: "success", text: "Ejercicio asignado." })
@@ -308,16 +295,6 @@ export default function ClassroomExercisesPage() {
                 </option>
               ))}
             </select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Orden</label>
-            <Input
-              type="number"
-              value={form.ordering}
-              onChange={(e) => setForm((s) => ({ ...s, ordering: e.target.value }))}
-              placeholder="1"
-            />
           </div>
 
           <label className="flex items-center gap-2 text-sm">
@@ -348,7 +325,6 @@ export default function ClassroomExercisesPage() {
               onClick={() => {
                 setForm({
                   exercise_id: "",
-                  ordering: "",
                   active: true,
                 })
                 setMessage(null)

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Mail, Lock, Eye, EyeOff, AlertCircle, User } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
 
 type Mode = 'student' | 'teacher'
 
@@ -18,18 +18,15 @@ export default function SignInPage() {
   const [password, setPassword] = useState('')
   const [showPwd, setShowPwd] = useState(false)
 
-  const [username, setUsername] = useState('')
-  const [studentPassword, setStudentPassword] = useState('')
-
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingMode, setLoadingMode] = useState<Mode | null>(null)
 
-  const handleTeacherLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
-    setLoadingMode('teacher')
+    setLoadingMode(mode)
 
     const { data: sign, error: signErr } =
       await supabase.auth.signInWithPassword({
@@ -43,8 +40,6 @@ export default function SignInPage() {
       setLoadingMode(null)
       return
     }
-
-    await supabase.auth.getSession()
 
     const userId = sign.user.id
     const { data: profile, error: profErr } = await supabase
@@ -66,8 +61,18 @@ export default function SignInPage() {
       return
     }
 
+    if (mode === 'student' && profile.global_role !== 'student') {
+      setError('Tu cuenta no es de estudiante. Cambia a modo profesor.')
+      return
+    }
+
+    if (mode === 'teacher' && profile.global_role === 'student') {
+      setError('Tu cuenta es de estudiante. Cambia a modo alumno.')
+      return
+    }
+
     if (profile.global_role === 'admin') {
-      router.push('/dashboard/admin')
+      router.push('/admin-access')
       return
     }
 
@@ -76,58 +81,12 @@ export default function SignInPage() {
       return
     }
 
+    if (profile.global_role === 'student') {
+      router.push('/student/play')
+      return
+    }
+
     setError('Tu cuenta no tiene rol asignado (global_role). Contacta al administrador.')
-  }
-
-  const handleStudentLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
-    const res = await fetch('/api/student/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        username,
-        password: studentPassword || undefined,
-      }),
-    })
-
-    if (!res.ok) {
-      setError('Credenciales incorrectas o usuario no encontrado.')
-      setLoading(false)
-      setLoadingMode(null)
-      return
-    }
-
-    const data = await res.json().catch(() => null)
-    if (!data?.student) {
-      setError('No se pudo iniciar sesión. Intenta nuevamente.')
-      setLoading(false)
-      setLoadingMode(null)
-      return
-    }
-
-    const sessionRes = await fetch('/api/student/session', {
-      method: 'GET',
-      credentials: 'include',
-      cache: 'no-store',
-    })
-
-    if (!sessionRes.ok) {
-      setError('No se pudo validar la sesión. Intenta nuevamente.')
-      setLoading(false)
-      return
-    }
-
-    const redirectTo = typeof data.redirect_to === 'string'
-      ? data.redirect_to
-      : '/student/play'
-
-    setLoading(false)
-    setLoadingMode(null)
-    window.location.href = redirectTo
   }
 
   const isSubmitting = loading && loadingMode === mode
@@ -182,120 +141,62 @@ export default function SignInPage() {
             </button>
           </div>
 
-          {mode === 'student' ? (
-            <form onSubmit={handleStudentLogin} className="space-y-4">
-              <div className="flex items-center gap-2 rounded-lg border bg-input px-3 py-2 focus-within:ring-2 ring-ring">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Usuario"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-transparent outline-none text-sm"
-                  autoComplete="username"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="flex items-center gap-2 rounded-lg border bg-input px-3 py-2 focus-within:ring-2 ring-ring">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <input
+                type="email"
+                placeholder="Correo electronico"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-transparent outline-none text-sm"
+                autoComplete="email"
+                required
+                disabled={isSubmitting}
+              />
+            </div>
 
-              <div className="flex items-center gap-2 rounded-lg border bg-input px-3 py-2 focus-within:ring-2 ring-ring">
-                <Lock className="h-4 w-4 text-muted-foreground" />
-                <input
-                  type={showPwd ? 'text' : 'password'}
-                  placeholder="Contrasena"
-                  value={studentPassword}
-                  onChange={(e) => setStudentPassword(e.target.value)}
-                  className="w-full bg-transparent outline-none text-sm"
-                  autoComplete="current-password"
-                  disabled={isSubmitting}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPwd((s) => !s)}
-                  className="text-muted-foreground hover:text-foreground transition"
-                  aria-label={showPwd ? 'Ocultar contrasena' : 'Mostrar contrasena'}
-                  disabled={isSubmitting}
-                >
-                  {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+            <div className="flex items-center gap-2 rounded-lg border bg-input px-3 py-2 focus-within:ring-2 ring-ring">
+              <Lock className="h-4 w-4 text-muted-foreground" />
+              <input
+                type={showPwd ? 'text' : 'password'}
+                placeholder="Contrasena"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-transparent outline-none text-sm"
+                autoComplete="current-password"
+                required
+                disabled={isSubmitting}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd((s) => !s)}
+                className="text-muted-foreground hover:text-foreground transition"
+                aria-label={showPwd ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                disabled={isSubmitting}
+              >
+                {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
 
-              {error && (
-                <div className="flex items-center gap-2 text-destructive text-sm justify-center">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>{error}</span>
-                </div>
+            {error && (
+              <div className="flex items-center gap-2 text-destructive text-sm justify-center">
+                <AlertCircle className="h-4 w-4" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <Button type="submit" disabled={loading} className="w-full h-11 text-base font-semibold">
+              {isSubmitting ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  Ingresando...
+                </span>
+              ) : (
+                'Entrar'
               )}
-
-              <Button type="submit" disabled={loading} className="w-full h-11 text-base font-semibold">
-                {isSubmitting ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    Ingresando...
-                  </span>
-                ) : (
-                  'Entrar'
-                )}
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={handleTeacherLogin} className="space-y-4">
-              <div className="flex items-center gap-2 rounded-lg border bg-input px-3 py-2 focus-within:ring-2 ring-ring">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <input
-                  type="email"
-                  placeholder="Correo electronico"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-transparent outline-none text-sm"
-                  autoComplete="email"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="flex items-center gap-2 rounded-lg border bg-input px-3 py-2 focus-within:ring-2 ring-ring">
-                <Lock className="h-4 w-4 text-muted-foreground" />
-                <input
-                  type={showPwd ? 'text' : 'password'}
-                  placeholder="Contrasena"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-transparent outline-none text-sm"
-                  autoComplete="current-password"
-                  required
-                  disabled={isSubmitting}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPwd((s) => !s)}
-                  className="text-muted-foreground hover:text-foreground transition"
-                  aria-label={showPwd ? 'Ocultar contrasena' : 'Mostrar contrasena'}
-                  disabled={isSubmitting}
-                >
-                  {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-
-              {error && (
-                <div className="flex items-center gap-2 text-destructive text-sm justify-center">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <Button type="submit" disabled={loading} className="w-full h-11 text-base font-semibold">
-                {isSubmitting ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    Ingresando...
-                  </span>
-                ) : (
-                  'Entrar'
-                )}
-              </Button>
-            </form>
-          )}
+            </Button>
+          </form>
         </div>
       </div>
     </div>

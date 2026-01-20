@@ -21,11 +21,11 @@ import {
 interface ClassroomData {
     id: string
     grade: string
-    grade_id?: string | null
+    section?: string | null
     academic_year: number
     active: boolean
+    classroom_code?: string | null
     edu_institutions: { id: string; name: string; type: string } | null
-    edu_institution_grades?: { id: string; name: string; level: string; grade_num: number; code: string } | null
     memberCount: number
     exercisesCount: number
     accuracy: number
@@ -79,11 +79,7 @@ function QuickLinkCard({
 
 export default function ClassroomDetailClient({ data }: any) {
     const institutionName = data.edu_institutions?.name || "Sin institucion"
-    const gradeSource = data.edu_institution_grades
-    const gradeName = Array.isArray(gradeSource)
-        ? gradeSource[0]?.name || gradeSource[0]?.code || data.grade
-        : gradeSource?.name || gradeSource?.code || data.grade
-    const gradeLabel = gradeName
+    const gradeLabel = `${data.grade}${data.section ? ` ${data.section}` : ""}`.trim()
 
     return (
         <div className="space-y-8">
@@ -173,8 +169,14 @@ export default function ClassroomDetailClient({ data }: any) {
                         </div>
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Grado</dt>
-                            <dd className="font-medium">{gradeName}</dd>
+                            <dd className="font-medium">{gradeLabel}</dd>
                         </div>
+                        {data.classroom_code && (
+                            <div className="flex justify-between">
+                                <dt className="text-muted-foreground">Codigo</dt>
+                                <dd className="font-medium">{data.classroom_code}</dd>
+                            </div>
+                        )}
 
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Anio Academico</dt>

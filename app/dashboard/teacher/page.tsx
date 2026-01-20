@@ -15,7 +15,7 @@ export default async function TeacherDashboard() {
     .select(`
       classroom_id,
       institution_id,
-      edu_classrooms:classroom_id ( id, grade, academic_year ),
+      edu_classrooms:classroom_id ( id, grade, section, academic_year ),
       edu_institutions:institution_id ( id, name, type )
     `)
     .eq("profile_id", user.id)
@@ -30,7 +30,7 @@ export default async function TeacherDashboard() {
       const c = m.edu_classrooms
       if (!c) return null
 
-      const gradeLabel = `${c.grade}`
+      const gradeLabel = `${c.grade}${c.section ? ` ${c.section}` : ""}`.trim()
       const institutionName = Array.isArray(m.edu_institutions)
         ? m.edu_institutions[0]?.name
         : m.edu_institutions?.name ?? "Institución"

@@ -47,27 +47,6 @@ export default function TeacherDashboardClient({ classrooms }: TeacherDashboardC
                 description="Gestiona tus aulas y estudiantes asignados"
             />
 
-            {/* Stats */}
-            <StatCardGrid columns={3}>
-                <StatCard
-                    title="Total Aulas"
-                    value={classrooms.length}
-                    icon={School}
-                    variant="primary"
-                />
-                <StatCard
-                    title="Instituciones"
-                    value={grouped.length}
-                    icon={BookOpen}
-                    variant="default"
-                />
-                <StatCard
-                    title="Año Académico"
-                    value={new Date().getFullYear()}
-                    icon={Calendar}
-                    variant="default"
-                />
-            </StatCardGrid>
 
             {/* Classrooms List */}
             {classrooms.length === 0 ? (
@@ -89,13 +68,7 @@ export default function TeacherDashboardClient({ classrooms }: TeacherDashboardC
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: groupIdx * 0.1 }}
                         >
-                            <div className="flex items-center gap-2 mb-4">
-                                <div className="p-2 rounded-lg bg-accent/10">
-                                    <School className="w-5 h-5 text-accent-foreground" />
-                                </div>
-                                <h2 className="text-xl font-bold">{institutionName}</h2>
-                                <span className="text-sm text-muted-foreground">({list.length} aulas)</span>
-                            </div>
+                    
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {list.map((cls, i) => (

@@ -314,7 +314,7 @@ r:&\\ ${statementToLatex(r.statement)}\\\\[4pt]
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 3 — Esquemas moleculares (p,q,r)"
+        title="Esquemas moleculares (p,q,r)"
         prompt="Calcula el patrón V/F (orden 1,2,3) para los esquemas."
         status={engine.status}
         attempts={engine.attempts}

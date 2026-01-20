@@ -16,7 +16,7 @@ export default async function TeacherClassroomHub({
   const { data: classroom } = await supabase
     .from("edu_classrooms")
     .select(`
-      id, grade, academic_year, active,
+      id, grade, section, academic_year, active,
       edu_institutions ( name )
     `)
     .eq("id", id)

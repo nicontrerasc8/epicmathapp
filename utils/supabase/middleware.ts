@@ -1,9 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
-import {
-  parseStudentSessionValue,
-  getStudentSessionCookieName,
-} from "@/utils/student-session";
 
 type InstitutionLookup = {
   id: string;
@@ -104,37 +100,37 @@ export const updateSession = async (request: NextRequest) => {
               headers: requestHeaders,
             },
           });
-          cookiesToSet.forEach(({ name, value, options }) => {
-            const cookieOptions = getCookieOptions(options);
-            response.cookies.set(name, value, cookieOptions);
-          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, getCookieOptions(options)),
+          );
         },
       },
     },
   );
 
-  // ⭐ MOVER ESTE BLOQUE AQUÍ - ANTES DE VALIDAR RUTAS
-  // Parse student session token FIRST
-  const studentToken = request.cookies.get(getStudentSessionCookieName())?.value;
-  let studentSession = null;
-  
-  if (studentToken) {
-    try {
-      studentSession = await parseStudentSessionValue(studentToken);
-    } catch (error) {
-      console.error("[Middleware] Student session parse error:", error);
-    }
-  }
-
-  // Student routes - require student session ONLY
-  if (isStudentRoute) {
-
-    // Student authenticated → allow, DO NOT check Supabase auth
-    return response;
-  }
-
   // Refresh session if expired - required for Server Components
   const { data: authData, error: authError } = await supabase.auth.getUser();
+  // 🚨 ROOT ACCESS CONTROL
+if (pathname === "/" && authData?.user) {
+  const { data: profile } = await supabase
+    .from("edu_profiles")
+    .select("global_role")
+    .eq("id", authData.user.id)
+    .maybeSingle();
+
+  if (profile?.global_role === "student") {
+    return NextResponse.redirect(new URL("/student/play", request.url));
+  }
+
+  if (profile?.global_role === "teacher") {
+    return NextResponse.redirect(new URL("/dashboard/teacher", request.url));
+  }
+
+  if (profile?.global_role === "admin") {
+    return NextResponse.redirect(new URL("/admin-access", request.url));
+  }
+}
+
 
   // Fetch and validate institution if on subdomain
   if (slug) {
@@ -172,11 +168,51 @@ export const updateSession = async (request: NextRequest) => {
     });
   }
 
-
-
-  // Redirect institution root to sign-in ONLY if not a student
-  if (slug && pathname === "/" && !studentSession) {
+  // Redirect institution root to sign-in if user is not authenticated
+  if (slug && pathname === "/" && (authError || !authData.user)) {
     return NextResponse.redirect(new URL("/sign-in", request.url));
+  }
+
+  // Student routes - require Supabase auth + student profile
+  if (isStudentRoute) {
+    if (authError || !authData.user) {
+      console.warn(`[Middleware] Auth required for student route: ${pathname}`);
+      return NextResponse.redirect(new URL("/sign-in", request.url));
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("edu_profiles")
+      .select("global_role, active")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+
+    if (profileError || !profile || !profile.active || profile.global_role !== "student") {
+      console.warn(`[Middleware] Student access denied for user: ${authData.user.id}`);
+      return NextResponse.redirect(new URL("/sign-in", request.url));
+    }
+
+    if (slug) {
+      const institutionId = requestHeaders.get("x-institution-id") || "";
+      const { data: member, error: memberError } = await supabase
+        .from("edu_institution_members")
+        .select("id")
+        .eq("profile_id", authData.user.id)
+        .eq("role", "student")
+        .eq("active", true)
+        .eq("institution_id", institutionId)
+        .maybeSingle();
+
+      if (memberError) {
+        console.warn(`[Middleware] Student membership lookup failed for slug: ${slug}`);
+        return NextResponse.redirect(getRootRedirectUrl(request));
+      }
+
+      if (!member) {
+        console.warn(`[Middleware] Student not in institution for slug: ${slug}. Allowing access to show message.`);
+      }
+    }
+
+    return response;
   }
 
   // Teacher and Admin routes - require Supabase auth and proper role

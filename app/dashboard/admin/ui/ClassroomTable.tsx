@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react"
 import type { FormEvent } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Eye, Edit, Trash2, Plus, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -22,7 +21,6 @@ import {
 import {
   listClassroomsAction,
   listInstitutionsAction,
-  listInstitutionGradesAction,
   createClassroomAction,
   updateClassroomAction,
   deactivateClassroomAction,
@@ -32,12 +30,12 @@ import {
 type Classroom = {
   id: string
   grade: string
-  grade_id?: string | null
+  section?: string | null
   institution_id?: string | null
   academic_year: number
   active: boolean
-  edu_institutions?: any
-  edu_institution_grades?: any
+  classroom_code?: string | null
+  edu_institutions?: { id: string; name: string } | null
 }
 
 type Institution = {
@@ -47,23 +45,13 @@ type Institution = {
   code?: string | null
 }
 
-type InstitutionGrade = {
-  id: string
-  institution_id: string
-  name: string
-  code?: string | null
-  level?: string | null
-  grade_num?: number | null
-}
 
 const pageSizeOptions = [10, 20, 50, 100]
 
 function getGradeLabel(classroom: Classroom): string {
-  const grade = classroom.edu_institution_grades
-  if (Array.isArray(grade)) {
-    return grade[0]?.name || grade[0]?.code || classroom.grade
-  }
-  return grade?.name || grade?.code || classroom.grade
+  const grade = classroom.grade || ""
+  const section = classroom.section || ""
+  return `${grade} ${section}`.trim()
 }
 
 
@@ -163,11 +151,12 @@ export default function ClassroomsTable() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
   const [institutions, setInstitutions] = useState<Institution[]>([])
-  const [grades, setGrades] = useState<InstitutionGrade[]>([])
   const [form, setForm] = useState({
     institutionId: "",
-    gradeId: "",
+    grade: "",
+    section: "",
     academicYear: String(new Date().getFullYear()),
+    classroomCode: "",
     active: true,
   })
 
@@ -194,11 +183,12 @@ export default function ClassroomsTable() {
   const resetForm = useCallback(() => {
     setForm({
       institutionId: "",
-      gradeId: "",
+      grade: "",
+      section: "",
       academicYear: String(new Date().getFullYear()),
+      classroomCode: "",
       active: true,
     })
-    setGrades([])
     setCreateError(null)
     setEditId(null)
   }, [])
@@ -220,23 +210,6 @@ export default function ClassroomsTable() {
     }
     loadInstitutions()
   }, [showCreate])
-
-  useEffect(() => {
-    if (!form.institutionId) {
-      setGrades([])
-      return
-    }
-    const loadGrades = async () => {
-      try {
-        setCreateError(null)
-        const data = await listInstitutionGradesAction(form.institutionId)
-        setGrades(data as InstitutionGrade[])
-      } catch (e: any) {
-        setCreateError(e?.message ?? "Error cargando grados")
-      }
-    }
-    loadGrades()
-  }, [form.institutionId])
 
   useEffect(() => {
     setPage(1)
@@ -296,8 +269,10 @@ export default function ClassroomsTable() {
             setEditId(row.id)
             setForm({
               institutionId: row.institution_id || "",
-              gradeId: row.grade_id || "",
+              grade: row.grade || "",
+              section: row.section || "",
               academicYear: String(row.academic_year ?? new Date().getFullYear()),
+              classroomCode: row.classroom_code || "",
               active: Boolean(row.active),
             })
           },
@@ -326,7 +301,7 @@ export default function ClassroomsTable() {
     event.preventDefault()
     setCreateError(null)
 
-    if (!form.institutionId || !form.gradeId) {
+    if (!form.institutionId || !form.grade.trim()) {
       setCreateError("Completa institucion y grado.")
       return
     }
@@ -342,15 +317,19 @@ export default function ClassroomsTable() {
       if (editId) {
         await updateClassroomAction(editId, {
           institution_id: form.institutionId,
-          grade_id: form.gradeId,
+          grade: form.grade,
+          section: form.section || null,
           academic_year: year,
+          classroom_code: form.classroomCode || null,
           active: form.active,
         })
       } else {
         await createClassroomAction({
           institution_id: form.institutionId,
-          grade_id: form.gradeId,
+          grade: form.grade,
+          section: form.section || null,
           academic_year: year,
+          classroom_code: form.classroomCode || null,
           active: form.active,
         })
       }
@@ -420,7 +399,6 @@ export default function ClassroomsTable() {
                   setForm((s) => ({
                     ...s,
                     institutionId: e.target.value,
-                    gradeId: "",
                   }))
                 }}
                 className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
@@ -435,25 +413,19 @@ export default function ClassroomsTable() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="grade">Grado</Label>
-              <select
+              <Input
                 id="grade"
-                value={form.gradeId}
-                onChange={(e) => {
-                  setForm((s) => ({
-                    ...s,
-                    gradeId: e.target.value,
-                  }))
-                }}
-                disabled={!form.institutionId}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm disabled:opacity-60"
-              >
-                <option value="">Selecciona grado</option>
-                {grades.map((grade) => (
-                  <option key={grade.id} value={grade.id}>
-                    {grade.name || grade.code}
-                  </option>
-                ))}
-              </select>
+                value={form.grade}
+                onChange={(e) => setForm((s) => ({ ...s, grade: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="section">Seccion</Label>
+              <Input
+                id="section"
+                value={form.section}
+                onChange={(e) => setForm((s) => ({ ...s, section: e.target.value }))}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="academicYear">Ano</Label>
@@ -464,6 +436,14 @@ export default function ClassroomsTable() {
                 max={2100}
                 value={form.academicYear}
                 onChange={(e) => setForm((s) => ({ ...s, academicYear: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="classroomCode">Codigo</Label>
+              <Input
+                id="classroomCode"
+                value={form.classroomCode}
+                onChange={(e) => setForm((s) => ({ ...s, classroomCode: e.target.value }))}
               />
             </div>
           </div>
@@ -560,6 +540,10 @@ export default function ClassroomsTable() {
     </div>
   )
 }
+
+
+
+
 
 
 

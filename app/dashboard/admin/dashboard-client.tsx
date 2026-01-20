@@ -26,11 +26,10 @@ interface Stats {
 interface RecentClassroom {
     id: string
     grade: string
-    grade_id?: string | null
+    section?: string | null
     academic_year: number
     active: boolean
     edu_institutions: { name: string } | null
-    edu_institution_grades?: { name: string; code: string } | null
 }
 
 interface RecentStudent {
@@ -96,11 +95,9 @@ const fadeIn = {
 }
 
 function getRecentGradeLabel(cls: RecentClassroom) {
-    const grade = cls.edu_institution_grades as any
-    if (Array.isArray(grade)) {
-        return grade[0]?.name || grade[0]?.code || cls.grade
-    }
-    return grade?.name || grade?.code || cls.grade
+    const grade = cls.grade || ""
+    const section = cls.section || ""
+    return `${grade} ${section}`.trim()
 }
 
 export default function AdminDashboardClient({
@@ -155,14 +152,14 @@ export default function AdminDashboardClient({
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <QuickActionCard
                         icon={UserPlus}
-                        title="Agregar Estudiante"
-                        description="Registrar nuevo estudiante manualmente"
+                        title="Agregar Usuario"
+                        description="Registrar nuevo usuario manualmente"
                         href="/dashboard/admin/students"
                     />
                     <QuickActionCard
                         icon={FileSpreadsheet}
                         title="Importar desde Excel"
-                        description="Carga masiva de estudiantes"
+                        description="Carga masiva de usuarios"
                         href="/dashboard/admin/students/import"
                     />
                     <QuickActionCard

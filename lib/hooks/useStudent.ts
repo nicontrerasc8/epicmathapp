@@ -2,22 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { fetchStudentSession } from '@/lib/student-session-client'
-
-type Student = {
-  id: string
-  username: string
-  grade: number
-  level: number
-  school_id: string | null
-  classroom_id: string
-}
-
+import { createClient } from '@/utils/supabase/client'
+import { fetchStudentSession, type StudentSessionData } from '@/lib/student-session-client'
 
 export function useStudent(redirectIfNotFound = false) {
-  const [student, setStudent] = useState<any>(null)
+  const [student, setStudent] = useState<StudentSessionData | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
     let active = true
@@ -30,12 +22,16 @@ export function useStudent(redirectIfNotFound = false) {
           setStudent(session)
         } else {
           setStudent(null)
-   
+          if (redirectIfNotFound) {
+            router.push('/sign-in')
+          }
         }
       } catch (err) {
         if (active) {
           setStudent(null)
-  
+          if (redirectIfNotFound) {
+            router.push('/sign-in')
+          }
         }
       } finally {
         if (active) {
@@ -52,7 +48,7 @@ export function useStudent(redirectIfNotFound = false) {
   }, [redirectIfNotFound, router])
 
   const logout = async () => {
-    await fetch('/api/student/logout', { method: 'POST' })
+    await supabase.auth.signOut()
     setStudent(null)
     router.push('/sign-in')
   }

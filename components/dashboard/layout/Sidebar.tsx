@@ -47,7 +47,7 @@ interface NavItem {
 
 const adminNavigation: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard/admin" },
-    { icon: Users, label: "Estudiantes", href: "/dashboard/admin/students" },
+    { icon: Users, label: "Usuarios", href: "/dashboard/admin/students" },
     { icon: GraduationCap, label: "Aulas", href: "/dashboard/admin/classrooms" },
     { icon: BookOpen, label: "Contenidos", href: "/dashboard/admin/contents" },
     { icon: Building2, label: "Instituciones", href: "/dashboard/admin/institutions" },

@@ -27,7 +27,7 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
 
   useEffect(() => {
     if (!exerciseId) {
-      setState(s => ({ ...s, loading: false }))
+      setState((s) => ({ ...s, loading: false }))
       return
     }
 
@@ -35,18 +35,11 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
 
     async function loadContext() {
       try {
-        const studentSession = await fetchStudentSession()
-        const studentId = studentSession?.id
+        const studentSession = await fetchStudentSession(institution?.id)
+        const studentId = studentSession?.student_id
 
         if (!studentId) {
           throw new Error('Usuario no autenticado')
-        }
-        if (
-          institution?.id &&
-          studentSession?.institution_id &&
-          studentSession.institution_id !== institution.id
-        ) {
-          throw new Error('Institucion incorrecta')
         }
 
         let memberQuery = supabase
@@ -83,23 +76,10 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
           throw new Error('Ejercicio no asignado al aula')
         }
 
-        const { data: session, error: sessionErr } = await supabase
-          .from('edu_practice_sessions')
-          .insert({
-            student_id: studentId,
-            classroom_id: classroomId,
-          })
-          .select('id')
-          .single()
-
-        if (sessionErr || !session?.id) {
-          throw new Error('No se pudo crear sesion')
-        }
-
         if (!cancelled) {
           setState({
             classroomId,
-            sessionId: session.id,
+            sessionId: null,
             studentId,
             loading: false,
             error: null,
@@ -107,7 +87,7 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
         }
       } catch (err: any) {
         if (!cancelled) {
-          setState(s => ({
+          setState((s) => ({
             ...s,
             loading: false,
             error: err.message ?? 'Error desconocido',

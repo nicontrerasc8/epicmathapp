@@ -228,7 +228,7 @@ export default function Prisma04({
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 4 — Implicación falsa: halla p, q, r"
+        title="Implicación falsa: halla p, q, r"
         prompt="Si la proposición es falsa, determina los valores de verdad de p, q y r."
         status={engine.status}
         attempts={engine.attempts}

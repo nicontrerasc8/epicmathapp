@@ -18,10 +18,9 @@ export async function persistExerciseOnce(input: PersistExerciseInput) {
   if (!studentSession) return
 
   await supabase.from('edu_student_exercises').insert({
-    student_id: studentSession.id,
+    student_id: studentSession.student_id,
     classroom_id: input.classroomId,
     exercise_id: input.exerciseId,
-    session_id: input.sessionId ?? null,
     answer: input.answer,
     correct: input.correct,
     time_seconds: input.timeSeconds ?? null,

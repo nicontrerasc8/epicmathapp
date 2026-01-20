@@ -329,7 +329,7 @@ export default function Prisma05({
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 5 — Implicación falsa (deducción)"
+        title="Implicación falsa (deducción)"
         prompt="Si la proposición compuesta es falsa, indica cuáles proposiciones son verdaderas:"
         status={engine.status}
         attempts={engine.attempts}

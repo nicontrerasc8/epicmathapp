@@ -16,17 +16,20 @@ const getInstitutionId = async () => {
 }
 
 // -----------------------------------------------------------------------------
-// STUDENTS ACTIONS
+// USERS ACTIONS
 // -----------------------------------------------------------------------------
 
-export async function listStudentsAction(q: string) {
+export async function listStudentsAction(
+    q: string,
+    role?: "student" | "teacher" | "all",
+) {
     const supabase = await createClient()
     const institutionId = await getInstitutionId()
 
-    // Nota: asumimos estudiantes por:
-    // - global_role = 'student' OR
-    // - membresía role='student'
-    // Aquí usamos global_role para velocidad (puedes ampliar luego).
+    // Nota: filtramos por global_role para velocidad.
+    const roles = role && role !== "all"
+        ? [role]
+        : ["student", "teacher"]
     const query = supabase
         .from("edu_profiles")
         .select(`
@@ -47,12 +50,11 @@ export async function listStudentsAction(q: string) {
                     id,
                     academic_year,
                     grade,
-                    grade_id,
-                    edu_institution_grades ( name, code )
+                    section
                 )
             )
         `)
-        .eq("global_role", "student")
+        .in("global_role", roles)
         .eq("edu_institution_members.institution_id", institutionId)
         .order("created_at", { ascending: false })
         .limit(200)
@@ -77,11 +79,9 @@ export async function listStudentsAction(q: string) {
         const membershipText = (r.edu_institution_members || [])
             .map((m: any) => {
                 const inst = m.edu_institutions?.name || ""
-                const grade = m.edu_classrooms?.edu_institution_grades?.name ||
-                    m.edu_classrooms?.edu_institution_grades?.code ||
-                    m.edu_classrooms?.grade ||
-                    ""
-                return `${inst} ${grade}`.trim()
+                const grade = m.edu_classrooms?.grade || ""
+                const section = m.edu_classrooms?.section || ""
+                return `${inst} ${grade} ${section}`.trim()
             })
             .join(" ")
             .toLowerCase()
@@ -117,8 +117,7 @@ export async function getStudentDetailAction(studentId: string) {
                 id,
                 academic_year,
                 grade,
-                grade_id,
-                edu_institution_grades ( name, code )
+                section
             )
         `)
         .eq("profile_id", studentId)
@@ -127,7 +126,7 @@ export async function getStudentDetailAction(studentId: string) {
     if (mErr) throw new Error(mErr.message)
 
     if (!memberships || memberships.length === 0) {
-        throw new Error("Estudiante fuera de la institucion")
+        throw new Error("Usuario fuera de la institucion")
     }
 
     return { profile, memberships }
@@ -138,6 +137,7 @@ export async function createStudentAction(input: {
     password?: string
     first_name: string
     last_name: string
+    role?: "student" | "teacher"
     classroom_id?: string | null
 }) {
     const institutionId = await getInstitutionId()
@@ -145,6 +145,10 @@ export async function createStudentAction(input: {
     if (!email) throw new Error("Correo invalido")
     if (!input.first_name.trim() || !input.last_name.trim()) {
         throw new Error("Nombre y apellido son requeridos")
+    }
+    const role = input.role ?? "student"
+    if (role !== "student" && role !== "teacher") {
+        throw new Error("Rol invalido")
     }
 
     const password = input.password?.trim() || crypto.randomBytes(6).toString("hex")
@@ -162,7 +166,7 @@ export async function createStudentAction(input: {
         id: userId,
         first_name: input.first_name.trim(),
         last_name: input.last_name.trim(),
-        global_role: "student",
+        global_role: role,
         active: true,
     })
     if (profileErr) throw new Error(profileErr.message)
@@ -179,16 +183,16 @@ export async function createStudentAction(input: {
         if (classroom.institution_id !== institutionId) {
             throw new Error("Aula fuera de la institucion")
         }
-
-        const { error: memberErr } = await supabaseAdmin.from("edu_institution_members").insert({
-            profile_id: userId,
-            institution_id: classroom.institution_id,
-            classroom_id: input.classroom_id,
-            role: "student",
-            active: true,
-        })
-        if (memberErr) throw new Error(memberErr.message)
     }
+
+    const { error: memberErr } = await supabaseAdmin.from("edu_institution_members").insert({
+        profile_id: userId,
+        institution_id: institutionId,
+        classroom_id: input.classroom_id ?? null,
+        role,
+        active: true,
+    })
+    if (memberErr) throw new Error(memberErr.message)
 
     return { id: userId, password: input.password?.trim() ? null : password }
 }
@@ -200,12 +204,24 @@ export async function updateStudentAction(
         last_name: string
         classroom_id?: string | null
         active: boolean
+        role?: "student" | "teacher"
     },
 ) {
     const institutionId = await getInstitutionId()
-    if (!studentId) throw new Error("Estudiante invalido")
+    if (!studentId) throw new Error("Usuario invalido")
     if (!input.first_name.trim() || !input.last_name.trim()) {
         throw new Error("Nombre y apellido son requeridos")
+    }
+
+    const { data: currentProfile } = await supabaseAdmin
+        .from("edu_profiles")
+        .select("global_role")
+        .eq("id", studentId)
+        .maybeSingle()
+
+    const effectiveRole = input.role ?? currentProfile?.global_role ?? "student"
+    if (effectiveRole !== "student" && effectiveRole !== "teacher") {
+        throw new Error("Rol invalido")
     }
 
     const { error: profileErr } = await supabaseAdmin
@@ -214,18 +230,45 @@ export async function updateStudentAction(
             first_name: input.first_name.trim(),
             last_name: input.last_name.trim(),
             active: input.active,
+            global_role: effectiveRole,
         })
         .eq("id", studentId)
     if (profileErr) throw new Error(profileErr.message)
 
     if (!input.classroom_id) {
-        const { error: clearErr } = await supabaseAdmin
+        const { data: member, error: memberErr } = await supabaseAdmin
             .from("edu_institution_members")
-            .update({ classroom_id: null })
+            .select("id")
             .eq("profile_id", studentId)
-            .eq("role", "student")
             .eq("institution_id", institutionId)
-        if (clearErr) throw new Error(clearErr.message)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        if (memberErr) throw new Error(memberErr.message)
+
+        if (member?.id) {
+            const { error: clearErr } = await supabaseAdmin
+                .from("edu_institution_members")
+                .update({
+                    classroom_id: null,
+                    active: input.active,
+                    role: effectiveRole,
+                })
+                .eq("id", member.id)
+            if (clearErr) throw new Error(clearErr.message)
+            return { id: studentId }
+        }
+
+        const { error: insertErr } = await supabaseAdmin
+            .from("edu_institution_members")
+            .insert({
+                profile_id: studentId,
+                institution_id: institutionId,
+                classroom_id: null,
+                role: effectiveRole,
+                active: input.active,
+            })
+        if (insertErr) throw new Error(insertErr.message)
         return { id: studentId }
     }
 
@@ -245,7 +288,6 @@ export async function updateStudentAction(
         .from("edu_institution_members")
         .select("id")
         .eq("profile_id", studentId)
-        .eq("role", "student")
         .eq("institution_id", institutionId)
         .limit(1)
         .maybeSingle()
@@ -258,6 +300,7 @@ export async function updateStudentAction(
                 institution_id: classroom.institution_id,
                 classroom_id: input.classroom_id,
                 active: input.active,
+                role: effectiveRole,
             })
             .eq("id", member.id)
         if (updateErr) throw new Error(updateErr.message)
@@ -268,7 +311,7 @@ export async function updateStudentAction(
                 profile_id: studentId,
                 institution_id: classroom.institution_id,
                 classroom_id: input.classroom_id,
-                role: "student",
+                role: effectiveRole,
                 active: input.active,
             })
         if (insertErr) throw new Error(insertErr.message)
@@ -279,7 +322,7 @@ export async function updateStudentAction(
 
 export async function deactivateStudentAction(studentId: string) {
     const institutionId = await getInstitutionId()
-    if (!studentId) throw new Error("Estudiante invalido")
+    if (!studentId) throw new Error("Usuario invalido")
 
     const { error: profileErr } = await supabaseAdmin
         .from("edu_profiles")
@@ -291,7 +334,6 @@ export async function deactivateStudentAction(studentId: string) {
         .from("edu_institution_members")
         .update({ active: false })
         .eq("profile_id", studentId)
-        .eq("role", "student")
         .eq("institution_id", institutionId)
     if (memberErr) throw new Error(memberErr.message)
 
@@ -311,21 +353,15 @@ export async function listClassroomsAction() {
         .select(`
       id,
       grade,
-      grade_id,
+      section,
       academic_year,
       active,
       institution_id,
+      classroom_code,
       created_at,
       edu_institutions (
         id,
         name
-      ),
-      edu_institution_grades (
-        id,
-        name,
-        level,
-        grade_num,
-        code
       )
     `)
         .eq("institution_id", institutionId)
@@ -417,154 +453,41 @@ export async function updateInstitutionAction(
     return { id: institutionId }
 }
 
-export async function listInstitutionGradesAction(institutionId: string) {
-    const supabase = await createClient()
-
-    const { data, error } = await supabase
-        .from("edu_institution_grades")
-        .select("id, institution_id, name, code, level, grade_num, ordering, active")
-        .eq("institution_id", institutionId)
-        .eq("active", true)
-        .order("ordering", { ascending: true })
-        .order("grade_num", { ascending: true })
-
-    if (error) throw new Error(error.message)
-    return data ?? []
-}
-
-export async function createInstitutionGradeAction(input: {
-    institution_id: string
-    name: string
-    code?: string | null
-    level: "inicial" | "primaria" | "secundaria"
-    grade_num: number
-    ordering?: number | null
-    active?: boolean
-}) {
-    if (!input.institution_id) throw new Error("Institucion requerida")
-    if (!input.name.trim()) throw new Error("Nombre requerido")
-    if (!Number.isFinite(input.grade_num) || input.grade_num <= 0) {
-        throw new Error("Numero de grado invalido")
-    }
-
-    const supabase = await createClient()
-    const { data: institution, error: instErr } = await supabase
-        .from("edu_institutions")
-        .select("id")
-        .eq("id", input.institution_id)
-        .single()
-    if (instErr || !institution) {
-        throw new Error(instErr?.message || "Institucion no encontrada")
-    }
-
-    const { data, error } = await supabase
-        .from("edu_institution_grades")
-        .insert({
-            institution_id: input.institution_id,
-            name: input.name.trim(),
-            code: input.code?.trim() || null,
-            level: input.level,
-            grade_num: input.grade_num,
-            ordering: input.ordering ?? null,
-            active: input.active ?? true,
-        })
-        .select("id, institution_id, name, code, level, grade_num, ordering, active")
-        .single()
-
-    if (error) throw new Error(error.message)
-    return data
-}
-
-export async function updateInstitutionGradeAction(
-    gradeId: string,
-    input: {
-        institution_id: string
-        name: string
-        code?: string | null
-        level: "inicial" | "primaria" | "secundaria"
-        grade_num: number
-        ordering?: number | null
-        active: boolean
-    },
-) {
-    if (!gradeId) throw new Error("Grado invalido")
-    if (!input.name.trim()) throw new Error("Nombre requerido")
-    if (!Number.isFinite(input.grade_num) || input.grade_num <= 0) {
-        throw new Error("Numero de grado invalido")
-    }
-
-    const supabase = await createClient()
-    const { data: grade, error: gradeErr } = await supabase
-        .from("edu_institution_grades")
-        .select("id, institution_id")
-        .eq("id", gradeId)
-        .single()
-    if (gradeErr || !grade) throw new Error(gradeErr?.message || "Grado no encontrado")
-    if (grade.institution_id !== input.institution_id) {
-        throw new Error("El grado no pertenece a la institucion seleccionada")
-    }
-
-    const { error } = await supabase
-        .from("edu_institution_grades")
-        .update({
-            name: input.name.trim(),
-            code: input.code?.trim() || null,
-            level: input.level,
-            grade_num: input.grade_num,
-            ordering: input.ordering ?? null,
-            active: input.active,
-        })
-        .eq("id", gradeId)
-
-    if (error) throw new Error(error.message)
-    return { id: gradeId }
-}
-
-export async function deactivateInstitutionGradeAction(gradeId: string) {
-    if (!gradeId) throw new Error("Grado invalido")
-    const supabase = await createClient()
-
-    const { error } = await supabase
-        .from("edu_institution_grades")
-        .update({ active: false })
-        .eq("id", gradeId)
-
-    if (error) throw new Error(error.message)
-    return { id: gradeId }
-}
 
 export async function createClassroomAction(input: {
     institution_id: string
-    grade_id: string
+    grade: string
+    section?: string | null
     academic_year: number
+    classroom_code?: string | null
     active: boolean
 }) {
     const supabase = await createClient()
+    if (!input.grade.trim()) throw new Error("Grado requerido")
 
-    const { data: grade, error: gradeErr } = await supabase
-        .from("edu_institution_grades")
-        .select("id, name, code, institution_id")
-        .eq("id", input.grade_id)
-        .single()
-    if (gradeErr || !grade) throw new Error(gradeErr?.message || "Grado no encontrado")
-    if (grade.institution_id !== input.institution_id) {
-        throw new Error("El grado no pertenece a la institucion seleccionada")
-    }
-
+    const grade = input.grade.trim()
+    const section = input.section?.trim() || null
     const payload = {
         institution_id: input.institution_id,
-        grade_id: input.grade_id,
+        grade,
+        section,
         academic_year: input.academic_year,
+        classroom_code: input.classroom_code?.trim() || null,
         active: input.active,
-        grade: grade.name || grade.code || "",
     }
 
-    const { data: existing, error: existingErr } = await supabase
+    let existingQuery = supabase
         .from("edu_classrooms")
         .select("id, active")
         .eq("institution_id", input.institution_id)
-        .eq("grade_id", input.grade_id)
+        .eq("grade", grade)
         .eq("academic_year", input.academic_year)
+
+    existingQuery = section
+        ? existingQuery.eq("section", section)
+        : existingQuery.is("section", null)
+
+    const { data: existing, error: existingErr } = await existingQuery
         .limit(1)
         .maybeSingle()
     if (existingErr) throw new Error(existingErr.message)
@@ -596,30 +519,24 @@ export async function updateClassroomAction(
     classroomId: string,
     input: {
         institution_id: string
-        grade_id: string
+        grade: string
+        section?: string | null
         academic_year: number
+        classroom_code?: string | null
         active: boolean
     },
 ) {
     if (!classroomId) throw new Error("Aula invalida")
+    if (!input.grade.trim()) throw new Error("Grado requerido")
     const supabase = await createClient()
-
-    const { data: grade, error: gradeErr } = await supabase
-        .from("edu_institution_grades")
-        .select("id, name, code, institution_id")
-        .eq("id", input.grade_id)
-        .single()
-    if (gradeErr || !grade) throw new Error(gradeErr?.message || "Grado no encontrado")
-    if (grade.institution_id !== input.institution_id) {
-        throw new Error("El grado no pertenece a la institucion seleccionada")
-    }
 
     const payload = {
         institution_id: input.institution_id,
-        grade_id: input.grade_id,
+        grade: input.grade.trim(),
+        section: input.section?.trim() || null,
         academic_year: input.academic_year,
+        classroom_code: input.classroom_code?.trim() || null,
         active: input.active,
-        grade: grade.name || grade.code || "",
     }
 
     const { error } = await supabase

@@ -14,6 +14,7 @@ type Classroom = {
   id: string
   institution_id: string
   grade: string
+  section?: string | null
   academic_year: number
   active: boolean
 }
@@ -28,7 +29,6 @@ type Exercise = {
 type ExerciseAssignment = {
   classroom_id: string
   exercise_id: string
-  ordering: number | null
   active: boolean
 }
 
@@ -40,7 +40,8 @@ type Props = {
 }
 
 function classroomLabel(c: Classroom) {
-  return `${c.grade} (${c.academic_year})`
+  const section = c.section ? ` ${c.section}` : ""
+  return `${c.grade}${section} (${c.academic_year})`
 }
 
 export default function ContentsHierarchyClient({
@@ -126,12 +127,9 @@ export default function ContentsHierarchyClient({
                   instClassrooms.map((classroom) => {
                     const classroomAssignments =
                       assignmentsByClassroom.get(classroom.id) || []
-                    const orderedAssignments = [...classroomAssignments].sort((a, b) => {
-                      const aOrder = a.ordering ?? Number.MAX_SAFE_INTEGER
-                      const bOrder = b.ordering ?? Number.MAX_SAFE_INTEGER
-                      if (aOrder !== bOrder) return aOrder - bOrder
-                      return a.exercise_id.localeCompare(b.exercise_id)
-                    })
+                    const orderedAssignments = [...classroomAssignments].sort((a, b) =>
+                      a.exercise_id.localeCompare(b.exercise_id),
+                    )
 
                     return (
                       <details key={classroom.id} className="rounded-xl border bg-background p-4">

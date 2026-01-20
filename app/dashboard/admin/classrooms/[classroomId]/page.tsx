@@ -12,11 +12,11 @@ async function getClassroomData(classroomId: string, institutionId: string) {
     .select(`
       id,
       grade,
-      grade_id,
+      section,
       academic_year,
       active,
+      classroom_code,
       edu_institutions ( id, name, type ),
-      edu_institution_grades ( id, name, level, grade_num, code )
     `)
     .eq("id", classroomId)
     .eq("institution_id", institutionId)
@@ -44,7 +44,6 @@ async function getClassroomData(classroomId: string, institutionId: string) {
     .from("edu_student_exercises")
     .select("id, correct")
     .eq("classroom_id", classroomId)
-    .eq("institution_id", institutionId)
     .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
     .limit(200)
 

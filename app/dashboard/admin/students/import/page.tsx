@@ -6,7 +6,7 @@ export default function ImportUsersPage() {
       <div>
         <h1 className="text-2xl font-extrabold">Carga masiva de usuarios</h1>
         <p className="text-sm text-muted-foreground">
-          Importa estudiantes desde Excel
+          Importa estudiantes y profesores desde Excel
         </p>
       </div>
 

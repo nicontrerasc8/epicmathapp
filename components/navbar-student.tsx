@@ -6,58 +6,31 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { GraduationCap, LogOut, BookOpen, User } from 'lucide-react'
 import { useInstitution } from '@/components/institution-provider'
-
-type StudentSession = {
-  id: string
-  first_name: string | null
-  last_name: string | null
-  username: string | null
-  classroom_id: string | null
-  institution_id: string | null
-}
+import { createClient } from '@/utils/supabase/client'
+import { fetchStudentSession, type StudentSessionData } from '@/lib/student-session-client'
 
 export default function StudentNavbar() {
-  const [studentSession, setStudentSession] = useState<StudentSession | null>(null)
+  const [studentSession, setStudentSession] = useState<StudentSessionData | null>(null)
   const [loading, setLoading] = useState(true)
 
   const router = useRouter()
   const pathname = usePathname()
   const institution = useInstitution()
+  const supabase = createClient()
 
-  const displayName =
-    studentSession?.first_name?.trim() ||
-    studentSession?.username?.trim() ||
-    'Estudiante'
+  const displayName = (
+    [studentSession?.first_name, studentSession?.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim()
+  ) || studentSession?.email?.trim() || "Estudiante"
 
   useEffect(() => {
     const fetchStudent = async () => {
       setLoading(true)
 
-      const studentRes = await fetch('/api/student/session', {
-        method: 'GET',
-        credentials: 'include',
-      })
-
-      if (studentRes.ok) {
-        const data = await studentRes.json()
-        const student = data.student as StudentSession | null
-        if (student) {
-          if (
-            institution?.id &&
-            student.institution_id &&
-            student.institution_id !== institution.id
-          ) {
-            setStudentSession(null)
-            setLoading(false)
-            return
-          }
-          setStudentSession(student)
-          setLoading(false)
-          return
-        }
-      }
-
-      setStudentSession(null)
+      const session = await fetchStudentSession(institution?.id)
+      setStudentSession(session)
       setLoading(false)
     }
 
@@ -69,7 +42,7 @@ export default function StudentNavbar() {
   }
 
   const logout = async () => {
-    await fetch('/api/student/logout', { method: 'POST' })
+    await supabase.auth.signOut()
     setStudentSession(null)
     router.push('/sign-in')
   }

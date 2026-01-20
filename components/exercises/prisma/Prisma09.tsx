@@ -208,7 +208,7 @@ export default function Prisma09({
   return (
     <MathJaxContext version={3} config={MATHJAX_CONFIG}>
       <ExerciseShell
-        title="Prisma 9 — Subconjuntos propios"
+        title="Subconjuntos propios"
         prompt="¿Cuántos subconjuntos propios tiene el conjunto B?"
         status={engine.status}
         attempts={engine.attempts}

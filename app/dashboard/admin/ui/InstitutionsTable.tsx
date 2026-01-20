@@ -16,12 +16,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Pencil } from "lucide-react"
 import {
     createInstitutionAction,
-    createInstitutionGradeAction,
-    deactivateInstitutionGradeAction,
     listClassroomsAction,
-    listInstitutionGradesAction,
     updateInstitutionAction,
-    updateInstitutionGradeAction
 } from "../admin-actions"
 
 interface Institution {
@@ -42,18 +38,8 @@ type Classroom = {
     id: string
     institution_id?: string | null
     grade: string
+    section?: string | null
     academic_year: number
-    active: boolean
-}
-
-type InstitutionGrade = {
-    id: string
-    institution_id: string
-    name: string
-    code: string | null
-    level: "inicial" | "primaria" | "secundaria"
-    grade_num: number
-    ordering: number | null
     active: boolean
 }
 
@@ -127,21 +113,6 @@ export default function InstitutionsTable({ initialData }: InstitutionsTableProp
     const [classrooms, setClassrooms] = useState<Classroom[]>([])
     const [classroomError, setClassroomError] = useState<string | null>(null)
     const [selectedInstitutionId, setSelectedInstitutionId] = useState<string | null>(null)
-    const [grades, setGrades] = useState<InstitutionGrade[]>([])
-    const [gradesLoading, setGradesLoading] = useState(false)
-    const [gradesError, setGradesError] = useState<string | null>(null)
-    const [gradeEditing, setGradeEditing] = useState(false)
-    const [gradeSaving, setGradeSaving] = useState(false)
-    const [gradeFormError, setGradeFormError] = useState<string | null>(null)
-    const [gradeForm, setGradeForm] = useState({
-        id: "",
-        name: "",
-        code: "",
-        level: "primaria" as "inicial" | "primaria" | "secundaria",
-        grade_num: 1,
-        ordering: "",
-        active: true,
-    })
     const [form, setForm] = useState({
         id: "",
         name: "",
@@ -166,30 +137,6 @@ export default function InstitutionsTable({ initialData }: InstitutionsTableProp
         }
         loadClassrooms()
     }, [])
-
-    useEffect(() => {
-        if (!selectedInstitutionId) {
-            setGrades([])
-            setGradeEditing(false)
-            setGradeFormError(null)
-            return
-        }
-
-        const loadGrades = async () => {
-            try {
-                setGradesError(null)
-                setGradesLoading(true)
-                const data = await listInstitutionGradesAction(selectedInstitutionId)
-                setGrades(data as InstitutionGrade[])
-            } catch (e: any) {
-                setGradesError(e?.message ?? "Error cargando grados")
-            } finally {
-                setGradesLoading(false)
-            }
-        }
-
-        loadGrades()
-    }, [selectedInstitutionId])
 
     const classroomCounts = useMemo(() => {
         const map = new Map<string, number>()
@@ -260,119 +207,6 @@ export default function InstitutionsTable({ initialData }: InstitutionsTableProp
         setFormError(null)
         setFormSuccess(null)
         setEditing(true)
-    }
-
-    const startGradeCreate = () => {
-        if (!selectedInstitutionId) {
-            setGradeFormError("Selecciona una institucion primero.")
-            return
-        }
-        setGradeForm({
-            id: "",
-            name: "",
-            code: "",
-            level: "primaria",
-            grade_num: 1,
-            ordering: "",
-            active: true,
-        })
-        setGradeFormError(null)
-        setGradeEditing(true)
-    }
-
-    const startGradeEdit = (grade: InstitutionGrade) => {
-        setGradeForm({
-            id: grade.id,
-            name: grade.name || "",
-            code: grade.code || "",
-            level: grade.level,
-            grade_num: grade.grade_num,
-            ordering: grade.ordering === null ? "" : String(grade.ordering),
-            active: grade.active !== false,
-        })
-        setGradeFormError(null)
-        setGradeEditing(true)
-    }
-
-    const handleGradeSave = async () => {
-        if (!selectedInstitutionId) {
-            setGradeFormError("Selecciona una institucion.")
-            return
-        }
-        if (!gradeForm.name.trim()) {
-            setGradeFormError("Completa el nombre del grado.")
-            return
-        }
-        if (!Number.isFinite(gradeForm.grade_num) || gradeForm.grade_num <= 0) {
-            setGradeFormError("Numero de grado invalido.")
-            return
-        }
-
-        const orderingValue = gradeForm.ordering.trim()
-            ? Number(gradeForm.ordering)
-            : null
-        if (orderingValue !== null && !Number.isFinite(orderingValue)) {
-            setGradeFormError("Orden invalido.")
-            return
-        }
-
-        try {
-            setGradeSaving(true)
-            setGradeFormError(null)
-
-            if (gradeForm.id) {
-                await updateInstitutionGradeAction(gradeForm.id, {
-                    institution_id: selectedInstitutionId,
-                    name: gradeForm.name,
-                    code: gradeForm.code || null,
-                    level: gradeForm.level,
-                    grade_num: gradeForm.grade_num,
-                    ordering: orderingValue,
-                    active: gradeForm.active,
-                })
-                setGrades((prev) =>
-                    prev.map((g) =>
-                        g.id === gradeForm.id
-                            ? {
-                                ...g,
-                                name: gradeForm.name,
-                                code: gradeForm.code || null,
-                                level: gradeForm.level,
-                                grade_num: gradeForm.grade_num,
-                                ordering: orderingValue,
-                                active: gradeForm.active,
-                            }
-                            : g
-                    )
-                )
-            } else {
-                const created = await createInstitutionGradeAction({
-                    institution_id: selectedInstitutionId,
-                    name: gradeForm.name,
-                    code: gradeForm.code || null,
-                    level: gradeForm.level,
-                    grade_num: gradeForm.grade_num,
-                    ordering: orderingValue,
-                    active: gradeForm.active,
-                })
-                setGrades((prev) => [created as InstitutionGrade, ...prev])
-            }
-
-            setGradeEditing(false)
-        } catch (e: any) {
-            setGradeFormError(e?.message ?? "Error guardando grado")
-        } finally {
-            setGradeSaving(false)
-        }
-    }
-
-    const handleGradeDeactivate = async (gradeId: string) => {
-        try {
-            await deactivateInstitutionGradeAction(gradeId)
-            setGrades((prev) => prev.filter((g) => g.id !== gradeId))
-        } catch (e: any) {
-            setGradesError(e?.message ?? "Error desactivando grado")
-        }
     }
 
     const handleSave = async () => {
@@ -620,169 +454,6 @@ export default function InstitutionsTable({ initialData }: InstitutionsTableProp
                 )}
             />
 
-            <div className="rounded-xl border bg-card p-4 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-medium">Grados de la institucion</div>
-                    <div className="flex items-center gap-2">
-                        <Button size="sm" onClick={startGradeCreate} disabled={!selectedInstitutionId}>
-                            Nuevo grado
-                        </Button>
-                    </div>
-                </div>
-
-                {gradesError && (
-                    <div className="text-sm text-destructive">{gradesError}</div>
-                )}
-
-                {!selectedInstitutionId ? (
-                    <div className="text-sm text-muted-foreground">
-                        Selecciona una institucion para gestionar sus grados.
-                    </div>
-                ) : (
-                    <>
-                        {gradeEditing && (
-                            <div className="rounded-lg border bg-background p-4 space-y-4">
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="text-sm font-medium">
-                                        {gradeForm.id ? "Editar grado" : "Nuevo grado"}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setGradeEditing(false)}
-                                        >
-                                            Cancelar
-                                        </Button>
-                                        <Button size="sm" onClick={handleGradeSave} disabled={gradeSaving}>
-                                            {gradeSaving ? "Guardando..." : "Guardar"}
-                                        </Button>
-                                    </div>
-                                </div>
-                                <div className="grid gap-4 md:grid-cols-6">
-                                    <div className="space-y-2 md:col-span-2">
-                                        <Label htmlFor="gradeName">Nombre</Label>
-                                        <Input
-                                            id="gradeName"
-                                            value={gradeForm.name}
-                                            onChange={(e) => setGradeForm((s) => ({ ...s, name: e.target.value }))}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="gradeCode">Codigo</Label>
-                                        <Input
-                                            id="gradeCode"
-                                            value={gradeForm.code}
-                                            onChange={(e) => setGradeForm((s) => ({ ...s, code: e.target.value }))}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="gradeLevel">Nivel</Label>
-                                        <select
-                                            id="gradeLevel"
-                                            value={gradeForm.level}
-                                            onChange={(e) =>
-                                                setGradeForm((s) => ({
-                                                    ...s,
-                                                    level: e.target.value as InstitutionGrade["level"],
-                                                }))
-                                            }
-                                            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-                                        >
-                                            <option value="inicial">Inicial</option>
-                                            <option value="primaria">Primaria</option>
-                                            <option value="secundaria">Secundaria</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="gradeNum">Numero</Label>
-                                        <Input
-                                            id="gradeNum"
-                                            type="number"
-                                            min={1}
-                                            value={gradeForm.grade_num}
-                                            onChange={(e) =>
-                                                setGradeForm((s) => ({
-                                                    ...s,
-                                                    grade_num: Number(e.target.value),
-                                                }))
-                                            }
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="gradeOrder">Orden</Label>
-                                        <Input
-                                            id="gradeOrder"
-                                            type="number"
-                                            value={gradeForm.ordering}
-                                            onChange={(e) =>
-                                                setGradeForm((s) => ({ ...s, ordering: e.target.value }))
-                                            }
-                                        />
-                                    </div>
-                                    <div className="flex items-center gap-2 md:col-span-6">
-                                        <Checkbox
-                                            id="gradeActive"
-                                            checked={gradeForm.active}
-                                            onCheckedChange={(val) =>
-                                                setGradeForm((s) => ({ ...s, active: Boolean(val) }))
-                                            }
-                                        />
-                                        <Label htmlFor="gradeActive">Activo</Label>
-                                    </div>
-                                </div>
-                                {gradeFormError && (
-                                    <p className="text-sm text-destructive">{gradeFormError}</p>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="space-y-2 text-sm">
-                            {gradesLoading ? (
-                                <div className="text-sm text-muted-foreground">Cargando grados...</div>
-                            ) : grades.length === 0 ? (
-                                <div className="text-sm text-muted-foreground">
-                                    No hay grados registrados para esta institucion.
-                                </div>
-                            ) : (
-                                grades.map((grade) => (
-                                    <div
-                                        key={grade.id}
-                                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2"
-                                    >
-                                        <div>
-                                            <div className="font-medium">
-                                                {grade.name || grade.code || "Grado"}
-                                            </div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {`${grade.level} - Nro ${grade.grade_num}`}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <StatusBadge active={grade.active} />
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => startGradeEdit(grade)}
-                                            >
-                                                Editar
-                                            </Button>
-                                            <Button
-                                                variant="destructive"
-                                                size="sm"
-                                                onClick={() => handleGradeDeactivate(grade.id)}
-                                            >
-                                                Desactivar
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </>
-                )}
-            </div>
-
             <div className="rounded-xl border bg-card p-4">
                 <div className="font-medium mb-2">Aulas de la institucion</div>
                 {classroomError && (
@@ -803,7 +474,7 @@ export default function InstitutionsTable({ initialData }: InstitutionsTableProp
                                 >
                                     <div>
                                         <div className="font-medium">
-                                            {c.grade} ({c.academic_year})
+                                            {`${c.grade}${c.section ? ` ${c.section}` : ""}`} ({c.academic_year})
                                         </div>
                                         <div className="text-xs text-muted-foreground">{c.id}</div>
                                     </div>
