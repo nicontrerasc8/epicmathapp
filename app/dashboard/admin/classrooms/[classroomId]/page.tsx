@@ -6,7 +6,6 @@ import { requireInstitution } from "@/lib/institution"
 async function getClassroomData(classroomId: string, institutionId: string) {
   const supabase = await createClient()
 
-  // Fetch classroom info
   const { data: classroom } = await supabase
     .from("edu_classrooms")
     .select(`
@@ -16,7 +15,7 @@ async function getClassroomData(classroomId: string, institutionId: string) {
       academic_year,
       active,
       classroom_code,
-      edu_institutions ( id, name, type ),
+      edu_institutions ( id, name, type )
     `)
     .eq("id", classroomId)
     .eq("institution_id", institutionId)
@@ -24,7 +23,8 @@ async function getClassroomData(classroomId: string, institutionId: string) {
 
   if (!classroom) return null
 
-  // Get member count
+  const safeClassroom = classroom
+
   const { count: memberCount } = await supabase
     .from("edu_institution_members")
     .select("id", { count: "exact", head: true })
@@ -32,35 +32,40 @@ async function getClassroomData(classroomId: string, institutionId: string) {
     .eq("institution_id", institutionId)
     .eq("active", true)
 
-  // Get exercises count
   const { count: exercisesCount } = await supabase
     .from("edu_exercise_assignments")
     .select("id", { count: "exact", head: true })
     .eq("classroom_id", classroomId)
     .eq("active", true)
 
-  // Get recent student exercises for accuracy
   const { data: recentExercises } = await supabase
     .from("edu_student_exercises")
     .select("id, correct")
     .eq("classroom_id", classroomId)
-    .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+    .gte(
+      "created_at",
+      new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    )
     .limit(200)
 
-  const totalExercises = recentExercises?.length || 0
-  const correctExercises = recentExercises?.filter((e) => e.correct).length || 0
-  const accuracy = totalExercises > 0
-    ? Math.round((correctExercises / totalExercises) * 100)
-    : 0
+  const totalExercises = recentExercises?.length ?? 0
+  const correctExercises =
+    recentExercises?.filter((e) => e.correct).length ?? 0
+
+  const accuracy =
+    totalExercises > 0
+      ? Math.round((correctExercises / totalExercises) * 100)
+      : 0
 
   return {
-    ...classroom,
-    memberCount: memberCount || 0,
-    exercisesCount: exercisesCount || 0,
+    ...safeClassroom,
+    memberCount: memberCount ?? 0,
+    exercisesCount: exercisesCount ?? 0,
     accuracy,
     totalExercises,
   }
 }
+
 
 export default async function ClassroomSummary({
   params,
