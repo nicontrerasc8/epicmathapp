@@ -1035,7 +1035,7 @@ export default function StudentsTable() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="studentPassword">Password (opcional)</Label>
+                  <Label htmlFor="studentPassword">Password</Label>
                   <Input
                     id="studentPassword"
                     type="text"

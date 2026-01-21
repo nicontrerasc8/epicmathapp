@@ -28,7 +28,6 @@ interface Member {
   profile: {
     first_name: string
     last_name: string
-    email: string
   }
 }
 
@@ -173,7 +172,7 @@ export default function ClassroomMembersPage() {
             role,
             active,
             institution_id,
-            profile:edu_profiles ( first_name, last_name, email )
+            profile:edu_profiles ( first_name, last_name )
           )
         `)
         .eq("classroom_id", classroomId)
@@ -182,7 +181,14 @@ export default function ClassroomMembersPage() {
         query = query.eq("edu_institution_members.institution_id", institution.id)
       }
 
-      const { data } = await query
+      const { data, error } = await query
+
+      if (error) {
+        console.error("classroom members error:", error)
+        setMembers([])
+        setLoading(false)
+        return
+      }
 
       if (data) {
         setMembers(data.map((row: any) => {
@@ -213,7 +219,7 @@ export default function ClassroomMembersPage() {
           role,
           active,
           institution_id,
-          profile:edu_profiles ( first_name, last_name, email )
+          profile:edu_profiles ( first_name, last_name )
         )
       `)
       .eq("classroom_id", classroomId)
@@ -222,7 +228,13 @@ export default function ClassroomMembersPage() {
       query = query.eq("edu_institution_members.institution_id", institution.id)
     }
 
-    const { data } = await query
+    const { data, error } = await query
+    if (error) {
+      console.error("classroom members error:", error)
+      setMembers([])
+      setLoading(false)
+      return
+    }
     if (data) {
       setMembers(data.map((row: any) => {
         const member = Array.isArray(row.edu_institution_members)
@@ -573,7 +585,7 @@ export default function ClassroomMembersPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Password (opcional)</Label>
+                      <Label>Password</Label>
                       <Input
                         value={createForm.password}
                         onChange={(e) => setCreateForm((s) => ({ ...s, password: e.target.value }))}

@@ -86,7 +86,7 @@ export default function ClassroomDetailClient({ data }: any) {
             {/* Page Header */}
             <PageHeader
                 title={gradeLabel}
-                description={`${institutionName} - Anio ${data.academic_year}`}
+                description={`${institutionName} - Año ${data.academic_year}`}
                 badge={{
                     label: data.active ? "Activo" : "Inactivo",
                     variant: data.active ? "success" : "default",
@@ -96,42 +96,10 @@ export default function ClassroomDetailClient({ data }: any) {
                     { label: "Aulas", href: "/dashboard/admin/classrooms" },
                     { label: gradeLabel },
                 ]}
-                actions={
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
-                            <Settings className="w-4 h-4 mr-2" />
-                            Configurar
-                        </Button>
-                    </div>
-                }
+             
             />
 
-            {/* Stats */}
-            <StatCardGrid columns={3}>
-                <StatCard
-                    title="Estudiantes"
-                    value={data.memberCount}
-                    icon={Users}
-                    variant="primary"
-                />
-                <StatCard
-                    title="Ejercicios"
-                    value={data.exercisesCount}
-                    icon={FileQuestion}
-                    variant="default"
-                />
-                <StatCard
-                    title="Precision (7 dias)"
-                    value={data.accuracy}
-                    suffix="%"
-                    icon={Target}
-                    variant={data.accuracy >= 70 ? "success" : data.accuracy >= 50 ? "warning" : "danger"}
-                    trend={data.totalExercises > 0 ? {
-                        value: data.accuracy >= 70 ? 5 : data.accuracy >= 50 ? 0 : -5,
-                        label: `${data.totalExercises} ejercicios`
-                    } : undefined}
-                />
-            </StatCardGrid>
+      
 
             {/* Quick Links */}
             <section>
@@ -179,7 +147,7 @@ export default function ClassroomDetailClient({ data }: any) {
                         )}
 
                         <div className="flex justify-between">
-                            <dt className="text-muted-foreground">Anio Academico</dt>
+                            <dt className="text-muted-foreground">Año Academico</dt>
                             <dd className="font-medium flex items-center gap-1">
                                 <Calendar className="w-4 h-4 text-muted-foreground" />
                                 {data.academic_year}
