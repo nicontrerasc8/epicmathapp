@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react"
 import type { FormEvent } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as XLSX from "xlsx"
 import { Eye, Edit, Trash2, UserPlus, Download, Upload, X } from "lucide-react"
@@ -506,8 +505,9 @@ export default function StudentsTable() {
           role: form.role,
           classroom_id: form.classroomId || null,
         })
-        const passwordInfo = result?.password ? `Password: ${result.password}` : "Usuario creado."
-        setCreateSuccess(passwordInfo)
+        const roleLabel = form.role === "teacher" ? "Profesor" : "Alumno"
+        const passwordInfo = result?.password ? ` Password: ${result.password}` : ""
+        setCreateSuccess(`${roleLabel} creado correctamente.${passwordInfo}`)
       }
       resetForm()
       await fetchStudents()
@@ -700,6 +700,12 @@ export default function StudentsTable() {
     )
   }
 
+  const closeCreateModal = () => {
+    resetForm()
+    clearMessages()
+    setShowCreate(false)
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -719,25 +725,15 @@ export default function StudentsTable() {
               Importar Excel por aula
             </Button>
 
-            <Link href="/dashboard/admin/students/import">
-              <Button variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Importar
-              </Button>
-            </Link>
-
             <Button
               size="sm"
               onClick={() => {
-                setShowCreate((s) => !s)
-                if (showCreate) {
-                  resetForm()
-                  clearMessages()
-                }
+                setShowCreate(true)
+                clearMessages()
               }}
             >
               <UserPlus className="w-4 h-4 mr-2" />
-              {showCreate ? "Cerrar" : "Nuevo"}
+              Nuevo
             </Button>
           </div>
         }
@@ -936,134 +932,141 @@ export default function StudentsTable() {
 
       {/* ===================== CREATE/EDIT SINGLE ===================== */}
       {showCreate && (
-        <form onSubmit={handleCreateSubmit} className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="text-sm font-medium">{editId ? "Editar usuario" : "Nuevo usuario"}</div>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-2">
-              <Label htmlFor="studentFirstName">Nombre</Label>
-              <Input
-                id="studentFirstName"
-                value={form.firstName}
-                onChange={(e) => setForm((s: any) => ({ ...s, firstName: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="studentLastName">Apellido</Label>
-              <Input
-                id="studentLastName"
-                value={form.lastName}
-                onChange={(e) => setForm((s: any) => ({ ...s, lastName: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="studentEmail">Correo</Label>
-                {!editId && suggestedEmail && emailInputValue !== suggestedEmail && (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    type="button"
-                    onClick={() =>
-                      setForm((s: any) => ({ ...s, email: suggestedEmail }))
-                    }
-                  >
-                    Usar sugerido
-                  </Button>
-                )}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-5xl rounded-2xl border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <div className="text-base font-semibold">
+                  {editId ? "Editar usuario" : "Nuevo usuario"}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Completa los datos para crear estudiante o profesor.
+                </div>
               </div>
-              <Input
-                id="studentEmail"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((s: any) => ({ ...s, email: e.target.value }))}
-                disabled={Boolean(editId)}
-              />
-              {!editId && suggestedEmail && (
-                <p className="text-xs text-muted-foreground">
-                  Sugerido: <span className="font-mono">{suggestedEmail}</span>
-                  {selectedClassroom && (
-                    <> · Institución: {selectedClassroom.edu_institutions?.name || "Sin institución"}</>
+              <Button variant="ghost" size="sm" onClick={closeCreateModal}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <form onSubmit={handleCreateSubmit} className="space-y-4 px-5 py-4">
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="space-y-2">
+                  <Label htmlFor="studentFirstName">Nombre</Label>
+                  <Input
+                    id="studentFirstName"
+                    value={form.firstName}
+                    onChange={(e) => setForm((s: any) => ({ ...s, firstName: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="studentLastName">Apellido</Label>
+                  <Input
+                    id="studentLastName"
+                    value={form.lastName}
+                    onChange={(e) => setForm((s: any) => ({ ...s, lastName: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="studentEmail">Correo</Label>
+                    {!editId && suggestedEmail && emailInputValue !== suggestedEmail && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        type="button"
+                        onClick={() =>
+                          setForm((s: any) => ({ ...s, email: suggestedEmail }))
+                        }
+                      >
+                        Usar sugerido
+                      </Button>
+                    )}
+                  </div>
+                  <Input
+                    id="studentEmail"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm((s: any) => ({ ...s, email: e.target.value }))}
+                    disabled={Boolean(editId)}
+                  />
+                  {!editId && suggestedEmail && (
+                    <p className="text-xs text-muted-foreground">
+                      Sugerido: <span className="font-mono">{suggestedEmail}</span>
+                      {selectedClassroom && (
+                        <> Institucion: {selectedClassroom.edu_institutions?.name || "Sin institucion"}</>
+                      )}
+                    </p>
                   )}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="studentPassword">Password (opcional)</Label>
-              <Input
-                id="studentPassword"
-                type="text"
-                value={form.password}
-                onChange={(e) => setForm((s: any) => ({ ...s, password: e.target.value }))}
-                disabled={Boolean(editId)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="studentRole">Rol</Label>
-              <select
-                id="studentRole"
-                value={form.role}
-                onChange={(e) => setForm((s: any) => ({ ...s, role: e.target.value }))}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-              >
-                <option value="student">Estudiante</option>
-                <option value="teacher">Profesor</option>
-              </select>
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="studentClassroom">Aula</Label>
-              <select
-                id="studentClassroom"
-                value={form.classroomId}
-                onChange={(e) => setForm((s: any) => ({ ...s, classroomId: e.target.value }))}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-              >
-                <option value="">Sin asignar</option>
-                {classrooms.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    {cls.edu_institutions?.name || "Sin institucion"} - {getClassroomLabel(cls)} - {cls.academic_year}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2 md:col-span-2">
-              <Checkbox
-                id="studentActive"
-                checked={form.active}
-                onCheckedChange={(val) => setForm((s: any) => ({ ...s, active: Boolean(val) }))}
-              />
-              <Label htmlFor="studentActive">Activo</Label>
-            </div>
-          </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="studentPassword">Password (opcional)</Label>
+                  <Input
+                    id="studentPassword"
+                    type="text"
+                    value={form.password}
+                    onChange={(e) => setForm((s: any) => ({ ...s, password: e.target.value }))}
+                    disabled={Boolean(editId)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="studentRole">Rol</Label>
+                  <select
+                    id="studentRole"
+                    value={form.role}
+                    onChange={(e) => setForm((s: any) => ({ ...s, role: e.target.value }))}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="student">Estudiante</option>
+                    <option value="teacher">Profesor</option>
+                  </select>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="studentClassroom">Aula</Label>
+                  <select
+                    id="studentClassroom"
+                    value={form.classroomId}
+                    onChange={(e) => setForm((s: any) => ({ ...s, classroomId: e.target.value }))}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="">Sin asignar</option>
+                    {classrooms.map((cls) => (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.edu_institutions?.name || "Sin institucion"} - {getClassroomLabel(cls)} - {cls.academic_year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2 md:col-span-2">
+                  <Checkbox
+                    id="studentActive"
+                    checked={form.active}
+                    onCheckedChange={(val) => setForm((s: any) => ({ ...s, active: Boolean(val) }))}
+                  />
+                  <Label htmlFor="studentActive">Activo</Label>
+                </div>
+              </div>
 
-          {createError && <p className="text-sm text-destructive">{createError}</p>}
-          {createSuccess && <p className="text-sm text-foreground">{createSuccess}</p>}
-          <div className="text-xs text-muted-foreground">
-            Supabase Auth se encarga de crear el usuario y se registran los datos en{" "}
-            <span className="font-mono">edu_profiles</span> y{" "}
-            <span className="font-mono">edu_institution_members</span>.
-          </div>
+              {createError && <p className="text-sm text-destructive">{createError}</p>}
+              {createSuccess && <p className="text-sm text-foreground">{createSuccess}</p>}
+              <div className="text-xs text-muted-foreground">
+                Supabase Auth se encarga de crear el usuario y se registran los datos en{" "}
+                <span className="font-mono">edu_profiles</span> y{" "}
+                <span className="font-mono">edu_institution_members</span>.
+              </div>
 
-          <div className="flex items-center gap-2">
-            <Button type="submit" size="sm" disabled={creating}>
-              {creating ? "Guardando..." : editId ? "Actualizar usuario" : "Crear usuario"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                resetForm()
-                clearMessages()
-                setShowCreate(false)
-              }}
-            >
-              Cancelar
-            </Button>
+              <div className="flex items-center gap-2">
+                <Button type="submit" size="sm" disabled={creating}>
+                  {creating ? "Guardando..." : editId ? "Actualizar usuario" : "Crear usuario"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={closeCreateModal}>
+                  Cancelar
+                </Button>
+              </div>
+            </form>
           </div>
-        </form>
+        </div>
       )}
 
-      {/* Filters */}
       <FilterBar filters={filterConfigs} values={values} onChange={onChange} onClear={onClear} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">

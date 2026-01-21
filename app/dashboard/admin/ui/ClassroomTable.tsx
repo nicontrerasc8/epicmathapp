@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react"
 import type { FormEvent } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, Edit, Trash2, Plus, Download } from "lucide-react"
+import { Eye, Edit, Trash2, Plus, Download, X, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -166,6 +166,8 @@ export default function ClassroomsTable() {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
   const [institutions, setInstitutions] = useState<Institution[]>([])
@@ -206,6 +208,7 @@ export default function ClassroomsTable() {
       active: true,
     })
     setCreateError(null)
+    setCreateSuccess(null)
     setEditId(null)
   }, [])
 
@@ -326,6 +329,8 @@ export default function ClassroomsTable() {
   const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setCreateError(null)
+    setCreateSuccess(null)
+    setShowSuccess(false)
 
     if (!form.institutionId || !form.grade.trim()) {
       setCreateError("Completa institucion y grado.")
@@ -353,6 +358,7 @@ export default function ClassroomsTable() {
           academic_year: year,
           active: form.active,
         })
+        setCreateSuccess("Aula actualizada correctamente.")
       } else {
         await createClassroomAction({
           institution_id: form.institutionId,
@@ -361,7 +367,9 @@ export default function ClassroomsTable() {
           academic_year: year,
           active: form.active,
         })
+        setCreateSuccess("Aula creada correctamente.")
       }
+      setShowSuccess(true)
       resetForm()
       setShowCreate(false)
       await fetchClassrooms()
@@ -393,6 +401,16 @@ export default function ClassroomsTable() {
     )
   }
 
+  const closeCreateModal = () => {
+    resetForm()
+    setShowCreate(false)
+  }
+
+  const closeSuccessModal = () => {
+    setShowSuccess(false)
+    setCreateSuccess(null)
+  }
+
   const selectedInstitution = institutions.find((inst) => inst.id === form.institutionId)
   const institutionCode = (selectedInstitution?.code || selectedInstitution?.name || "")
     .toUpperCase()
@@ -415,120 +433,158 @@ export default function ClassroomsTable() {
           <Button
             size="sm"
             onClick={() => {
-              setShowCreate((s) => !s)
-              if (showCreate) resetForm()
+              setShowCreate(true)
+              setCreateError(null)
+              setShowSuccess(false)
+              setCreateSuccess(null)
             }}
           >
             <Plus className="w-4 h-4 mr-2" />
-            {showCreate ? "Cerrar" : "Nueva Aula"}
+            Nueva Aula
           </Button>
         }
       />
 
       {showCreate && (
-        <form onSubmit={handleCreateSubmit} className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="text-sm font-medium">
-            {editId ? "Editar aula" : "Nueva aula"}
-          </div>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-2">
-              <Label htmlFor="institution">Institucion</Label>
-              <select
-                id="institution"
-                value={form.institutionId}
-                onChange={(e) => {
-                  setForm((s) => ({
-                    ...s,
-                    institutionId: e.target.value,
-                  }))
-                }}
-                disabled={institutions.length <= 1}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-              >
-                <option value="">Selecciona institucion</option>
-                {institutions.map((inst) => (
-                  <option key={inst.id} value={inst.id}>
-                    {inst.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="grade">Grado</Label>
-              <select
-                id="grade"
-                value={form.grade}
-                onChange={(e) => setForm((s) => ({ ...s, grade: e.target.value }))}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-              >
-                <option value="">Selecciona grado</option>
-                <optgroup label="Primaria">
-                  {primaryGrades.map((grade) => (
-                    <option key={grade} value={grade}>
-                      {grade}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Secundaria">
-                  {secondaryGrades.map((grade) => (
-                    <option key={grade} value={grade}>
-                      {grade}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="section">Seccion</Label>
-              <Input
-                id="section"
-                value={form.section}
-                onChange={(e) => setForm((s) => ({ ...s, section: e.target.value }))}
-              />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-5xl rounded-2xl border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <div className="text-base font-semibold">
+                  {editId ? "Editar aula" : "Nueva aula"}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Completa los datos para registrar una nueva aula.
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={closeCreateModal}>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="academicYear">Ano</Label>
-              <Input
-                id="academicYear"
-                type="number"
-                min={2000}
-                max={2100}
-                value={form.academicYear}
-                onChange={(e) => setForm((s) => ({ ...s, academicYear: e.target.value }))}
-              />
+            <form onSubmit={handleCreateSubmit} className="space-y-4 px-5 py-4">
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="space-y-2">
+                  <Label htmlFor="institution">Institucion</Label>
+                  <select
+                    id="institution"
+                    value={form.institutionId}
+                    onChange={(e) => {
+                      setForm((s) => ({
+                        ...s,
+                        institutionId: e.target.value,
+                      }))
+                    }}
+                    disabled={institutions.length <= 1}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="">Selecciona institucion</option>
+                    {institutions.map((inst) => (
+                      <option key={inst.id} value={inst.id}>
+                        {inst.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="grade">Grado</Label>
+                  <select
+                    id="grade"
+                    value={form.grade}
+                    onChange={(e) => setForm((s) => ({ ...s, grade: e.target.value }))}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="">Selecciona grado</option>
+                    <optgroup label="Primaria">
+                      {primaryGrades.map((grade) => (
+                        <option key={grade} value={grade}>
+                          {grade}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Secundaria">
+                      {secondaryGrades.map((grade) => (
+                        <option key={grade} value={grade}>
+                          {grade}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="section">Seccion</Label>
+                  <Input
+                    id="section"
+                    value={form.section}
+                    onChange={(e) => setForm((s) => ({ ...s, section: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="academicYear">Ano</Label>
+                  <Input
+                    id="academicYear"
+                    type="number"
+                    min={2000}
+                    max={2100}
+                    value={form.academicYear}
+                    onChange={(e) => setForm((s) => ({ ...s, academicYear: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="classroomCode">Codigo</Label>
+                  <Input id="classroomCode" value={codePreview} readOnly />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="active"
+                  checked={form.active}
+                  onCheckedChange={(val) => setForm((s) => ({ ...s, active: Boolean(val) }))}
+                />
+                <Label htmlFor="active">Activo</Label>
+              </div>
+              {createError && <p className="text-sm text-destructive">{createError}</p>}
+              <div className="flex items-center gap-2">
+                <Button type="submit" size="sm" disabled={creating}>
+                  {creating ? "Guardando..." : editId ? "Actualizar Aula" : "Crear Aula"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={closeCreateModal}>
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div className="text-base font-semibold">Operacion completada</div>
+              <Button variant="ghost" size="sm" onClick={closeSuccessModal}>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="classroomCode">Codigo</Label>
-              <Input id="classroomCode" value={codePreview} readOnly />
+            <div className="space-y-4 px-5 py-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <div>
+                  <div className="text-sm font-medium">Listo</div>
+                  <div className="text-sm text-muted-foreground">
+                    {createSuccess || "Aula creada correctamente."}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-end">
+                <Button size="sm" onClick={closeSuccessModal}>
+                  Aceptar
+                </Button>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="active"
-              checked={form.active}
-              onCheckedChange={(val) => setForm((s) => ({ ...s, active: Boolean(val) }))}
-            />
-            <Label htmlFor="active">Activo</Label>
-          </div>
-          {createError && <p className="text-sm text-destructive">{createError}</p>}
-          <div className="flex items-center gap-2">
-            <Button type="submit" size="sm" disabled={creating}>
-              {creating ? "Guardando..." : editId ? "Actualizar Aula" : "Crear Aula"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                resetForm()
-                setShowCreate(false)
-              }}
-            >
-              Cancelar
-            </Button>
-          </div>
-        </form>
+        </div>
       )}
 
       {actionError && (
