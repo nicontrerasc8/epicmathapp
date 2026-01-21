@@ -54,7 +54,14 @@ export const fetchStudentSession = async (
   ============================ */
   let memberQuery = supabase
     .from('edu_institution_members')
-    .select('classroom_id, institution_id')
+    .select(`
+      id,
+      institution_id,
+      edu_classroom_members (
+        classroom_id,
+        edu_classrooms ( id, active )
+      )
+    `)
     .eq('profile_id', user.id)
     .eq('role', 'student')
     .eq('active', true)
@@ -78,6 +85,16 @@ export const fetchStudentSession = async (
     console.warn('[fetchStudentSession] Student has no institution membership')
   }
 
+  const classroomMemberships = Array.isArray(member?.edu_classroom_members)
+    ? member?.edu_classroom_members
+    : member?.edu_classroom_members
+      ? [member.edu_classroom_members]
+      : []
+
+  const activeClassroom =
+    classroomMemberships.find((m: any) => m.edu_classrooms?.active !== false) ??
+    classroomMemberships[0]
+
   /* ============================
      4. FINAL SESSION OBJECT
   ============================ */
@@ -86,7 +103,7 @@ export const fetchStudentSession = async (
     first_name: profile.first_name,
     last_name: profile.last_name,
     email: user.email ?? null,
-    classroom_id: member?.classroom_id ?? null,
+    classroom_id: activeClassroom?.classroom_id ?? null,
     institution_id: member?.institution_id ?? null,
   }
 }

@@ -56,7 +56,7 @@ export default function StaffNavbar() {
 
       let memberQuery = supabase
         .from('edu_institution_members')
-        .select('id, role, institution_id, classroom_id, active, created_at')
+        .select('id, role, institution_id, active, created_at')
         .eq('profile_id', user.id)
         .eq('active', true)
         .order('created_at', { ascending: false })

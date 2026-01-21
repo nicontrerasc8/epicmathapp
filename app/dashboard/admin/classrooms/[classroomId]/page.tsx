@@ -26,11 +26,11 @@ async function getClassroomData(classroomId: string, institutionId: string) {
   const safeClassroom = classroom
 
   const { count: memberCount } = await supabase
-    .from("edu_institution_members")
-    .select("id", { count: "exact", head: true })
+    .from("edu_classroom_members")
+    .select("edu_institution_members!inner ( id )", { count: "exact", head: true })
     .eq("classroom_id", classroomId)
-    .eq("institution_id", institutionId)
-    .eq("active", true)
+    .eq("edu_institution_members.institution_id", institutionId)
+    .eq("edu_institution_members.active", true)
 
   const { count: exercisesCount } = await supabase
     .from("edu_exercise_assignments")

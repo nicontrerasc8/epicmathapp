@@ -46,16 +46,29 @@ interface Membership {
   id: string
   role: string
   institution_id: string | null
-  classroom_id: string | null
   active: boolean
   created_at: string
   edu_institutions?: { id: string; name: string } | null
-  edu_classrooms?: {
-    id: string
-    academic_year: number
-    grade: string
-    section?: string | null
-  } | null
+  edu_classroom_members?:
+    | {
+        classroom_id: string
+        edu_classrooms?: {
+          id: string
+          academic_year: number
+          grade: string
+          section?: string | null
+        } | null
+      }[]
+    | {
+        classroom_id: string
+        edu_classrooms?: {
+          id: string
+          academic_year: number
+          grade: string
+          section?: string | null
+        } | null
+      }
+    | null
 }
 
 interface ClassroomOption {
@@ -73,9 +86,19 @@ function getPrimaryMembership(memberships: Membership[]) {
   return active || memberships[0]
 }
 
+function getClassroomMemberships(m?: Membership) {
+  const cms = m?.edu_classroom_members
+  return Array.isArray(cms) ? cms : cms ? [cms] : []
+}
+
+function getPrimaryClassroom(m?: Membership) {
+  return getClassroomMemberships(m)[0]
+}
+
 function getMembershipGrade(m: Membership) {
-  const grade = m.edu_classrooms?.grade || ""
-  const section = m.edu_classrooms?.section || ""
+  const primary = getPrimaryClassroom(m)
+  const grade = primary?.edu_classrooms?.grade || ""
+  const section = primary?.edu_classrooms?.section || ""
   return `${grade} ${section}`.trim()
 }
 
@@ -142,7 +165,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
       firstName: data.profile.first_name,
       lastName: data.profile.last_name,
       role: (data.profile.global_role as string) || "student",
-      classroomId: primary?.classroom_id || "",
+      classroomId: getPrimaryClassroom(primary)?.classroom_id || "",
       active: Boolean(data.profile.active),
     })
     setFormError(null)
@@ -374,7 +397,7 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Aula</dt>
               <dd className="font-medium">
-                {primaryMembership?.edu_classrooms
+                {getPrimaryClassroom(primaryMembership)?.edu_classrooms
                   ? `${getMembershipGrade(primaryMembership)}`
                   : "Sin asignar"}
               </dd>
@@ -433,9 +456,15 @@ export default function StudentDetail({ studentId }: StudentDetailProps) {
                         <div>
                           Institucion: {m.edu_institutions?.name || m.institution_id?.slice(0, 8) || "Sin institucion"}
                         </div>
-                        {m.edu_classrooms ? (
+                        {getClassroomMemberships(m).length > 0 ? (
                           <div>
-                            Aula: {getMembershipGrade(m)} - {m.edu_classrooms.academic_year}
+                            Aula: {getClassroomMemberships(m).map((cm) => {
+                              const grade = cm.edu_classrooms?.grade || ""
+                              const section = cm.edu_classrooms?.section || ""
+                              const label = `${grade} ${section}`.trim()
+                              const year = cm.edu_classrooms?.academic_year
+                              return year ? `${label} - ${year}`.trim() : label
+                            }).join(", ")}
                           </div>
                         ) : (
                           <div>Aula: Sin asignar</div>

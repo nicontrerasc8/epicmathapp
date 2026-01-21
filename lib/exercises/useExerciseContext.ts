@@ -42,27 +42,11 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
           throw new Error('Usuario no autenticado')
         }
 
-        let memberQuery = supabase
-          .from('edu_institution_members')
-          .select('id, classroom_id, institution_id, role, active, created_at')
-          .eq('profile_id', studentId)
-          .eq('role', 'student')
-          .eq('active', true)
+        const classroomId = studentSession?.classroom_id ?? null
 
-        if (institution?.id) {
-          memberQuery = memberQuery.eq('institution_id', institution.id)
-        }
-
-        const { data: member } = await memberQuery
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        if (!member?.classroom_id) {
+        if (!classroomId) {
           throw new Error('Alumno sin aula asignada')
         }
-
-        const classroomId = member.classroom_id
 
         const { data: assignment, error: assignErr } = await supabase
           .from('edu_exercise_assignments')

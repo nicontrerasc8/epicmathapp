@@ -1,11 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useParams } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Trophy } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { fetchStudentSession } from "@/lib/student-session-client"
 
+/* =========================
+   TYPES
+========================= */
 type ScoreRow = {
   studentId: string
   name: string
@@ -18,12 +22,9 @@ type ScoreRow = {
   hasRecord: boolean
 }
 
-type ScoreboardPageProps = {
-  params: {
-    id: string
-  }
-}
-
+/* =========================
+   HELPERS
+========================= */
 const formatLastPlayed = (value?: string | null) => {
   if (!value) return "—"
   const when = new Date(value)
@@ -36,13 +37,20 @@ const formatLastPlayed = (value?: string | null) => {
   })
 }
 
-export default function ScoreboardPage({ params }: ScoreboardPageProps) {
+/* =========================
+   PAGE
+========================= */
+export default function ScoreboardPage() {
+  const params = useParams<{ id: string }>()
   const exerciseId = params.id
+
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<ScoreRow[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!exerciseId) return
+
     let active = true
     const supabase = createClient()
 
@@ -66,19 +74,32 @@ export default function ScoreboardPage({ params }: ScoreboardPageProps) {
         }
 
         const { data: members, error: membersErr } = await supabase
-          .from("edu_institution_members")
-          .select("profile_id, edu_profiles ( first_name, last_name )")
+          .from("edu_classroom_members")
+          .select(`
+            edu_institution_members!inner (
+              profile_id,
+              role,
+              active,
+              institution_id,
+              edu_profiles ( first_name, last_name )
+            )
+          `)
           .eq("classroom_id", session.classroom_id)
-          .eq("institution_id", session.institution_id)
-          .eq("role", "student")
-          .eq("active", true)
+          .eq("edu_institution_members.institution_id", session.institution_id)
+          .eq("edu_institution_members.role", "student")
+          .eq("edu_institution_members.active", true)
 
         if (membersErr) throw membersErr
 
         const studentIds = Array.from(
           new Set(
             (members ?? [])
-              .map((m: any) => m.profile_id)
+              .map((row: any) => {
+                const member = Array.isArray(row.edu_institution_members)
+                  ? row.edu_institution_members[0]
+                  : row.edu_institution_members
+                return member?.profile_id
+              })
               .filter(Boolean),
           ),
         )
@@ -99,9 +120,18 @@ export default function ScoreboardPage({ params }: ScoreboardPageProps) {
 
         if (gamErr) throw gamErr
 
-        const membershipMap = new Map<string, { first_name?: string | null; last_name?: string | null }>()
-        ;(members ?? []).forEach((member: any) => {
-          membershipMap.set(member.profile_id, member.edu_profiles ?? {})
+        const membershipMap = new Map<
+          string,
+          { first_name?: string | null; last_name?: string | null }
+        >()
+
+        ;(members ?? []).forEach((row: any) => {
+          const member = Array.isArray(row.edu_institution_members)
+            ? row.edu_institution_members[0]
+            : row.edu_institution_members
+          if (member?.profile_id) {
+            membershipMap.set(member.profile_id, member.edu_profiles ?? {})
+          }
         })
 
         const gamMap = new Map<string, any>()
@@ -109,19 +139,22 @@ export default function ScoreboardPage({ params }: ScoreboardPageProps) {
           gamMap.set(gami.student_id, gami)
         })
 
-        const scoreboard = studentIds.map((studentId) => {
+        const scoreboard: ScoreRow[] = studentIds.map((studentId) => {
           const member = membershipMap.get(studentId) ?? {}
           const gami = gamMap.get(studentId)
+
           const attempts =
             typeof gami?.attempts === "number"
               ? gami.attempts
-              : (gami?.correct_attempts ?? 0) + (gami?.wrong_attempts ?? 0)
+              : (gami?.correct_attempts ?? 0) +
+                (gami?.wrong_attempts ?? 0)
 
           return {
             studentId,
             name:
-              [member.first_name, member.last_name].filter(Boolean).join(" ") ||
-              studentId.slice(0, 8),
+              [member.first_name, member.last_name]
+                .filter(Boolean)
+                .join(" ") || studentId.slice(0, 8),
             trophies: gami?.trophies ?? 0,
             streak: gami?.streak ?? 0,
             attempts,
@@ -139,6 +172,7 @@ export default function ScoreboardPage({ params }: ScoreboardPageProps) {
         })
 
         if (!active) return
+
         setRows(scoreboard)
 
         if (!scoreboard.some((row) => row.hasRecord)) {
@@ -160,6 +194,10 @@ export default function ScoreboardPage({ params }: ScoreboardPageProps) {
   }, [exerciseId])
 
   const podium = useMemo(() => rows.slice(0, 3), [rows])
+
+  if (!exerciseId) {
+    return <div className="p-6">ID inválido</div>
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -197,13 +235,8 @@ export default function ScoreboardPage({ params }: ScoreboardPageProps) {
               {rows.reduce((sum, row) => sum + row.trophies, 0)} trofeos
             </div>
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Cada fila muestra quién ha acumulado más trofeos en este ejercicio.
-            ¡Acelera y escala el podio!
-          </p>
         </section>
 
-        {/* CONTENT */}
         {loading ? (
           <div className="rounded-2xl border border-dashed border-border bg-muted px-5 py-10 text-center text-sm text-muted-foreground">
             Cargando tabla de posiciones…
@@ -274,7 +307,9 @@ export default function ScoreboardPage({ params }: ScoreboardPageProps) {
                     >
                       <td className="px-4 py-3">{index + 1}</td>
                       <td className="px-4 py-3">{row.name}</td>
-                      <td className="px-4 py-3 font-semibold">{row.trophies}</td>
+                      <td className="px-4 py-3 font-semibold">
+                        {row.trophies}
+                      </td>
                       <td className="px-4 py-3">{row.streak}</td>
                       <td className="px-4 py-3">
                         {row.correct} / {row.wrong}

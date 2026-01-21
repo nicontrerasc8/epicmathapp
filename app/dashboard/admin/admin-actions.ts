@@ -91,13 +91,15 @@ export async function listStudentsAction(
                 role,
                 active,
                 institution_id,
-                classroom_id,
                 edu_institutions ( id, name ),
-                edu_classrooms (
-                    id,
-                    academic_year,
-                    grade,
-                    section
+                edu_classroom_members (
+                    classroom_id,
+                    edu_classrooms (
+                        id,
+                        academic_year,
+                        grade,
+                        section
+                    )
                 )
             )
         `)
@@ -126,9 +128,17 @@ export async function listStudentsAction(
         const membershipText = (r.edu_institution_members || [])
             .map((m: any) => {
                 const inst = m.edu_institutions?.name || ""
-                const grade = m.edu_classrooms?.grade || ""
-                const section = m.edu_classrooms?.section || ""
-                return `${inst} ${grade} ${section}`.trim()
+                const classrooms = Array.isArray(m.edu_classroom_members)
+                    ? m.edu_classroom_members
+                    : m.edu_classroom_members
+                      ? [m.edu_classroom_members]
+                      : []
+                const labels = classrooms.map((cm: any) => {
+                    const grade = cm.edu_classrooms?.grade || ""
+                    const section = cm.edu_classrooms?.section || ""
+                    return `${grade} ${section}`.trim()
+                })
+                return `${inst} ${labels.join(" ")}`.trim()
             })
             .join(" ")
             .toLowerCase()
@@ -156,15 +166,17 @@ export async function getStudentDetailAction(studentId: string) {
             id,
             role,
             institution_id,
-            classroom_id,
             active,
             created_at,
             edu_institutions ( id, name ),
-            edu_classrooms (
-                id,
-                academic_year,
-                grade,
-                section
+            edu_classroom_members (
+                classroom_id,
+                edu_classrooms (
+                    id,
+                    academic_year,
+                    grade,
+                    section
+                )
             )
         `)
         .eq("profile_id", studentId)
@@ -232,14 +244,27 @@ export async function createStudentAction(input: {
         }
     }
 
-    const { error: memberErr } = await supabaseAdmin.from("edu_institution_members").insert({
-        profile_id: userId,
-        institution_id: institutionId,
-        classroom_id: input.classroom_id ?? null,
-        role,
-        active: true,
-    })
+    const { data: member, error: memberErr } = await supabaseAdmin
+        .from("edu_institution_members")
+        .insert({
+            profile_id: userId,
+            institution_id: institutionId,
+            role,
+            active: true,
+        })
+        .select("id")
+        .single()
     if (memberErr) throw new Error(memberErr.message)
+
+    if (input.classroom_id && member?.id) {
+        const { error: cmErr } = await supabaseAdmin
+            .from("edu_classroom_members")
+            .insert({
+                institution_member_id: member.id,
+                classroom_id: input.classroom_id,
+            })
+        if (cmErr) throw new Error(cmErr.message)
+    }
 
     return { id: userId, password: input.password?.trim() ? null : password }
 }
@@ -294,15 +319,20 @@ export async function updateStudentAction(
         if (memberErr) throw new Error(memberErr.message)
 
         if (member?.id) {
-            const { error: clearErr } = await supabaseAdmin
+            const { error: updateErr } = await supabaseAdmin
                 .from("edu_institution_members")
                 .update({
-                    classroom_id: null,
                     active: input.active,
                     role: effectiveRole,
                 })
                 .eq("id", member.id)
-            if (clearErr) throw new Error(clearErr.message)
+            if (updateErr) throw new Error(updateErr.message)
+
+            const { error: deleteErr } = await supabaseAdmin
+                .from("edu_classroom_members")
+                .delete()
+                .eq("institution_member_id", member.id)
+            if (deleteErr) throw new Error(deleteErr.message)
             return { id: studentId }
         }
 
@@ -311,7 +341,6 @@ export async function updateStudentAction(
             .insert({
                 profile_id: studentId,
                 institution_id: institutionId,
-                classroom_id: null,
                 role: effectiveRole,
                 active: input.active,
             })
@@ -340,28 +369,47 @@ export async function updateStudentAction(
         .maybeSingle()
     if (memberErr) throw new Error(memberErr.message)
 
-    if (member?.id) {
+    let memberId = member?.id ?? null
+
+    if (memberId) {
         const { error: updateErr } = await supabaseAdmin
             .from("edu_institution_members")
             .update({
                 institution_id: classroom.institution_id,
-                classroom_id: input.classroom_id,
                 active: input.active,
                 role: effectiveRole,
             })
-            .eq("id", member.id)
+            .eq("id", memberId)
         if (updateErr) throw new Error(updateErr.message)
     } else {
-        const { error: insertErr } = await supabaseAdmin
+        const { data: createdMember, error: insertErr } = await supabaseAdmin
             .from("edu_institution_members")
             .insert({
                 profile_id: studentId,
                 institution_id: classroom.institution_id,
-                classroom_id: input.classroom_id,
                 role: effectiveRole,
                 active: input.active,
             })
+            .select("id")
+            .single()
         if (insertErr) throw new Error(insertErr.message)
+        memberId = createdMember?.id ?? null
+    }
+
+    if (memberId) {
+        const { error: deleteErr } = await supabaseAdmin
+            .from("edu_classroom_members")
+            .delete()
+            .eq("institution_member_id", memberId)
+        if (deleteErr) throw new Error(deleteErr.message)
+
+        const { error: insertClassErr } = await supabaseAdmin
+            .from("edu_classroom_members")
+            .insert({
+                institution_member_id: memberId,
+                classroom_id: input.classroom_id,
+            })
+        if (insertClassErr) throw new Error(insertClassErr.message)
     }
 
     return { id: studentId }
@@ -385,6 +433,54 @@ export async function deactivateStudentAction(studentId: string) {
     if (memberErr) throw new Error(memberErr.message)
 
     return { id: studentId }
+}
+
+export async function addMemberToClassroomAction(input: {
+    institution_member_id: string
+    classroom_id: string
+}) {
+    if (!input.institution_member_id || !input.classroom_id) {
+        throw new Error("Datos incompletos para asignar aula")
+    }
+    const supabase = await createClient()
+    const institutionId = await getInstitutionId()
+
+    const { data: member, error: memberErr } = await supabase
+        .from("edu_institution_members")
+        .select("id, institution_id")
+        .eq("id", input.institution_member_id)
+        .single()
+    if (memberErr || !member) {
+        throw new Error(memberErr?.message || "Membresia no encontrada")
+    }
+    if (member.institution_id !== institutionId) {
+        throw new Error("Membresia fuera de la institucion")
+    }
+
+    const { data: classroom, error: classroomErr } = await supabase
+        .from("edu_classrooms")
+        .select("id, institution_id")
+        .eq("id", input.classroom_id)
+        .single()
+    if (classroomErr || !classroom) {
+        throw new Error(classroomErr?.message || "Aula no encontrada")
+    }
+    if (classroom.institution_id !== institutionId) {
+        throw new Error("Aula fuera de la institucion")
+    }
+
+    const { error: upsertErr } = await supabase
+        .from("edu_classroom_members")
+        .upsert(
+            {
+                institution_member_id: input.institution_member_id,
+                classroom_id: input.classroom_id,
+            },
+            { onConflict: "institution_member_id,classroom_id" },
+        )
+    if (upsertErr) throw new Error(upsertErr.message)
+
+    return { id: input.institution_member_id }
 }
 
 // -----------------------------------------------------------------------------

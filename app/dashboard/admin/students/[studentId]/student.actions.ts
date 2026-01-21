@@ -16,7 +16,17 @@ export async function getStudentDetailAction(studentId: string) {
 
   const { data: memberships, error: mErr } = await supabase
     .from("edu_institution_members")
-    .select("id, role, institution_id, classroom_id, active, created_at")
+    .select(`
+      id,
+      role,
+      institution_id,
+      active,
+      created_at,
+      edu_classroom_members (
+        classroom_id,
+        edu_classrooms ( id, academic_year, grade, section )
+      )
+    `)
     .eq("profile_id", studentId)
     .eq("institution_id", institution.id)
     .order("created_at", { ascending: false })

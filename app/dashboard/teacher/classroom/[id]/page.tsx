@@ -34,13 +34,24 @@ export default async function TeacherClassroomHub({
 
   // Calculate active students
   const { data: students } = await supabase
-    .from("edu_institution_members")
-    .select("active")
+    .from("edu_classroom_members")
+    .select(`
+      edu_institution_members!inner (
+        active,
+        role,
+        institution_id
+      )
+    `)
     .eq("classroom_id", id)
-    .eq("institution_id", institution.id)
-    .eq("role", "student")
+    .eq("edu_institution_members.institution_id", institution.id)
+    .eq("edu_institution_members.role", "student")
 
-  const activeStudents = students?.filter(s => s.active).length || 0
+  const activeStudents = (students ?? []).filter((row: any) => {
+    const member = Array.isArray(row.edu_institution_members)
+      ? row.edu_institution_members[0]
+      : row.edu_institution_members
+    return Boolean(member?.active)
+  }).length
   const studentCount = students?.length || 0
 
   return (

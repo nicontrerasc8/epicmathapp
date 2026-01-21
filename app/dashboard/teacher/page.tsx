@@ -11,29 +11,38 @@ export default async function TeacherDashboard() {
 
   // Fetch teacher classrooms
   const { data, error } = await supabase
-    .from("edu_institution_members")
+    .from("edu_classroom_members")
     .select(`
       classroom_id,
-      institution_id,
-      edu_classrooms:classroom_id ( id, grade, section, academic_year ),
-      edu_institutions:institution_id ( id, name, type )
+      edu_classrooms ( id, grade, section, academic_year ),
+      edu_institution_members!inner (
+        institution_id,
+        role,
+        active,
+        profile_id,
+        edu_institutions:institution_id ( id, name, type )
+      )
     `)
-    .eq("profile_id", user.id)
-    .eq("institution_id", institution.id)
-    .eq("role", "teacher")
-    .eq("active", true)
+    .eq("edu_institution_members.profile_id", user.id)
+    .eq("edu_institution_members.institution_id", institution.id)
+    .eq("edu_institution_members.role", "teacher")
+    .eq("edu_institution_members.active", true)
 
   const rows = (data ?? []) as any[]
 
   const classrooms = rows
     .map((m) => {
-      const c = m.edu_classrooms
+      const c = Array.isArray(m.edu_classrooms) ? m.edu_classrooms[0] : m.edu_classrooms
       if (!c) return null
 
+      const member = Array.isArray(m.edu_institution_members)
+        ? m.edu_institution_members[0]
+        : m.edu_institution_members
+
       const gradeLabel = `${c.grade}${c.section ? ` ${c.section}` : ""}`.trim()
-      const institutionName = Array.isArray(m.edu_institutions)
-        ? m.edu_institutions[0]?.name
-        : m.edu_institutions?.name ?? "Institución"
+      const institutionName = Array.isArray(member?.edu_institutions)
+        ? member?.edu_institutions[0]?.name
+        : member?.edu_institutions?.name ?? "Institución"
 
       return {
         classroomId: c.id,

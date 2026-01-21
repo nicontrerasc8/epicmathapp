@@ -55,14 +55,18 @@ export default function TeacherClassroomStudentsPage() {
         const fetchStudents = async () => {
             const supabase = createClient()
             let query = supabase
-                .from("edu_institution_members")
+                .from("edu_classroom_members")
                 .select(`
-          active,
-          created_at,
-          profile:edu_profiles ( id, first_name, last_name )
+          edu_institution_members!inner (
+            active,
+            created_at,
+            role,
+            institution_id,
+            profile:edu_profiles ( id, first_name, last_name )
+          )
         `)
                 .eq("classroom_id", classroomId)
-                .eq("role", "student")
+                .eq("edu_institution_members.role", "student")
 
             if (institution?.id) {
                 query = query.eq("institution_id", institution.id)
@@ -71,13 +75,18 @@ export default function TeacherClassroomStudentsPage() {
             const { data } = await query
 
             if (data) {
-                setStudents(data.map((m: any) => ({
-                    id: m.profile.id,
-                    first_name: m.profile.first_name,
-                    last_name: m.profile.last_name,
-                    active: m.active,
-                    created_at: m.created_at
-                })))
+                setStudents(data.map((row: any) => {
+                    const member = Array.isArray(row.edu_institution_members)
+                        ? row.edu_institution_members[0]
+                        : row.edu_institution_members
+                    return {
+                        id: member.profile.id,
+                        first_name: member.profile.first_name,
+                        last_name: member.profile.last_name,
+                        active: member.active,
+                        created_at: member.created_at
+                    }
+                }))
             }
             setLoading(false)
         }

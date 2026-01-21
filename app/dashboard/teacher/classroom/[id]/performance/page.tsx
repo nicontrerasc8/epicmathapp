@@ -226,14 +226,22 @@ export default function PerformancePage() {
 
       // 1) miembros (estudiantes)
       let membersQuery = supabase
-        .from("edu_institution_members")
-        .select("profile_id, edu_profiles ( first_name, last_name )")
+        .from("edu_classroom_members")
+        .select(`
+          edu_institution_members!inner (
+            profile_id,
+            active,
+            role,
+            institution_id,
+            edu_profiles ( first_name, last_name )
+          )
+        `)
         .eq("classroom_id", classroomId)
-        .eq("role", "student")
-        .eq("active", true)
+        .eq("edu_institution_members.role", "student")
+        .eq("edu_institution_members.active", true)
 
       if (institution?.id) {
-        membersQuery = membersQuery.eq("institution_id", institution.id)
+        membersQuery = membersQuery.eq("edu_institution_members.institution_id", institution.id)
       }
 
       // 2) asignaciones (ejercicios del aula)
@@ -258,7 +266,12 @@ export default function PerformancePage() {
       }
 
       const studentIds = new Set<string>()
-      ;(members || []).forEach((m: any) => studentIds.add(m.profile_id))
+      ;(members || []).forEach((row: any) => {
+        const member = Array.isArray(row.edu_institution_members)
+          ? row.edu_institution_members[0]
+          : row.edu_institution_members
+        if (member?.profile_id) studentIds.add(member.profile_id)
+      })
 
       const exerciseIds = new Set<string>()
       ;(assignments || []).forEach((row: any) => {
@@ -285,9 +298,14 @@ export default function PerformancePage() {
       // Maps
       const studentNameMap = new Map<string, string>()
       ;(members || []).forEach((row: any) => {
-        const profile = Array.isArray(row.edu_profiles) ? row.edu_profiles[0] : row.edu_profiles
+        const member = Array.isArray(row.edu_institution_members)
+          ? row.edu_institution_members[0]
+          : row.edu_institution_members
+        const profile = Array.isArray(member?.edu_profiles) ? member?.edu_profiles[0] : member?.edu_profiles
         const fullName = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim()
-        studentNameMap.set(row.profile_id, fullName || row.profile_id)
+        if (member?.profile_id) {
+          studentNameMap.set(member.profile_id, fullName || member.profile_id)
+        }
       })
 
       const exerciseMap = new Map<string, { label: string; type: string }>()

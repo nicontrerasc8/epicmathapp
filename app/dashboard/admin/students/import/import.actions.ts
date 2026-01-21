@@ -82,14 +82,27 @@ export async function importUsersAction(rows: Row[]) {
       if (profileErr) throw profileErr
 
       // 3️⃣ Membresía
-      const { error: memberErr } = await supabaseAdmin.from("edu_institution_members").insert({
-        profile_id: userId,
-        institution_id: institutionId,
-        classroom_id: row.classroom_id ?? null,
-        role,
-        active: true,
-      })
+      const { data: member, error: memberErr } = await supabaseAdmin
+        .from("edu_institution_members")
+        .insert({
+          profile_id: userId,
+          institution_id: institutionId,
+          role,
+          active: true,
+        })
+        .select("id")
+        .single()
       if (memberErr) throw memberErr
+
+      if (row.classroom_id && member?.id) {
+        const { error: cmErr } = await supabaseAdmin
+          .from("edu_classroom_members")
+          .insert({
+            institution_member_id: member.id,
+            classroom_id: row.classroom_id,
+          })
+        if (cmErr) throw cmErr
+      }
 
       report.created.push({
         email,

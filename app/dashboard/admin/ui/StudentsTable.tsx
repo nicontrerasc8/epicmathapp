@@ -47,14 +47,27 @@ type InstitutionMember = {
   role: string
   active: boolean
   institution_id: string | null
-  classroom_id: string | null
   edu_institutions?: { id: string; name: string } | null
-  edu_classrooms?: {
-    id: string
-    academic_year: number
-    grade: string
-    section?: string | null
-  } | null
+  edu_classroom_members?:
+    | {
+        classroom_id: string
+        edu_classrooms?: {
+          id: string
+          academic_year: number
+          grade: string
+          section?: string | null
+        } | null
+      }[]
+    | {
+        classroom_id: string
+        edu_classrooms?: {
+          id: string
+          academic_year: number
+          grade: string
+          section?: string | null
+        } | null
+      }
+    | null
 }
 
 type ClassroomOption = {
@@ -84,10 +97,20 @@ function getPrimaryMembership(student: Student) {
   return active || members[0]
 }
 
+function getClassroomMemberships(member?: InstitutionMember) {
+  const cms = member?.edu_classroom_members
+  return Array.isArray(cms) ? cms : cms ? [cms] : []
+}
+
+function getPrimaryClassroom(member?: InstitutionMember) {
+  return getClassroomMemberships(member)[0]
+}
+
 function getMembershipGrade(member?: InstitutionMember) {
-  if (!member?.edu_classrooms) return ""
-  const grade = member.edu_classrooms.grade || ""
-  const section = member.edu_classrooms.section || ""
+  const primary = getPrimaryClassroom(member)
+  if (!primary?.edu_classrooms) return ""
+  const grade = primary.edu_classrooms.grade || ""
+  const section = primary.edu_classrooms.section || ""
   return `${grade} ${section}`.trim()
 }
 
@@ -206,7 +229,7 @@ const columns: ColumnDef<Student>[] = [
       const member = getPrimaryMembership(row)
       return (
         <span className="text-xs text-muted-foreground">
-          {member?.edu_classrooms?.academic_year || "—"}
+          {getPrimaryClassroom(member)?.edu_classrooms?.academic_year || "—"}
         </span>
       )
     },
@@ -393,7 +416,7 @@ export default function StudentsTable() {
               email: "",
               password: "",
               role: row.global_role || "student",
-              classroomId: member?.classroom_id || "",
+              classroomId: getPrimaryClassroom(member)?.classroom_id || "",
               active: Boolean(row.active),
             })
           },
@@ -656,14 +679,27 @@ export default function StudentsTable() {
         if (pErr) throw new Error(`edu_profiles: ${pErr.message}`)
 
         // 3) Insert membresía
-        const { error: mErr } = await supabase.from("edu_institution_members").insert({
-          profile_id: userId,
-          institution_id: bulkInstitutionId,
-          classroom_id: bulkClassroomId,
-          role: "student",
-          active: true,
-        })
+        const { data: member, error: mErr } = await supabase
+          .from("edu_institution_members")
+          .insert({
+            profile_id: userId,
+            institution_id: bulkInstitutionId,
+            role: "student",
+            active: true,
+          })
+          .select("id")
+          .single()
         if (mErr) throw new Error(`membership: ${mErr.message}`)
+
+        if (member?.id && bulkClassroomId) {
+          const { error: cmErr } = await supabase
+            .from("edu_classroom_members")
+            .insert({
+              institution_member_id: member.id,
+              classroom_id: bulkClassroomId,
+            })
+          if (cmErr) throw new Error(`classroom_members: ${cmErr.message}`)
+        }
 
         setBulkPreview((prev) =>
           prev.map((x, idx) =>
