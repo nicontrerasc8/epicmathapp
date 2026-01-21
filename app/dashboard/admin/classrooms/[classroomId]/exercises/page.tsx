@@ -81,6 +81,8 @@ export default function ClassroomExercisesPage() {
   const [pageSize, setPageSize] = useState(pageSizeOptions[0])
   const [page, setPage] = useState(1)
 
+  const [institutionId, setInstitutionId] = useState<string | null>(null)
+
   /* ---------- form state ---------- */
   const [form, setForm] = useState({
     exercise_id: "",
@@ -100,6 +102,18 @@ export default function ClassroomExercisesPage() {
   ========================= */
   useEffect(() => {
     const supabase = createClient()
+
+    const fetchClassroomInstitution = async () => {
+      const { data } = await supabase
+        .from("edu_classrooms")
+        .select("institution_id")
+        .eq("id", classroomId)
+        .single()
+
+      if (data?.institution_id) {
+        setInstitutionId(data.institution_id)
+      }
+    }
 
     const fetchExercises = async () => {
       const { data } = await supabase
@@ -123,19 +137,30 @@ export default function ClassroomExercisesPage() {
       setLoading(false)
     }
 
+    fetchClassroomInstitution()
+    fetchExercises()
+  }, [classroomId])
+
+  /* =========================
+     Fetch exercise options (by institution)
+  ========================= */
+  useEffect(() => {
+    if (!institutionId) return
+    const supabase = createClient()
+
     const fetchExerciseOptions = async () => {
       const { data } = await supabase
         .from("edu_exercises")
         .select("id, exercise_type, description")
         .eq("active", true)
+        .eq("institution_id", institutionId)
         .order("created_at", { ascending: false })
 
       if (data) setExerciseOptions(data)
     }
 
-    fetchExercises()
     fetchExerciseOptions()
-  }, [classroomId])
+  }, [institutionId])
 
   const refreshExercises = async () => {
     const supabase = createClient()
@@ -195,7 +220,7 @@ export default function ClassroomExercisesPage() {
     const supabase = createClient()
     let exerciseId = form.exercise_id
 
-    /* ---- create exercise if needed ---- */
+    /* ---- create exercise ---- */
     if (createMode) {
       if (!newExercise.description || !newExercise.exercise_type) {
         setMessage({
@@ -210,6 +235,7 @@ export default function ClassroomExercisesPage() {
         .insert({
           description: newExercise.description,
           exercise_type: newExercise.exercise_type,
+          institution_id: institutionId,
           active: true,
         })
         .select("id")
@@ -228,7 +254,7 @@ export default function ClassroomExercisesPage() {
       }
     }
 
-    /* ---- RPC assignment ---- */
+    /* ---- RPC ---- */
     const { error } = await supabase.rpc("assign_exercise_to_classrooms", {
       p_classroom_id: classroomId,
       p_exercise_id: exerciseId,
@@ -266,7 +292,7 @@ export default function ClassroomExercisesPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        {/* ================= TABLE ================= */}
+        {/* TABLE */}
         <div className="space-y-3">
           <div className="flex gap-3 items-center">
             <Input
@@ -281,9 +307,7 @@ export default function ClassroomExercisesPage() {
               className="h-9 rounded-md border px-2 text-sm bg-white"
             >
               {pageSizeOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>
@@ -330,11 +354,8 @@ export default function ClassroomExercisesPage() {
           />
         </div>
 
-        {/* ================= FORM ================= */}
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4 rounded-xl border bg-card p-4"
-        >
+        {/* FORM */}
+        <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border bg-card p-4">
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium">Asignar ejercicio</div>
             <Button
@@ -360,10 +381,7 @@ export default function ClassroomExercisesPage() {
                 placeholder="Tipo (aritmética, álgebra, etc.)"
                 value={newExercise.exercise_type}
                 onChange={(e) =>
-                  setNewExercise((s) => ({
-                    ...s,
-                    exercise_type: e.target.value,
-                  }))
+                  setNewExercise((s) => ({ ...s, exercise_type: e.target.value }))
                 }
               />
             </>

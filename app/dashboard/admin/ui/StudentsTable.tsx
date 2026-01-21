@@ -65,7 +65,7 @@ type ClassroomOption = {
   grade: string
   section?: string | null
   active?: boolean
-  edu_institutions?: { id: string; name: string } | null
+  edu_institutions?: { id: string; name: string; slug?: string | null } | null
 }
 
 type BulkRow = {
@@ -364,6 +364,7 @@ export default function StudentsTable() {
   }, [filteredRows, page, pageSize])
 
   const isFiltered = Boolean(values.search || values.active)
+  const emailInputValue = form.email.trim()
 
   const handleRowClick = (row: Student) => {
     router.push(`/dashboard/admin/students/${row.id}`)
@@ -437,16 +438,50 @@ export default function StudentsTable() {
     setCreateSuccess(null)
   }
 
+  const selectedClassroom = useMemo(
+    () => classrooms.find((cls) => cls.id === form.classroomId),
+    [classrooms, form.classroomId],
+  )
+
+  const suggestedInstitutionSlug = useMemo(() => {
+    if (!selectedClassroom) return ""
+    if (selectedClassroom.edu_institutions?.slug) {
+      return selectedClassroom.edu_institutions.slug
+    }
+    return slugifyInstitution(selectedClassroom.edu_institutions?.name || "")
+  }, [selectedClassroom])
+
+  const suggestedEmail = useMemo(() => {
+    if (
+      !selectedClassroom ||
+      !suggestedInstitutionSlug ||
+      !form.firstName.trim() ||
+      !form.lastName.trim()
+    ) {
+      return ""
+    }
+    const local = `${normalizeName(form.firstName)}.${normalizeName(form.lastName)}`.replace(
+      /\.+/g,
+      ".",
+    )
+    return `${local}@${suggestedInstitutionSlug}.ludus.edu`
+  }, [form.firstName, form.lastName, selectedClassroom, suggestedInstitutionSlug])
+
   const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setCreateError(null)
     setCreateSuccess(null)
 
-    if (!form.firstName.trim() || !form.lastName.trim()) {
+    const firstName = form.firstName.trim()
+    const lastName = form.lastName.trim()
+    const emailValue = form.email.trim()
+    const resolvedEmail = editId ? emailValue : emailValue || suggestedEmail
+
+    if (!firstName || !lastName) {
       setCreateError("Completa nombre y apellido.")
       return
     }
-    if (!editId && !form.email.trim()) {
+    if (!editId && !resolvedEmail) {
       setCreateError("Completa el correo.")
       return
     }
@@ -455,8 +490,8 @@ export default function StudentsTable() {
       setCreating(true)
       if (editId) {
         await updateStudentAction(editId, {
-          first_name: form.firstName,
-          last_name: form.lastName,
+          first_name: firstName,
+          last_name: lastName,
           classroom_id: form.classroomId || null,
           active: form.active,
           role: form.role,
@@ -464,10 +499,10 @@ export default function StudentsTable() {
         setCreateSuccess("Usuario actualizado.")
       } else {
         const result = await createStudentAction({
-          email: form.email,
+          email: resolvedEmail,
           password: form.password || undefined,
-          first_name: form.firstName,
-          last_name: form.lastName,
+          first_name: firstName,
+          last_name: lastName,
           role: form.role,
           classroom_id: form.classroomId || null,
         })
@@ -921,7 +956,21 @@ export default function StudentsTable() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="studentEmail">Correo</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="studentEmail">Correo</Label>
+                {!editId && suggestedEmail && emailInputValue !== suggestedEmail && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    type="button"
+                    onClick={() =>
+                      setForm((s: any) => ({ ...s, email: suggestedEmail }))
+                    }
+                  >
+                    Usar sugerido
+                  </Button>
+                )}
+              </div>
               <Input
                 id="studentEmail"
                 type="email"
@@ -929,6 +978,14 @@ export default function StudentsTable() {
                 onChange={(e) => setForm((s: any) => ({ ...s, email: e.target.value }))}
                 disabled={Boolean(editId)}
               />
+              {!editId && suggestedEmail && (
+                <p className="text-xs text-muted-foreground">
+                  Sugerido: <span className="font-mono">{suggestedEmail}</span>
+                  {selectedClassroom && (
+                    <> · Institución: {selectedClassroom.edu_institutions?.name || "Sin institución"}</>
+                  )}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="studentPassword">Password (opcional)</Label>
@@ -980,6 +1037,11 @@ export default function StudentsTable() {
 
           {createError && <p className="text-sm text-destructive">{createError}</p>}
           {createSuccess && <p className="text-sm text-foreground">{createSuccess}</p>}
+          <div className="text-xs text-muted-foreground">
+            Supabase Auth se encarga de crear el usuario y se registran los datos en{" "}
+            <span className="font-mono">edu_profiles</span> y{" "}
+            <span className="font-mono">edu_institution_members</span>.
+          </div>
 
           <div className="flex items-center gap-2">
             <Button type="submit" size="sm" disabled={creating}>

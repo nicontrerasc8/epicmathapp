@@ -396,8 +396,8 @@ export async function listClassroomsAction() {
     const institutionId = await getInstitutionId()
 
     const { data, error } = await supabase
-        .from("edu_classrooms")
-        .select(`
+    .from("edu_classrooms")
+    .select(`
       id,
       grade,
       section,
@@ -408,7 +408,8 @@ export async function listClassroomsAction() {
       created_at,
       edu_institutions (
         id,
-        name
+        name,
+        slug
       )
     `)
         .eq("institution_id", institutionId)

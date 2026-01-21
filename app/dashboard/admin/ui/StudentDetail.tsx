@@ -65,7 +65,7 @@ interface ClassroomOption {
   grade: string
   section?: string | null
   active?: boolean
-  edu_institutions?: { id: string; name: string } | null
+  edu_institutions?: { id: string; name: string; slug?: string | null } | null
 }
 
 function getPrimaryMembership(memberships: Membership[]) {
