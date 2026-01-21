@@ -230,9 +230,12 @@ export default function ClassroomExercisesPage() {
         return
       }
 
+      const generatedId = crypto.randomUUID()
+
       const { data, error } = await supabase
         .from("edu_exercises")
         .insert({
+          id: generatedId,
           description: newExercise.description,
           exercise_type: newExercise.exercise_type,
           institution_id: institutionId,
