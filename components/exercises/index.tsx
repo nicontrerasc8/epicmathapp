@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Gamepad2 } from 'lucide-react'
+import { ArrowLeft, Gamepad2, Trophy } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 /* =============================
@@ -87,9 +87,18 @@ export const ExerciseRegistry = ({
             Volver
           </Link>
 
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Gamepad2 className="h-4 w-4" />
-            Modo práctica
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <div className="inline-flex items-center gap-2">
+              <Gamepad2 className="h-4 w-4" />
+              Modo práctica
+            </div>
+            <Link
+              href={`/student/play/${exerciseId}/scoreboard`}
+              className="inline-flex items-center gap-1 rounded-full border border-black/30 bg-white/5 text-black px-3 py-1 text-xs font-semibold uppercase"
+            >
+              <Trophy className="h-3.5 w-3.5 text-amber-300" />
+              Tabla de trofeos
+            </Link>
           </div>
         </div>
       </div>
