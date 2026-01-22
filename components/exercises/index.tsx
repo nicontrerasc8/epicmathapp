@@ -108,7 +108,7 @@ export const ExerciseRegistry = ({
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <div className="inline-flex items-center gap-2">
               <Gamepad2 className="h-4 w-4" />
-              Modo prÃ¡ctica
+              Modo práctica
             </div>
             <Link
               href={`/student/play/${exerciseId}/scoreboard`}
@@ -136,7 +136,7 @@ export const ExerciseRegistry = ({
             </h2>
             <p className="mt-2 max-w-md text-sm text-muted-foreground">
               Este ejercicio aÃºn no ha sido implementado en la plataforma.
-              Vuelve mÃ¡s tarde o continÃºa con otro.
+              Vuelve más tarde o continÃºa con otro.
             </p>
           </div>
         ) : (
