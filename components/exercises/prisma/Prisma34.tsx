@@ -1,12 +1,15 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
 import { MathJax, MathJaxContext } from 'better-react-mathjax'
 
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
+import { ExerciseHud } from '../base/ExerciseHud'
 import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
-import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
+import { useExerciseSubmission } from '@/lib/exercises/useExerciseSubmission'
+import { useExerciseTimer } from '@/lib/exercises/useExerciseTimer'
+import { computeTrophyGain, WRONG_PENALTY } from '@/lib/exercises/gamification'
 
 /* ============================================================
    PRISMA 34 — Radianes / Sexagesimal / Centesimal
@@ -119,25 +122,31 @@ export default function Prisma34({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
   const [nonce, setNonce] = useState(0)
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
+  const trophyPreview = computeTrophyGain(elapsed)
   const [selectedKey, setSelectedKey] = useState<OptionKey | null>(null)
 
   const ex = useMemo(() => generateExercise(), [nonce])
 
   const promptLatex = `\\text{Halla }R\\text{ si }3C-2S=${ex.N}`
 
-  function pickOption(op: Option) {
+  async function pickOption(op: Option) {
     if (!engine.canAnswer) return
+
+    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
 
     setSelectedKey(op.key)
     engine.submit(op.correct)
 
     const ordered = ex.options.slice().sort((a, b) => a.key.localeCompare(b.key))
 
-    persistExerciseOnce({
-      exerciseId,
-      classroomId,
-      sessionId,
+    await submitAttempt({
 
       correct: op.correct,
 
@@ -157,6 +166,7 @@ export default function Prisma34({
           },
         },
       },
+      timeSeconds,
     })
   }
 
@@ -224,10 +234,25 @@ export default function Prisma34({
             )
           })}
         </div>
-      </ExerciseShell>
+        <div className="mt-6">
+          <ExerciseHud
+            elapsed={elapsed}
+            trophyPreview={trophyPreview}
+            gami={gami}
+            gamiLoading={gamiLoading}
+            studentId={studentId}
+            wrongPenalty={WRONG_PENALTY}
+            status={engine.status}
+          />
+        </div>      </ExerciseShell>
     </MathJaxContext>
   )
 }
+
+
+
+
+
 
 
 

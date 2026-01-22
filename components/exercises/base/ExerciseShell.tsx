@@ -61,7 +61,9 @@ export function ExerciseShell({
         )}
 
         {/* Contenido del ejercicio */}
-        {children}
+        <div className="flex flex-col gap-6">
+          {children}
+        </div>
 
         {/* Botones */}
         <div className="flex items-center justify-center gap-4">

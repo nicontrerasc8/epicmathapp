@@ -1,50 +1,21 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
-import { MathJax, MathJaxContext } from 'better-react-mathjax'
 
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
+import { MathProvider, MathTex } from '../base/MathBlock'
+import { ExerciseHud } from '../base/ExerciseHud'
+import { OptionsGrid, type Option } from '../base/OptionsGrid'
 import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
-import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
+import { useExerciseSubmission } from '@/lib/exercises/useExerciseSubmission'
+import { useExerciseTimer } from '@/lib/exercises/useExerciseTimer'
+import { computeTrophyGain, WRONG_PENALTY } from '@/lib/exercises/gamification'
 
 /* ============================================================
    PRISMA 3 — Esquemas moleculares con p,q,r desde aritmética
    (MISMO CONTRATO DE PERSISTENCIA QUE PRISMA01/02)
 ============================================================ */
-
-/* =========================
-   MathJax
-========================= */
-const MATHJAX_CONFIG = {
-  loader: { load: ['input/tex', 'output/chtml'] },
-  tex: {
-    inlineMath: [['\\(', '\\)']],
-    displayMath: [['\\[', '\\]']],
-    processEscapes: true,
-    packages: { '[+]': ['ams'] },
-  },
-  options: { renderActions: { addMenu: [] } },
-} as const
-
-function Tex({
-  tex,
-  block = false,
-  className = '',
-}: {
-  tex: string
-  block?: boolean
-  className?: string
-}) {
-  const wrapped = block ? `\\[${tex}\\]` : `\\(${tex}\\)`
-  return (
-    <span className={className}>
-      <MathJax dynamic inline={!block}>
-        {wrapped}
-      </MathJax>
-    </span>
-  )
-}
 
 /* =========================
    TIPOS
@@ -57,8 +28,6 @@ type Atom = {
   value: boolean
   steps: string[]
 }
-
-type Option = { value: string; correct: boolean }
 
 /* =========================
    HELPERS
@@ -80,7 +49,24 @@ function powi(a: number, b: number) {
 function VF(x: boolean) {
   return x ? 'V' : 'F'
 }
-function ruleTextForSchema(id: (typeof SCHEMAS)[number]['id']) { if (id === 'E1') { return [ 'Primero calculamos (p ? q).', 'Luego aplicamos la implicación: A ? B solo es F cuando A=V y B=F.', ] } if (id === 'E2') { return [ 'Primero calculamos (p ? r).', 'Luego hacemos conjunción con q: (A ? B) solo es V cuando ambos son V.', ] } return [ 'Primero calculamos (q ? r).', 'Luego hacemos conjunción con p: (A ? B) solo es V cuando ambos son V.', ] }
+function ruleTextForSchema(id: (typeof SCHEMAS)[number]['id']) {
+  if (id === 'E1') {
+    return [
+      'Primero calculamos (p & q).',
+      'Luego aplicamos la implicación: A -> B solo es F cuando A=V y B=F.',
+    ]
+  }
+  if (id === 'E2') {
+    return [
+      'Primero calculamos (p -> r).',
+      'Luego hacemos conjunción con q: (A & B) solo es V cuando ambos son V.',
+    ]
+  }
+  return [
+    'Primero calculamos (q -> r).',
+    'Luego hacemos conjunción con p: (A & B) solo es V cuando ambos son V.',
+  ]
+}
 /* =========================
    LaTeX helpers
 ========================= */
@@ -90,30 +76,30 @@ function vfLatex(b: boolean) {
 function statementToLatex(s: string) {
   return s
     .replace(/(\d+)\^(\d+)/g, (_, a, b) => `${a}^{${b}}`)
-    .replace(/\?/g, '\\ne')
+    .replace(/!=/g, '\\ne')
 }
 
 function schemaToLatex(s: string) {
   return s
-    .replace(/\?/g, '\\land')
-    .replace(/→/g, '\\to')
+    .replace(/&/g, '\\land')
+    .replace(/->/g, '\\to')
 }
 
 function stepToLatex(step: string) {
   if (step.startsWith('Comparo:')) {
     const m = step.match(
-      /Comparo:\s*([0-9]+)\s*([=?><])\s*([0-9]+)\s*?\s*([VF])/
+      /Comparo:\s*([0-9]+)\s*([=!><]=?)\s*([0-9]+)\s*=>\s*([VF])/
     )
     if (m) {
       const left = m[1]
       const opRaw = m[2]
       const right = m[3]
       const res = m[4] === 'V' ? '\\text{V}' : '\\text{F}'
-      const op = opRaw === '?' ? '\\ne' : opRaw
+      const op = opRaw === '!=' ? '\\ne' : opRaw
       return `${left}\\;${op}\\;${right}\\;\\Rightarrow\\;${res}`
     }
   }
- return statementToLatex(step).replace(/\?/g, '\\Rightarrow')
+  return statementToLatex(step).replace(/=>/g, '\\Rightarrow')
 
 }
 
@@ -156,7 +142,7 @@ function genAtom(name: VarName): Atom {
         `${a}^${b} = ${v1}`,
         `${c}^${d} = ${v2}`,
         `${v1} + ${v2} = ${left}`,
-        `Comparo: ${left} ${value ? '=' : '?'} ${right}  ?  ${VF(value)}`,
+        `Comparo: ${left} ${value ? '=' : '!='} ${right} => ${VF(value)}`,
       ],
     }
   }
@@ -174,7 +160,7 @@ function genAtom(name: VarName): Atom {
       value,
       steps: [
         `${x}^2 = ${left}`,
-        `Comparo: ${left} ${value ? '=' : '?'} ${right}  ?  ${VF(value)}`,
+        `Comparo: ${left} ${value ? '=' : '!='} ${right} => ${VF(value)}`,
       ],
     }
   }
@@ -201,7 +187,7 @@ function genAtom(name: VarName): Atom {
       `${t.y}^2 = ${t.y * t.y}`,
       `${t.x * t.x} + ${t.y * t.y} = ${left}`,
       `${z}^2 = ${right}`,
-      `Comparo: ${left} > ${right}  ?  ${VF(value)}`,
+      `Comparo: ${left} > ${right} => ${VF(value)}`,
     ],
   }
 }
@@ -210,9 +196,9 @@ function genAtom(name: VarName): Atom {
    ESQUEMAS
 ========================= */
 const SCHEMAS = [
-  { id: 'E1', text: '(p ? q) ? r' },
-  { id: 'E2', text: '(p ? r) ? q' },
-  { id: 'E3', text: 'p ? (q ? r)' },
+  { id: 'E1', text: '(p & q) -> r' },
+  { id: 'E2', text: '(p -> r) & q' },
+  { id: 'E3', text: 'p & (q -> r)' },
 ] as const
 
 function evalSchemas(p: boolean, q: boolean, r: boolean) {
@@ -253,7 +239,14 @@ export default function Prisma03({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
   const [nonce, setNonce] = useState(0)
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
+  const trophyPreview = computeTrophyGain(elapsed)
   const [selected, setSelected] = useState<string | null>(null)
 
   const ejercicio = useMemo(() => {
@@ -276,16 +269,15 @@ r:&\\ ${statementToLatex(r.statement)}\\\\[4pt]
     return { p, q, r, res, correct, options, questionLatex }
   }, [nonce])
 
-  function pickOption(op: Option) {
+  async function pickOption(op: Option) {
     if (!engine.canAnswer) return
+
+    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
 
     setSelected(op.value)
     engine.submit(op.correct)
 
-    persistExerciseOnce({
-      exerciseId,
-      classroomId,
-      sessionId,
+    await submitAttempt({
       correct: op.correct,
       answer: {
         selected: op.value,
@@ -302,6 +294,7 @@ r:&\\ ${statementToLatex(r.statement)}\\\\[4pt]
           truthBitsCorrect: ejercicio.correct,
         },
       },
+      timeSeconds,
     })
   }
 
@@ -312,7 +305,7 @@ r:&\\ ${statementToLatex(r.statement)}\\\\[4pt]
   }
 
   return (
-    <MathJaxContext version={3} config={MATHJAX_CONFIG}>
+    <MathProvider>
       <ExerciseShell
         title="Esquemas moleculares (p,q,r)"
         prompt="Calcula el patrón V/F (orden 1,2,3) para los esquemas."
@@ -322,192 +315,192 @@ r:&\\ ${statementToLatex(r.statement)}\\\\[4pt]
         onVerify={() => {}}
         onNext={siguiente}
         solution={
-  <SolutionBox>
-    <div className="space-y-4 text-sm leading-relaxed">
-      {/* Paso 1 */}
-      <div className="rounded-lg border bg-white p-3">
-        <div className="font-semibold mb-2">? Paso 1 — Primero hallamos p, q y r</div>
+          <SolutionBox>
+            <div className="space-y-4 text-sm leading-relaxed">
+              {/* Paso 1 */}
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">? Paso 1 — Primero hallamos p, q y r</div>
 
-        <div className="grid md:grid-cols-3 gap-3">
-          {[ejercicio.p, ejercicio.q, ejercicio.r].map(atom => (
-            <div key={atom.name} className="rounded-lg border bg-white p-3">
-              <div className="font-semibold mb-2 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="uppercase">{atom.name}:</span>
-                  <Tex tex={statementToLatex(atom.statement)} />
+                <div className="grid md:grid-cols-3 gap-3">
+                  {[ejercicio.p, ejercicio.q, ejercicio.r].map(atom => (
+                    <div key={atom.name} className="rounded-lg border bg-white p-3">
+                      <div className="font-semibold mb-2 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="uppercase">{atom.name}:</span>
+                          <MathTex tex={statementToLatex(atom.statement)} />
+                        </div>
+                        <span className="inline-block px-2 py-0.5 rounded bg-muted font-semibold">
+                          {VF(atom.value)}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {atom.steps.map((s, i) => (
+                          <div key={i} className="rounded-md border bg-background p-2">
+                            <MathTex block tex={stepToLatex(s)} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <span className="inline-block px-2 py-0.5 rounded bg-muted font-semibold">
-                  {VF(atom.value)}
-                </span>
               </div>
 
-              <div className="space-y-2">
-                {atom.steps.map((s, i) => (
-                  <div key={i} className="rounded-md border bg-background p-2">
-                    <Tex block tex={stepToLatex(s)} />
+              {/* Paso 2 */}
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">? Paso 2 — Evaluamos cada esquema molecular</div>
+
+                <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground">
+                  <div className="font-semibold text-foreground mb-1">Recordatorio rápido</div>
+                  <div>• \(A \land B\) solo es V si ambos son V.</div>
+                  <div>• \(A \to B\) solo es F si \(A=V\) y \(B=F\).</div>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  {/* E1 */}
+                  <div className="rounded-lg border p-3">
+                    <div className="font-semibold mb-1">
+                      1) <MathTex tex={schemaToLatex(SCHEMAS[0].text)} />
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                      {ruleTextForSchema('E1').map((t, i) => (
+                        <div key={i}>• {t}</div>
+                      ))}
+                    </div>
+
+                    <div className="mt-2 space-y-2">
+                      <div className="rounded-md border bg-background p-2">
+                        <MathTex
+                          block
+                          tex={`p\\land q = ${vfLatex(ejercicio.p.value)}\\land ${vfLatex(
+                            ejercicio.q.value
+                          )} = ${vfLatex(AND(ejercicio.p.value, ejercicio.q.value))}`}
+                        />
+                      </div>
+                      <div className="rounded-md border bg-background p-2">
+                        <MathTex
+                          block
+                          tex={`(p\\land q)\\to r = ${vfLatex(
+                            AND(ejercicio.p.value, ejercicio.q.value)
+                          )}\\to ${vfLatex(ejercicio.r.value)} = ${vfLatex(ejercicio.res.e1)}`}
+                        />
+                      </div>
+                    </div>
                   </div>
-                ))}
+
+                  {/* E2 */}
+                  <div className="rounded-lg border p-3">
+                    <div className="font-semibold mb-1">
+                      2) <MathTex tex={schemaToLatex(SCHEMAS[1].text)} />
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                      {ruleTextForSchema('E2').map((t, i) => (
+                        <div key={i}>• {t}</div>
+                      ))}
+                    </div>
+
+                    <div className="mt-2 space-y-2">
+                      <div className="rounded-md border bg-background p-2">
+                        <MathTex
+                          block
+                          tex={`p\\to r = ${vfLatex(ejercicio.p.value)}\\to ${vfLatex(
+                            ejercicio.r.value
+                          )} = ${vfLatex(IMP(ejercicio.p.value, ejercicio.r.value))}`}
+                        />
+                      </div>
+                      <div className="rounded-md border bg-background p-2">
+                        <MathTex
+                          block
+                          tex={`(p\\to r)\\land q = ${vfLatex(
+                            IMP(ejercicio.p.value, ejercicio.r.value)
+                          )}\\land ${vfLatex(ejercicio.q.value)} = ${vfLatex(ejercicio.res.e2)}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* E3 */}
+                  <div className="rounded-lg border p-3">
+                    <div className="font-semibold mb-1">
+                      3) <MathTex tex={schemaToLatex(SCHEMAS[2].text)} />
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                      {ruleTextForSchema('E3').map((t, i) => (
+                        <div key={i}>• {t}</div>
+                      ))}
+                    </div>
+
+                    <div className="mt-2 space-y-2">
+                      <div className="rounded-md border bg-background p-2">
+                        <MathTex
+                          block
+                          tex={`q\\to r = ${vfLatex(ejercicio.q.value)}\\to ${vfLatex(
+                            ejercicio.r.value
+                          )} = ${vfLatex(IMP(ejercicio.q.value, ejercicio.r.value))}`}
+                        />
+                      </div>
+                      <div className="rounded-md border bg-background p-2">
+                        <MathTex
+                          block
+                          tex={`p\\land(q\\to r) = ${vfLatex(ejercicio.p.value)}\\land ${vfLatex(
+                            IMP(ejercicio.q.value, ejercicio.r.value)
+                          )} = ${vfLatex(ejercicio.res.e3)}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Paso 3 */}
+              <div className="rounded-lg border bg-white p-3">
+                <div className="font-semibold mb-2">? Paso 3 — Respuesta final (en orden 1,2,3)</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">Patrón:</span>
+                  <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
+                    {ejercicio.correct}
+                  </span>
+                </div>
+                <div className="mt-2 text-muted-foreground text-xs">
+                  (Ese patrón corresponde a los valores de verdad de los esquemas 1, 2 y 3 en ese orden.)
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Paso 2 */}
-      <div className="rounded-lg border bg-white p-3">
-        <div className="font-semibold mb-2">? Paso 2 — Evaluamos cada esquema molecular</div>
-
-        <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground">
-          <div className="font-semibold text-foreground mb-1">Recordatorio rápido</div>
-          <div>• \(A \land B\) solo es V si ambos son V.</div>
-          <div>• \(A \to B\) solo es F si \(A=V\) y \(B=F\).</div>
-        </div>
-
-        <div className="mt-3 space-y-3">
-          {/* E1 */}
-          <div className="rounded-lg border p-3">
-            <div className="font-semibold mb-1">
-              1) <Tex tex={schemaToLatex(SCHEMAS[0].text)} />
-            </div>
-            <div className="text-muted-foreground text-xs">
-              {ruleTextForSchema('E1').map((t:any, i:any) => (
-                <div key={i}>• {t}</div>
-              ))}
-            </div>
-
-            <div className="mt-2 space-y-2">
-              <div className="rounded-md border bg-background p-2">
-                <Tex
-                  block
-                  tex={`p\\land q = ${vfLatex(ejercicio.p.value)}\\land ${vfLatex(
-                    ejercicio.q.value
-                  )} = ${vfLatex(AND(ejercicio.p.value, ejercicio.q.value))}`}
-                />
-              </div>
-              <div className="rounded-md border bg-background p-2">
-                <Tex
-                  block
-                  tex={`(p\\land q)\\to r = ${vfLatex(
-                    AND(ejercicio.p.value, ejercicio.q.value)
-                  )}\\to ${vfLatex(ejercicio.r.value)} = ${vfLatex(ejercicio.res.e1)}`}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* E2 */}
-          <div className="rounded-lg border p-3">
-            <div className="font-semibold mb-1">
-              2) <Tex tex={schemaToLatex(SCHEMAS[1].text)} />
-            </div>
-            <div className="text-muted-foreground text-xs">
-              {ruleTextForSchema('E2').map((t:any, i:any) => (
-                <div key={i}>• {t}</div>
-              ))}
-            </div>
-
-            <div className="mt-2 space-y-2">
-              <div className="rounded-md border bg-background p-2">
-                <Tex
-                  block
-                  tex={`p\\to r = ${vfLatex(ejercicio.p.value)}\\to ${vfLatex(
-                    ejercicio.r.value
-                  )} = ${vfLatex(IMP(ejercicio.p.value, ejercicio.r.value))}`}
-                />
-              </div>
-              <div className="rounded-md border bg-background p-2">
-                <Tex
-                  block
-                  tex={`(p\\to r)\\land q = ${vfLatex(
-                    IMP(ejercicio.p.value, ejercicio.r.value)
-                  )}\\land ${vfLatex(ejercicio.q.value)} = ${vfLatex(ejercicio.res.e2)}`}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* E3 */}
-          <div className="rounded-lg border p-3">
-            <div className="font-semibold mb-1">
-              3) <Tex tex={schemaToLatex(SCHEMAS[2].text)} />
-            </div>
-            <div className="text-muted-foreground text-xs">
-              {ruleTextForSchema('E3').map((t:any, i:any) => (
-                <div key={i}>• {t}</div>
-              ))}
-            </div>
-
-            <div className="mt-2 space-y-2">
-              <div className="rounded-md border bg-background p-2">
-                <Tex
-                  block
-                  tex={`q\\to r = ${vfLatex(ejercicio.q.value)}\\to ${vfLatex(
-                    ejercicio.r.value
-                  )} = ${vfLatex(IMP(ejercicio.q.value, ejercicio.r.value))}`}
-                />
-              </div>
-              <div className="rounded-md border bg-background p-2">
-                <Tex
-                  block
-                  tex={`p\\land(q\\to r) = ${vfLatex(ejercicio.p.value)}\\land ${vfLatex(
-                    IMP(ejercicio.q.value, ejercicio.r.value)
-                  )} = ${vfLatex(ejercicio.res.e3)}`}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Paso 3 */}
-      <div className="rounded-lg border bg-white p-3">
-        <div className="font-semibold mb-2">? Paso 3 — Respuesta final (en orden 1,2,3)</div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">Patrón:</span>
-          <span className="inline-block px-3 py-2 rounded bg-muted font-mono text-base">
-            {ejercicio.correct}
-          </span>
-        </div>
-        <div className="mt-2 text-muted-foreground text-xs">
-          (Ese patrón corresponde a los valores de verdad de los esquemas 1, 2 y 3 en ese orden.)
-        </div>
-      </div>
-    </div>
-  </SolutionBox>
+          </SolutionBox>
 }
 
       >
         <div className="rounded-xl border bg-white p-4 mb-4">
-          <Tex block tex={ejercicio.questionLatex} />
+          <MathTex block tex={ejercicio.questionLatex} />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {ejercicio.options.map(op => {
-            const isSelected = selected === op.value
-            const showCorrect = engine.status !== 'idle' && op.correct
-            const showWrong = engine.status === 'revealed' && isSelected && !op.correct
-
-            return (
-              <button
-                key={op.value}
-                disabled={!engine.canAnswer}
-                onClick={() => pickOption(op)}
-                className={[
-                  'border rounded-xl p-4 text-center transition',
-                  isSelected && 'ring-2 ring-primary',
-                  showCorrect && 'bg-green-400',
-                  showWrong && 'bg-red-400',
-                ].filter(Boolean).join(' ')}
-              >
-                <div className="font-mono text-lg">{op.value}</div>
-              </button>
-            )
-          })}
+        <OptionsGrid
+          options={ejercicio.options}
+          selectedValue={selected}
+          status={engine.status}
+          canAnswer={engine.canAnswer}
+          onSelect={pickOption}
+        />
+        <div className="mt-6">
+          <ExerciseHud
+            elapsed={elapsed}
+            trophyPreview={trophyPreview}
+            gami={gami}
+            gamiLoading={gamiLoading}
+            studentId={studentId}
+            wrongPenalty={WRONG_PENALTY}
+            status={engine.status}
+          />
         </div>
       </ExerciseShell>
-    </MathJaxContext>
+    </MathProvider>
   )
 }
+
+
+
+
+
 
 
 

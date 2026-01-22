@@ -1,12 +1,15 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
 import { MathJax, MathJaxContext } from 'better-react-mathjax'
 
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
+import { ExerciseHud } from '../base/ExerciseHud'
 import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
-import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
+import { useExerciseSubmission } from '@/lib/exercises/useExerciseSubmission'
+import { useExerciseTimer } from '@/lib/exercises/useExerciseTimer'
+import { computeTrophyGain, WRONG_PENALTY } from '@/lib/exercises/gamification'
 
 /* ============================================================
    PRISMA 17 — Logaritmos (evaluación directa) + LaTeX (MathJax)
@@ -216,21 +219,27 @@ export default function Prisma17({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
   const [nonce, setNonce] = useState(0)
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
+  const trophyPreview = computeTrophyGain(elapsed)
   const [selected, setSelected] = useState<number | null>(null)
 
   const ej = useMemo(() => generateExercise(), [nonce])
 
-  function pickOption(op: Option) {
+  async function pickOption(op: Option) {
     if (!engine.canAnswer) return
+
+    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
 
     setSelected(op.value)
     engine.submit(op.correct)
 
-    persistExerciseOnce({
-      exerciseId, // 'Prisma17'
-      classroomId,
-      sessionId,
+    await submitAttempt({
 
       correct: op.correct,
       answer: {
@@ -244,6 +253,7 @@ export default function Prisma17({
           terms: [ej.t1, ej.t2, ej.t3],
         },
       },
+      timeSeconds,
     })
   }
 
@@ -394,10 +404,25 @@ export default function Prisma17({
             )
           })}
         </div>
-      </ExerciseShell>
+        <div className="mt-6">
+          <ExerciseHud
+            elapsed={elapsed}
+            trophyPreview={trophyPreview}
+            gami={gami}
+            gamiLoading={gamiLoading}
+            studentId={studentId}
+            wrongPenalty={WRONG_PENALTY}
+            status={engine.status}
+          />
+        </div>      </ExerciseShell>
     </MathJaxContext>
   )
 }
+
+
+
+
+
 
 
 

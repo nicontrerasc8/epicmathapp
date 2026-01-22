@@ -1,12 +1,15 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
 import { MathJax, MathJaxContext } from 'better-react-mathjax'
 
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
+import { ExerciseHud } from '../base/ExerciseHud'
 import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
-import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
+import { useExerciseSubmission } from '@/lib/exercises/useExerciseSubmission'
+import { useExerciseTimer } from '@/lib/exercises/useExerciseTimer'
+import { computeTrophyGain, WRONG_PENALTY } from '@/lib/exercises/gamification'
 
 /* ============================================================
    PRISMA 19 — Propiedades de logaritmos (m, n) + MathJax
@@ -128,7 +131,14 @@ export default function Prisma19({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
   const [nonce, setNonce] = useState(0)
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
+  const trophyPreview = computeTrophyGain(elapsed)
   const [selected, setSelected] = useState<number | null>(null)
 
   const ej = useMemo(() => generateExercise(), [nonce])
@@ -137,16 +147,15 @@ export default function Prisma19({
     `\\text{Si }\\log(${ej.a})=m\\;\\text{ y }\\;\\log(${ej.b})=n,\\;\\text{ calcule: }` +
     `\\quad P=\\frac{\\log(${ej.ab})}{m+n}`
 
-  function pickOption(op: Option) {
+  async function pickOption(op: Option) {
     if (!engine.canAnswer) return
+
+    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
 
     setSelected(op.value)
     engine.submit(op.correct)
 
-    persistExerciseOnce({
-      exerciseId, // 'Prisma19'
-      classroomId,
-      sessionId,
+    await submitAttempt({
       correct: op.correct,
       answer: {
         selected: String(op.value),
@@ -161,6 +170,7 @@ export default function Prisma19({
           note: 'Siempre P=1 porque log(ab)=log(a)+log(b)=m+n.',
         },
       },
+      timeSeconds,
     })
   }
 
@@ -277,10 +287,25 @@ export default function Prisma19({
             )
           })}
         </div>
-      </ExerciseShell>
+        <div className="mt-6">
+          <ExerciseHud
+            elapsed={elapsed}
+            trophyPreview={trophyPreview}
+            gami={gami}
+            gamiLoading={gamiLoading}
+            studentId={studentId}
+            wrongPenalty={WRONG_PENALTY}
+            status={engine.status}
+          />
+        </div>      </ExerciseShell>
     </MathJaxContext>
   )
 }
+
+
+
+
+
 
 
 

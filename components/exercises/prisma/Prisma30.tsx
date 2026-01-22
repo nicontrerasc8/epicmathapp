@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
 import { MathJax, MathJaxContext } from 'better-react-mathjax'
@@ -6,7 +6,10 @@ import { MathJax, MathJaxContext } from 'better-react-mathjax'
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
 import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
-import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
+import { ExerciseHud } from '../base/ExerciseHud'
+import { useExerciseSubmission } from '@/lib/exercises/useExerciseSubmission'
+import { useExerciseTimer } from '@/lib/exercises/useExerciseTimer'
+import { computeTrophyGain, WRONG_PENALTY } from '@/lib/exercises/gamification'
 
 /* ============================================================
   PRISMA 30 — Hallar x (Incentro + cuadrilátero cíclico)
@@ -419,14 +422,25 @@ export default function Prisma30({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
+  const { studentId, gami, gamiLoading, submitAttempt } =
+    useExerciseSubmission({
+      exerciseId,
+      classroomId,
+      sessionId,
+    })
 
   const init = useMemo(() => buildExercise([]), [])
+  const [timerKey, setTimerKey] = useState(0)
   const [ex, setEx] = useState<ExData>(init)
   const [history, setHistory] = useState<number[]>([init.n])
   const [selectedKey, setSelectedKey] = useState<OptionKey | null>(null)
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, timerKey)
+  const trophyPreview = computeTrophyGain(elapsed)
 
-  function pickOption(op: Option) {
+  async function pickOption(op: Option) {
   if (!engine.canAnswer) return
+
+  const timeSeconds = (Date.now() - startedAtRef.current) / 1000
 
   setSelectedKey(op.key)
   engine.submit(op.correct)
@@ -436,10 +450,7 @@ export default function Prisma30({
     .slice()
     .sort((a, b) => a.key.localeCompare(b.key))
 
-  persistExerciseOnce({
-    exerciseId,
-    classroomId,
-    sessionId,
+  await submitAttempt({
 
     correct: op.correct,
 
@@ -458,6 +469,7 @@ export default function Prisma30({
         labeledOptions: ordered.map(o => `${o.key}.\\ ${o.value}^{\\circ}`),
       },
     },
+    timeSeconds,
   })
 }
 
@@ -465,6 +477,7 @@ export default function Prisma30({
   function siguiente() {
     setSelectedKey(null)
     engine.reset()
+    setTimerKey(k => k + 1)
 
     const recent = history.slice(-6)
     const next = buildExercise(recent)
@@ -594,6 +607,17 @@ export default function Prisma30({
               })}
             </div>
           </div>
+        </div>
+        <div className="mt-6">
+          <ExerciseHud
+            elapsed={elapsed}
+            trophyPreview={trophyPreview}
+            gami={gami}
+            gamiLoading={gamiLoading}
+            studentId={studentId}
+            wrongPenalty={WRONG_PENALTY}
+            status={engine.status}
+          />
         </div>
       </ExerciseShell>
     </MathJaxContext>

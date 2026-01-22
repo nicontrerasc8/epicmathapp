@@ -1,12 +1,16 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
-import { MathJax, MathJaxContext } from 'better-react-mathjax'
 
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
+import { MathProvider, MathTex } from '../base/MathBlock'
+import { ExerciseHud } from '../base/ExerciseHud'
+import { OptionsGrid, type Option } from '../base/OptionsGrid'
 import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
-import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
+import { useExerciseSubmission } from '@/lib/exercises/useExerciseSubmission'
+import { useExerciseTimer } from '@/lib/exercises/useExerciseTimer'
+import { computeTrophyGain, WRONG_PENALTY } from '@/lib/exercises/gamification'
 
 /* ============================================================
    PRISMA 2 — Valores de verdad (I–IV)
@@ -32,11 +36,6 @@ type Prop = {
   right: Atom
 }
 
-type Option = {
-  value: string
-  correct: boolean
-}
-
 /* =========================
    HELPERS
 ========================= */
@@ -48,29 +47,6 @@ function coin(p = 0.5) {
 }
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
-}
-
-/* =========================
-   MathJax
-========================= */
-const MATHJAX_CONFIG = {
-  loader: { load: ['input/tex', 'output/chtml'] },
-  tex: {
-    inlineMath: [['\\(', '\\)']],
-    displayMath: [['\\[', '\\]']],
-    processEscapes: true,
-    packages: { '[+]': ['ams'] },
-  },
-  options: { renderActions: { addMenu: [] } },
-} as const
-
-function Tex({ tex, block = false }: { tex: string; block?: boolean }) {
-  const wrapped = block ? `\\[${tex}\\]` : `\\(${tex}\\)`
-  return (
-    <MathJax dynamic inline={!block}>
-      {wrapped}
-    </MathJax>
-  )
 }
 
 /* =========================
@@ -225,7 +201,14 @@ export default function Prisma02({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
   const [nonce, setNonce] = useState(0)
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
+  const trophyPreview = computeTrophyGain(elapsed)
   const [selected, setSelected] = useState<string | null>(null)
 
   const ejercicio = useMemo(() => generateExercise(), [nonce])
@@ -234,16 +217,15 @@ export default function Prisma02({
     [ejercicio.props]
   )
 
-  function pickOption(op: Option) {
+  async function pickOption(op: Option) {
     if (!engine.canAnswer) return
+
+    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
 
     setSelected(op.value)
     engine.submit(op.correct)
 
-    persistExerciseOnce({
-      exerciseId,
-      classroomId,
-      sessionId,
+    await submitAttempt({
       correct: op.correct,
       answer: {
         selected: op.value,
@@ -251,6 +233,7 @@ export default function Prisma02({
         latex: propsLatex,
         options: ejercicio.options.map(o => o.value),
       },
+      timeSeconds,
     })
   }
 
@@ -261,7 +244,7 @@ export default function Prisma02({
   }
 
   return (
-    <MathJaxContext version={3} config={MATHJAX_CONFIG}>
+    <MathProvider>
       <ExerciseShell
         title="Valores de verdad"
         prompt="Indica los valores de verdad de las proposiciones I–IV."
@@ -282,7 +265,7 @@ export default function Prisma02({
 
               <div className="rounded-lg border bg-white p-3">
                 <div className="font-semibold mb-2">?? Proposiciones</div>
-                <Tex block tex={propsLatex} />
+                <MathTex block tex={propsLatex} />
               </div>
 
               <div className="space-y-3">
@@ -291,16 +274,16 @@ export default function Prisma02({
                   return (
                     <div key={p.id} className="rounded-lg border bg-white p-3">
                       <div className="font-semibold mb-2">{p.id}. Evaluamos</div>
-                      <Tex block tex={propLatex(p)} />
+                      <MathTex block tex={propLatex(p)} />
 
                       <div className="mt-2">
-                        <Tex block tex={`${atomCalcLatex(p.left)} \\Rightarrow ${VF(res.A)}`} />
-                        <Tex block tex={`${atomCalcLatex(p.right)} \\Rightarrow ${VF(res.B)}`} />
+                        <MathTex block tex={`${atomCalcLatex(p.left)} \\Rightarrow ${VF(res.A)}`} />
+                        <MathTex block tex={`${atomCalcLatex(p.right)} \\Rightarrow ${VF(res.B)}`} />
                       </div>
 
                       <div className="mt-2 text-muted-foreground">{LOGIC_RULE[p.op]}</div>
 
-                      <Tex
+                      <MathTex
                         block
                         tex={`${VF(res.A)}\\; ${LOGIC_LATEX[p.op]}\\; ${VF(res.B)} = \\mathbf{${VF(
                           res.value
@@ -320,36 +303,36 @@ export default function Prisma02({
         }
       >
         <div className="rounded-xl border bg-white p-4 mb-4">
-          <Tex block tex={propsLatex} />
+          <MathTex block tex={propsLatex} />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {ejercicio.options.map(op => {
-            const isSelected = selected === op.value
-            const showCorrect = engine.status !== 'idle' && op.correct
-            const showWrong = engine.status === 'revealed' && isSelected && !op.correct
-
-            return (
-              <button
-                key={op.value}
-                disabled={!engine.canAnswer}
-                onClick={() => pickOption(op)}
-                className={[
-                  'border rounded-xl p-4 text-center transition',
-                  isSelected && 'ring-2 ring-primary',
-                  showCorrect && 'bg-green-400',
-                  showWrong && 'bg-red-400',
-                ].filter(Boolean).join(' ')}
-              >
-                <div className="font-mono text-lg">{op.value}</div>
-              </button>
-            )
-          })}
+        <OptionsGrid
+          options={ejercicio.options}
+          selectedValue={selected}
+          status={engine.status}
+          canAnswer={engine.canAnswer}
+          onSelect={pickOption}
+        />
+        <div className="mt-6">
+          <ExerciseHud
+            elapsed={elapsed}
+            trophyPreview={trophyPreview}
+            gami={gami}
+            gamiLoading={gamiLoading}
+            studentId={studentId}
+            wrongPenalty={WRONG_PENALTY}
+            status={engine.status}
+          />
         </div>
       </ExerciseShell>
-    </MathJaxContext>
+    </MathProvider>
   )
 }
+
+
+
+
+
 
 
 

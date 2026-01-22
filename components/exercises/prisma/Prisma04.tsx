@@ -1,12 +1,16 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
-import { MathJax, MathJaxContext } from 'better-react-mathjax'
 
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
+import { MathProvider, MathTex } from '../base/MathBlock'
+import { ExerciseHud } from '../base/ExerciseHud'
+import { OptionsGrid, type Option } from '../base/OptionsGrid'
 import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
-import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
+import { useExerciseSubmission } from '@/lib/exercises/useExerciseSubmission'
+import { useExerciseTimer } from '@/lib/exercises/useExerciseTimer'
+import { computeTrophyGain, WRONG_PENALTY } from '@/lib/exercises/gamification'
 
 /* ============================================================
    PRISMA 4 — "Si ( ... ) ? ( ... ) es FALSA, halla p, q, r"
@@ -21,48 +25,11 @@ import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 ========================= */
 type VarName = 'p' | 'q' | 'r'
 type Literal = { name: VarName; negated: boolean }
-type Option = { value: string; correct: boolean }
-
 function coin(p = 0.5) {
   return Math.random() < p
 }
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
-}
-
-/* =========================
-   MathJax Config
-========================= */
-const MATHJAX_CONFIG = {
-  loader: { load: ['input/tex', 'output/chtml'] },
-  tex: {
-    inlineMath: [['\\(', '\\)']],
-    displayMath: [['\\[', '\\]']],
-    processEscapes: true,
-    packages: { '[+]': ['ams'] },
-  },
-  options: {
-    renderActions: { addMenu: [] },
-  },
-} as const
-
-function Tex({
-  tex,
-  block = false,
-  className = '',
-}: {
-  tex: string
-  block?: boolean
-  className?: string
-}) {
-  const wrapped = block ? `\\[${tex}\\]` : `\\(${tex}\\)`
-  return (
-    <span className={className}>
-      <MathJax dynamic inline={!block}>
-        {wrapped}
-      </MathJax>
-    </span>
-  )
 }
 
 /* =========================
@@ -168,8 +135,15 @@ export default function Prisma04({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
-
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
   const [nonce, setNonce] = useState(0)
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
+  const trophyPreview = computeTrophyGain(elapsed)
+
   const [selected, setSelected] = useState<string | null>(null)
 
   const ejercicio = useMemo(() => {
@@ -181,17 +155,16 @@ export default function Prisma04({
   const antecedentTex = `\\left(${litTex(ejercicio.antP)} \\land ${litTex(ejercicio.antQ)}\\right)`
   const consequentTex = `${litTex(ejercicio.consR)}`
 
-  function pickOption(op: Option) {
+  async function pickOption(op: Option) {
     if (!engine.canAnswer) return
+
+    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
 
     setSelected(op.value)
     engine.submit(op.correct)
 
     // ? Persist NUEVO (igual estructura que Prisma01)
-    persistExerciseOnce({
-      exerciseId, // ej: 'Prisma04'
-      classroomId,
-      sessionId,
+    await submitAttempt({
 
       correct: op.correct,
 
@@ -216,6 +189,7 @@ export default function Prisma04({
           },
         },
       },
+      timeSeconds,
     })
   }
 
@@ -226,7 +200,7 @@ export default function Prisma04({
   }
 
   return (
-    <MathJaxContext version={3} config={MATHJAX_CONFIG}>
+    <MathProvider>
       <ExerciseShell
         title="Implicación falsa: halla p, q, r"
         prompt="Si la proposición es falsa, determina los valores de verdad de p, q y r."
@@ -248,7 +222,7 @@ export default function Prisma04({
                 <div className="mt-2 space-y-2">
                   <div className="rounded-md border bg-background p-3">
                     <div className="text-muted-foreground mb-1">Expresión del ejercicio:</div>
-                    <Tex block tex={ejercicio.latex} />
+                    <MathTex block tex={ejercicio.latex} />
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -272,7 +246,7 @@ export default function Prisma04({
                     <span className="font-semibold"> A es V</span> y <span className="font-semibold">B es F</span>.
                   </p>
                   <div className="mt-2">
-                    <Tex block tex={`(A \\to B)=\\text{F} \\;\\Rightarrow\\; A=\\text{V} \\;\\text{y}\\; B=\\text{F}`} />
+                    <MathTex block tex={`(A \\to B)=\\text{F} \\;\\Rightarrow\\; A=\\text{V} \\;\\text{y}\\; B=\\text{F}`} />
                   </div>
                 </div>
 
@@ -329,14 +303,14 @@ export default function Prisma04({
                     <span className="font-semibold">solo</span> si ambos son verdaderos.
                   </p>
                   <div className="mt-2">
-                    <Tex block tex={`(X \\land Y)=\\text{V} \\;\\Rightarrow\\; X=\\text{V}\\;\\text{y}\\; Y=\\text{V}`} />
+                    <MathTex block tex={`(X \\land Y)=\\text{V} \\;\\Rightarrow\\; X=\\text{V}\\;\\text{y}\\; Y=\\text{V}`} />
                   </div>
                 </div>
 
                 <div className="mt-3">
                   Aquí el antecedente es:
                   <div className="mt-2">
-                    <Tex block tex={antecedentTex} />
+                    <MathTex block tex={antecedentTex} />
                   </div>
                   Para que sea <span className="font-semibold">V</span>, ambos literales deben ser <span className="font-semibold">V</span>.
                 </div>
@@ -353,7 +327,7 @@ export default function Prisma04({
                     <tbody>
                       <tr>
                         <td className="border py-2">
-                          <Tex tex={litTex(ejercicio.antP)} />
+                          <MathTex tex={litTex(ejercicio.antP)} />
                         </td>
                         <td className="border py-2 font-semibold">V</td>
                         <td className="border py-2">
@@ -362,7 +336,7 @@ export default function Prisma04({
                       </tr>
                       <tr>
                         <td className="border py-2">
-                          <Tex tex={litTex(ejercicio.antQ)} />
+                          <MathTex tex={litTex(ejercicio.antQ)} />
                         </td>
                         <td className="border py-2 font-semibold">V</td>
                         <td className="border py-2">
@@ -376,7 +350,7 @@ export default function Prisma04({
                 <div className="mt-2 text-muted-foreground">
                   Tip de negación: <span className="font-mono">¬q = V</span> implica <span className="font-mono">q = F</span>.
                   <div className="mt-1">
-                    <Tex tex={`\\neg X \\text{ invierte el valor de } X`} />
+                    <MathTex tex={`\\neg X \\text{ invierte el valor de } X`} />
                   </div>
                 </div>
               </div>
@@ -388,7 +362,7 @@ export default function Prisma04({
                 <div className="mt-2">
                   El consecuente es:
                   <div className="mt-2">
-                    <Tex block tex={consequentTex} />
+                    <MathTex block tex={consequentTex} />
                   </div>
                   y debe ser <span className="font-semibold">F</span>.
                 </div>
@@ -405,7 +379,7 @@ export default function Prisma04({
                     <tbody>
                       <tr>
                         <td className="border py-2">
-                          <Tex tex={consequentTex} />
+                          <MathTex tex={consequentTex} />
                         </td>
                         <td className="border py-2 font-semibold">F</td>
                         <td className="border py-2">
@@ -444,45 +418,45 @@ export default function Prisma04({
         {/* Card de expresión */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="font-semibold mb-2">Expresión:</div>
-          <Tex block tex={ejercicio.latex} />
+          <MathTex block tex={ejercicio.latex} />
           <div className="mt-2 text-sm text-muted-foreground">
             Recuerda: te dicen que esta implicación es <span className="font-semibold">F</span>.
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {ejercicio.options.map(op => {
-            const isSelected = selected === op.value
-            const showCorrect = engine.status !== 'idle' && op.correct
-            const showWrong = engine.status === 'revealed' && isSelected && !op.correct
-
-            return (
-              <button
-                key={op.value}
-                type="button"
-                disabled={!engine.canAnswer}
-                onClick={() => pickOption(op)}
-                className={[
-                  'border rounded-xl p-4 text-center transition',
-                  'hover:shadow-sm hover:-translate-y-0.5',
-                  isSelected && 'ring-2 ring-primary',
-                  showCorrect && 'bg-green-400',
-                  showWrong && 'bg-red-400',
-                  !engine.canAnswer && 'opacity-80 cursor-not-allowed',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                <div className="font-mono text-lg">{op.value}</div>
-                <div className="text-xs text-muted-foreground mt-1">(p,q,r)</div>
-              </button>
-            )
-          })}
+        <OptionsGrid
+          options={ejercicio.options}
+          selectedValue={selected}
+          status={engine.status}
+          canAnswer={engine.canAnswer}
+          onSelect={pickOption}
+          renderValue={(op) => (
+            <div>
+              <div>{op.value}</div>
+              <div className="text-xs text-muted-foreground mt-1">(p,q,r)</div>
+            </div>
+          )}
+        />
+        <div className="mt-6">
+          <ExerciseHud
+            elapsed={elapsed}
+            trophyPreview={trophyPreview}
+            gami={gami}
+            gamiLoading={gamiLoading}
+            studentId={studentId}
+            wrongPenalty={WRONG_PENALTY}
+            status={engine.status}
+          />
         </div>
       </ExerciseShell>
-    </MathJaxContext>
+    </MathProvider>
   )
 }
+
+
+
+
+
 
 
 
