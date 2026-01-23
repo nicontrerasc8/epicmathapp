@@ -67,26 +67,35 @@ export default function TeacherClassroomStudentsPage() {
         `)
                 .eq("classroom_id", classroomId)
                 .eq("edu_institution_members.role", "student")
+                .eq("edu_institution_members.active", true)
 
             if (institution?.id) {
-                query = query.eq("institution_id", institution.id)
+                query = query.eq("edu_institution_members.institution_id", institution.id)
             }
 
             const { data } = await query
 
             if (data) {
-                setStudents(data.map((row: any) => {
-                    const member = Array.isArray(row.edu_institution_members)
-                        ? row.edu_institution_members[0]
-                        : row.edu_institution_members
-                    return {
-                        id: member.profile.id,
-                        first_name: member.profile.first_name,
-                        last_name: member.profile.last_name,
-                        active: member.active,
-                        created_at: member.created_at
-                    }
-                }))
+                setStudents(
+                    data
+                        .map((row: any) => {
+                            const member = Array.isArray(row.edu_institution_members)
+                                ? row.edu_institution_members[0]
+                                : row.edu_institution_members
+
+                            if (!member?.profile) return undefined
+
+                            return {
+                                id: member.profile.id,
+                                first_name: member.profile.first_name,
+                                last_name: member.profile.last_name,
+                                active: member.active,
+                                created_at: member.created_at,
+                            }
+                        })
+                        .filter((s): s is Student => Boolean(s))
+                )
+
             }
             setLoading(false)
         }

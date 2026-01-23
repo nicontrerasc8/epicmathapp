@@ -80,7 +80,34 @@ async function getRecentClassrooms(institutionId: string) {
     .order("created_at", { ascending: false })
     .limit(5)
 
-  return data || []
+  const classrooms = data || []
+
+  if (classrooms.length === 0) return []
+
+  const classroomIds = classrooms.map((cls) => cls.id).filter(Boolean)
+
+  const { data: memberRows } = await supabase
+    .from("edu_classroom_members")
+    .select(`
+      classroom_id,
+      edu_institution_members!inner ( id )
+    `)
+    .in("classroom_id", classroomIds)
+    .eq("edu_institution_members.institution_id", institutionId)
+    .eq("edu_institution_members.role", "student")
+    .eq("edu_institution_members.active", true)
+
+  const counts = new Map<string, number>()
+  for (const row of memberRows || []) {
+    const classroomId = row.classroom_id
+    if (!classroomId) continue
+    counts.set(classroomId, (counts.get(classroomId) || 0) + 1)
+  }
+
+  return classrooms.map((cls) => ({
+    ...cls,
+    studentCount: counts.get(cls.id) || 0,
+  }))
 }
 
 async function getRecentStudents(institutionId: string) {

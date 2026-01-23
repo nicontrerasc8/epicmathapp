@@ -8,7 +8,6 @@ import {
     Building2,
     Target,
     ArrowRight,
-    TrendingUp,
     UserPlus,
     FileSpreadsheet
 } from "lucide-react"
@@ -30,6 +29,7 @@ interface RecentClassroom {
     academic_year: number
     active: boolean
     edu_institutions: { name: string } | null
+    studentCount: number
 }
 
 interface RecentStudent {
@@ -104,7 +104,7 @@ export default function AdminDashboardClient({
     stats,
     recentClassrooms,
     recentStudents,
-}: any) {
+}: AdminDashboardClientProps) {
     return (
         <div className="space-y-8">
             {/* Page Header */}
@@ -196,7 +196,7 @@ export default function AdminDashboardClient({
                         </p>
                     ) : (
                         <div className="space-y-2">
-                            {recentClassrooms.map((cls:any, i:any) => (
+                            {recentClassrooms.map((cls, i) => (
                                 <motion.div
                                     key={cls.id}
                                     custom={i + 1}
@@ -211,7 +211,7 @@ export default function AdminDashboardClient({
                                             {`${getRecentGradeLabel(cls)}`}
                                                 </div>
                                                 <div className="text-sm text-muted-foreground">
-                                                    {cls.edu_institutions?.name || "Sin institución"} • {cls.academic_year}
+                                                    {cls.edu_institutions?.name || "Sin institución"} • {cls.academic_year} • {cls.studentCount} estudiante{cls.studentCount === 1 ? "" : "s"}
                                                 </div>
                                             </div>
                                             <ArrowRight className="w-4 h-4 text-muted-foreground" />
@@ -246,7 +246,7 @@ export default function AdminDashboardClient({
                         </p>
                     ) : (
                         <div className="space-y-2">
-                            {recentStudents.map((student:any, i:any) => (
+                            {recentStudents.map((student, i) => (
                                 <motion.div
                                     key={student.id}
                                     custom={i + 1}
