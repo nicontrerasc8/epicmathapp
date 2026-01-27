@@ -1,7 +1,8 @@
 ﻿"use client"
 
 import { useParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import type { FormEvent } from "react"
 import { createClient } from "@/utils/supabase/client"
 import { PageHeader, StatCard, StatCardGrid } from "@/components/dashboard/core"
 
@@ -26,6 +27,32 @@ type ExerciseAgg = {
   correct: number
   incorrect: number
   accuracy: number
+}
+
+type AssignmentRow = {
+  id: string
+  exercise_id: string | null
+  exercise: {
+    id: string
+    description: string | null
+    exercise_type: string | null
+  } | null
+}
+
+type FeedbackRow = {
+  id: string
+  comment: string
+  created_at: string
+  assignment_id: string
+  teacher_id: string
+  assignment: {
+    exercise_id: string | null
+    exercise: {
+      id: string
+      description: string | null
+      exercise_type: string | null
+    } | null
+  } | null
 }
 
 /* =========================
@@ -56,14 +83,69 @@ export default function StudentPerformanceDetailPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [rows, setRows] = useState<AttemptRow[]>([])
   const [studentName, setStudentName] = useState("Estudiante")
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([])
+  const [feedbackRows, setFeedbackRows] = useState<FeedbackRow[]>([])
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
+  const [commentForm, setCommentForm] = useState({
+    assignmentId: "",
+    comment: "",
+  })
+  const [commentStatus, setCommentStatus] = useState<{
+    tone: "error" | "success"
+    message: string
+  } | null>(null)
+  const [commentBusy, setCommentBusy] = useState(false)
 
   const todayISO = new Date().toISOString().slice(0, 10)
-  const sevenDaysAgoISO = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
+  const thirtyDaysAgoISO = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10)
 
-  const [dateFrom, setDateFrom] = useState(sevenDaysAgoISO)
+  const [dateFrom, setDateFrom] = useState(thirtyDaysAgoISO)
   const [dateTo, setDateTo] = useState(todayISO)
+
+  const fetchAssignmentsAndFeedback = useCallback(async () => {
+    if (!studentId || !classroomId) return
+
+    const supabase = createClient()
+    setFeedbackLoading(true)
+    setFeedbackError(null)
+
+    try {
+      const [assignmentsResult, feedbackResult] = await Promise.all([
+        supabase
+          .from("edu_exercise_assignments")
+          .select(
+            "id, exercise_id, exercise:edu_exercises ( id, description, exercise_type )",
+          )
+          .eq("classroom_id", classroomId)
+          .eq("active", true),
+        supabase
+          .from("edu_assignment_feedback")
+          .select(
+            "id, comment, created_at, assignment_id, teacher_id, assignment:edu_exercise_assignments ( exercise_id, exercise:edu_exercises ( id, description, exercise_type ) )",
+          )
+          .eq("student_id", studentId)
+          .order("created_at", { ascending: false }),
+      ])
+
+      if (assignmentsResult.error) throw assignmentsResult.error
+      if (feedbackResult.error) throw feedbackResult.error
+
+      setAssignments((assignmentsResult.data ?? []) as any[])
+      setFeedbackRows((feedbackResult.data ?? []) as any[])
+    } catch (e) {
+      console.error(e)
+      setFeedbackError("No se pudieron cargar comentarios del docente.")
+    } finally {
+      setFeedbackLoading(false)
+    }
+  }, [studentId, classroomId])
+
+  useEffect(() => {
+    fetchAssignmentsAndFeedback()
+  }, [fetchAssignmentsAndFeedback])
 
   /* =========================
      FETCH
@@ -117,6 +199,58 @@ export default function StudentPerformanceDetailPage() {
 
     load()
   }, [studentId, classroomId, dateFrom, dateTo])
+
+  const handleCommentSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setCommentStatus(null)
+
+    if (!studentId || !classroomId) return
+
+    const comment = commentForm.comment.trim()
+    if (!commentForm.assignmentId || !comment) {
+      setCommentStatus({
+        tone: "error",
+        message: "Selecciona un ejercicio y escribe un comentario.",
+      })
+      return
+    }
+
+    try {
+      setCommentBusy(true)
+      const supabase = createClient()
+      const {
+        data: { user },
+        error: userErr,
+      } = await supabase.auth.getUser()
+
+      if (userErr || !user) {
+        throw new Error("No se pudo validar tu sesion.")
+      }
+
+      const { error } = await supabase.from("edu_assignment_feedback").insert({
+        assignment_id: commentForm.assignmentId,
+        student_id: studentId,
+        teacher_id: user.id,
+        comment,
+      })
+
+      if (error) throw error
+
+      setCommentForm({ assignmentId: "", comment: "" })
+      setCommentStatus({
+        tone: "success",
+        message: "Comentario guardado.",
+      })
+      await fetchAssignmentsAndFeedback()
+    } catch (e: any) {
+      setCommentStatus({
+        tone: "error",
+        message: e?.message ?? "No se pudo guardar el comentario.",
+      })
+    } finally {
+      setCommentBusy(false)
+    }
+  }
 
   /* =========================
      RESÚMENES
@@ -187,6 +321,22 @@ export default function StudentPerformanceDetailPage() {
     return { level, motivation, critical, reinforce, strong }
   }, [resumen, exerciseAgg])
 
+  const assignmentOptions = useMemo(() => {
+    return [...assignments]
+      .map((assignment) => {
+        const exercise = assignment.exercise
+        const label =
+          exercise?.description || exercise?.id || assignment.exercise_id || "Ejercicio"
+        const type = exercise?.exercise_type || "sin_tipo"
+        return {
+          id: assignment.id,
+          label,
+          type,
+        }
+      })
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [assignments])
+
   /* =========================
      RENDER
   ========================= */
@@ -230,19 +380,19 @@ export default function StudentPerformanceDetailPage() {
 
       {/* KPIs */}
       <StatCardGrid columns={3}>
-        <StatCard title="Intentos" value={resumen.total} />
+        <StatCard title="Intentos (30 días)" value={resumen.total} />
         <StatCard
-          title="Precisión"
+          title="Precisión (30 días)"
           value={resumen.accuracy}
           suffix="%"
           variant={insights.level.tone as any}
         />
-        <StatCard title="Motivación" value={insights.motivation} />
+        <StatCard title="Motivación (30 días)" value={insights.motivation} />
       </StatCardGrid>
 
       {/* INSIGHT PEDAGÓGICO */}
       <section className="rounded-2xl border bg-card p-6 space-y-4">
-        <h2 className="text-lg font-semibold">🧠 Diagnóstico pedagógico</h2>
+        <h2 className="text-lg font-semibold">🧠 Diagnóstico pedagógico (30 días)</h2>
 
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-xl border p-4">
@@ -334,11 +484,133 @@ export default function StudentPerformanceDetailPage() {
         </p>
       </section>
 
+      {/* COMENTARIOS DOCENTE */}
+      <section className="rounded-2xl border bg-card p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Comentarios del docente</h2>
+          <span className="text-xs text-muted-foreground">
+            Visible para el estudiante
+          </span>
+        </div>
+
+        <form onSubmit={handleCommentSubmit} className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="md:col-span-1">
+              <label className="text-sm text-muted-foreground">
+                Ejercicio asignado
+              </label>
+              <select
+                value={commentForm.assignmentId}
+                onChange={(e) =>
+                  setCommentForm((s) => ({ ...s, assignmentId: e.target.value }))
+                }
+                className="mt-1 h-10 w-full rounded-md border bg-background px-3 text-sm"
+                disabled={assignmentOptions.length === 0}
+              >
+                <option value="">Selecciona ejercicio</option>
+                {assignmentOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label} ({option.type})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-sm text-muted-foreground">
+                Comentario
+              </label>
+              <textarea
+                rows={3}
+                value={commentForm.comment}
+                onChange={(e) =>
+                  setCommentForm((s) => ({ ...s, comment: e.target.value }))
+                }
+                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                placeholder="Escribe una observacion para el estudiante..."
+              />
+            </div>
+          </div>
+          {commentStatus && (
+            <p
+              className={
+                commentStatus.tone === "error"
+                  ? "text-sm text-destructive"
+                  : "text-sm text-green-600"
+              }
+            >
+              {commentStatus.message}
+            </p>
+          )}
+          <div>
+            <button
+              type="submit"
+              disabled={commentBusy || assignmentOptions.length === 0}
+              className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted transition disabled:opacity-60"
+            >
+              {commentBusy ? "Guardando..." : "Guardar comentario"}
+            </button>
+          </div>
+        </form>
+
+        <div className="rounded-xl border bg-muted/30 p-4">
+          <div className="text-sm font-medium">Historial de comentarios</div>
+          {feedbackLoading ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Cargando comentarios...
+            </p>
+          ) : feedbackError ? (
+            <p className="mt-2 text-sm text-destructive">{feedbackError}</p>
+          ) : feedbackRows.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Aun no hay comentarios registrados.
+            </p>
+          ) : (
+            <div className="mt-3 space-y-3">
+              {feedbackRows.map((row) => {
+                const exercise = row.assignment?.exercise
+                const label =
+                  exercise?.description ||
+                  exercise?.id ||
+                  row.assignment?.exercise_id ||
+                  "Ejercicio"
+                const type = exercise?.exercise_type || "sin_tipo"
+                const when = new Date(row.created_at)
+                const whenLabel = Number.isNaN(when.getTime())
+                  ? row.created_at
+                  : when.toLocaleString("es-PE", {
+                      day: "2-digit",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+
+                return (
+                  <div
+                    key={row.id}
+                    className="rounded-lg border bg-background p-3"
+                  >
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {label} ({type})
+                      </span>
+                      <span>{whenLabel}</span>
+                    </div>
+                    <p className="mt-2 text-sm whitespace-pre-wrap">
+                      {row.comment}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* TABLAS DE RESPALDO */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Intentos */}
         <section className="rounded-2xl border bg-card p-5">
-          <h2 className="text-lg font-semibold mb-4">Intentos recientes</h2>
+          <h2 className="text-lg font-semibold mb-4">Intentos recientes (30 días)</h2>
           {attemptsSorted.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No hay intentos en este rango.
@@ -369,7 +641,7 @@ export default function StudentPerformanceDetailPage() {
 
         {/* Resumen */}
         <section className="rounded-2xl border bg-card p-5">
-          <h2 className="text-lg font-semibold mb-4">Resumen por ejercicio</h2>
+          <h2 className="text-lg font-semibold mb-4">Resumen por ejercicio (30 días)</h2>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left">

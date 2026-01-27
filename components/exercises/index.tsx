@@ -1,10 +1,11 @@
 ﻿'use client'
 
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { ArrowLeft, Gamepad2, Trophy } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { createClient } from '@/utils/supabase/client'
 
 /* =============================
    TYPES
@@ -13,6 +14,7 @@ import { motion } from 'framer-motion'
 type ExerciseComponentProps = {
   exerciseId: string
   classroomId: string
+  studentId?: string
   sessionId?: string
 }
 
@@ -74,6 +76,7 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
 export const ExerciseRegistry = ({
   exerciseId,
   classroomId,
+  studentId,
   sessionId,
 }: ExerciseComponentProps) => {
   const ExerciseComponent = useMemo(() => {
@@ -88,8 +91,76 @@ export const ExerciseRegistry = ({
       ),
     })
   }, [exerciseId])
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
+  const [feedbackRows, setFeedbackRows] = useState<
+    Array<{
+      id: string
+      comment: string
+      created_at: string
+      teacher?: { first_name?: string | null; last_name?: string | null } | null
+    }>
+  >([])
 
-  console.log('ðŸŽ¯ exerciseId:', exerciseId)
+  useEffect(() => {
+    if (!studentId || !classroomId || !exerciseId) return
+
+    let active = true
+    const supabase = createClient()
+
+    const loadFeedback = async () => {
+      setFeedbackLoading(true)
+      setFeedbackError(null)
+
+      try {
+        const { data: assignments, error: assignmentErr } = await supabase
+          .from('edu_exercise_assignments')
+          .select('id')
+          .eq('classroom_id', classroomId)
+          .eq('exercise_id', exerciseId)
+          .eq('active', true)
+
+        if (assignmentErr) throw assignmentErr
+
+        const assignmentIds = (assignments ?? [])
+          .map((row: any) => row.id)
+          .filter(Boolean)
+
+        if (assignmentIds.length === 0) {
+          if (active) setFeedbackRows([])
+          return
+        }
+
+        const { data, error } = await supabase
+          .from('edu_assignment_feedback')
+          .select(
+            'id, comment, created_at, teacher:edu_profiles!edu_assignment_feedback_teacher_fkey ( first_name, last_name )',
+          )
+          .eq('student_id', studentId)
+          .in('assignment_id', assignmentIds)
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+
+        if (active) setFeedbackRows((data ?? []) as any[])
+      } catch (err: any) {
+        if (active) {
+          setFeedbackRows([])
+          setFeedbackError(
+            err?.message ?? 'No se pudieron cargar comentarios del docente.',
+          )
+        }
+      } finally {
+        if (active) setFeedbackLoading(false)
+      }
+    }
+
+    loadFeedback()
+
+    return () => {
+      active = false
+    }
+  }, [studentId, classroomId, exerciseId])
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-background to-muted">
@@ -128,6 +199,58 @@ export const ExerciseRegistry = ({
         transition={{ duration: 0.35, ease: 'easeOut' }}
         className="mx-auto max-w-6xl px-4 py-8"
       >
+        <div className="mb-6 rounded-2xl border bg-card p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Comentarios del docente</h2>
+            <span className="text-xs text-muted-foreground">
+              Solo lectura
+            </span>
+          </div>
+          {feedbackLoading ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Cargando comentarios...
+            </p>
+          ) : feedbackError ? (
+            <p className="mt-3 text-sm text-destructive">{feedbackError}</p>
+          ) : feedbackRows.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Aun no hay comentarios para este ejercicio.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {feedbackRows.map((row) => {
+                const teacherName =
+                  [row.teacher?.first_name, row.teacher?.last_name]
+                    .filter(Boolean)
+                    .join(' ') || 'Docente'
+                const when = new Date(row.created_at)
+                const whenLabel = Number.isNaN(when.getTime())
+                  ? row.created_at
+                  : when.toLocaleString('es-PE', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+
+                return (
+                  <div
+                    key={row.id}
+                    className="rounded-xl border bg-background p-4"
+                  >
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{teacherName}</span>
+                      <span>{whenLabel}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-foreground whitespace-pre-wrap">
+                      {row.comment}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
         {!ExerciseComponent ? (
           <div className="flex flex-col items-center justify-center rounded-xl border bg-card p-10 text-center">
             <Gamepad2 className="h-10 w-10 text-muted-foreground mb-4" />

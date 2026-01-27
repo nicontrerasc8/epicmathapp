@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
 import { PageHeader } from "@/components/dashboard/core"
 import { useInstitution } from "@/components/institution-provider"
@@ -205,6 +205,7 @@ export default function PerformancePage() {
   const classroomId = params?.id
   const institution = useInstitution()
   const supabase = useMemo(() => createClient(), [])
+  const router = useRouter()
 
   const [loading, setLoading] = useState(true)
   const [students, setStudents] = useState<StudentRow[]>([])
@@ -728,7 +729,16 @@ export default function PerformancePage() {
               ) : (
                 <div className="divide-y">
                   {filteredStudents.map((s) => (
-                    <div key={s.student_id} className="p-4 hover:bg-muted/30 transition">
+                    <button
+                      key={s.student_id}
+                      type="button"
+                      onClick={() =>
+                        router.push(
+                          `/dashboard/teacher/classroom/${classroomId}/performance/${s.student_id}`
+                        )
+                      }
+                      className="w-full text-left p-4 hover:bg-muted/30 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -790,7 +800,7 @@ export default function PerformancePage() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}

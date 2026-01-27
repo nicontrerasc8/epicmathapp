@@ -12,6 +12,7 @@ export default function ExercisePlayPage() {
   const {
     classroomId,
     sessionId,
+    studentId,
     loading,
     error,
   } = useExerciseContext(exerciseId)
@@ -36,6 +37,7 @@ export default function ExercisePlayPage() {
     <ExerciseRegistry
       exerciseId={exerciseId}
       classroomId={classroomId}
+      studentId={studentId ?? undefined}
       sessionId={sessionId ?? undefined}
     />
   )
