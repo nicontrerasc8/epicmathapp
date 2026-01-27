@@ -226,7 +226,7 @@ export function Sidebar({ type, userName = "Usuario" }: SidebarProps) {
 // SIDEBAR PROVIDER
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-    const [collapsed, setCollapsed] = useState(false)
+    const [collapsed, setCollapsed] = useState(true)
     const [mobileOpen, setMobileOpen] = useState(false)
 
     return (

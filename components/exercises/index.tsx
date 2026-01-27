@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { ArrowLeft, Gamepad2, Trophy } from 'lucide-react'
+import { ArrowLeft, Gamepad2, MessageCircle, Trophy } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { createClient } from '@/utils/supabase/client'
 
@@ -69,6 +69,18 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "97843297248397": () => import("./primaria/PrimariaSumaResta05"),
 }
 
+const formatFeedbackDate = (value?: string) => {
+  if (!value) return ''
+  const when = new Date(value)
+  if (Number.isNaN(when.getTime())) return value
+  return when.toLocaleString('es-PE', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 /* =============================
    COMPONENT
 ============================= */
@@ -98,9 +110,26 @@ export const ExerciseRegistry = ({
       id: string
       comment: string
       created_at: string
-      teacher?: { first_name?: string | null; last_name?: string | null } | null
-    }>
-  >([])
+    teacher?: { first_name?: string | null; last_name?: string | null } | null
+  }>
+>([])
+
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false)
+
+  const latestFeedback = feedbackRows[0]
+  const previewTeacherName =
+    [latestFeedback?.teacher?.first_name, latestFeedback?.teacher?.last_name]
+      .filter(Boolean)
+      .join(' ') || 'Docente'
+  const previewDateLabel = formatFeedbackDate(latestFeedback?.created_at)
+  const previewExcerpt = latestFeedback?.comment
+    ? latestFeedback.comment.length > 180
+      ? `${latestFeedback.comment.slice(0, 180).trim()}…`
+      : latestFeedback.comment
+    : undefined
+  const previewMetaLabel = latestFeedback
+    ? `${previewTeacherName}${previewDateLabel ? ` · ${previewDateLabel}` : ''}`
+    : 'Cuando tu docente deje un comentario, lo verás aquí.'
 
   useEffect(() => {
     if (!studentId || !classroomId || !exerciseId) return
@@ -162,6 +191,67 @@ export const ExerciseRegistry = ({
     }
   }, [studentId, classroomId, exerciseId])
 
+  useEffect(() => {
+    if (!isFeedbackModalOpen) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsFeedbackModalOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFeedbackModalOpen])
+
+  const renderFeedbackContent = () => {
+    if (feedbackLoading) {
+      return (
+        <p className="text-sm text-muted-foreground">Cargando comentarios...</p>
+      )
+    }
+
+    if (feedbackError) {
+      return <p className="text-sm text-destructive">{feedbackError}</p>
+    }
+
+    if (feedbackRows.length === 0) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          Aun no hay comentarios para este ejercicio.
+        </p>
+      )
+    }
+
+    return (
+      <div className="space-y-3">
+        {feedbackRows.map((row) => {
+          const teacherName =
+            [row.teacher?.first_name, row.teacher?.last_name]
+              .filter(Boolean)
+              .join(' ') || 'Docente'
+          const whenLabel =
+            formatFeedbackDate(row.created_at) || row.created_at
+
+          return (
+            <div
+              key={row.id}
+              className="rounded-xl border bg-background p-4"
+            >
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{teacherName}</span>
+                <span>{whenLabel}</span>
+              </div>
+              <p className="mt-2 text-sm text-foreground whitespace-pre-wrap">
+                {row.comment}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-background to-muted">
 
@@ -177,10 +267,7 @@ export const ExerciseRegistry = ({
           </Link>
 
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <div className="inline-flex items-center gap-2">
-              <Gamepad2 className="h-4 w-4" />
-              Modo práctica
-            </div>
+        
             <Link
               href={`/student/play/${exerciseId}/scoreboard`}
               className="inline-flex items-center gap-1 rounded-full border border-black/30 bg-white/5 text-black px-3 py-1 text-xs font-semibold uppercase"
@@ -199,57 +286,31 @@ export const ExerciseRegistry = ({
         transition={{ duration: 0.35, ease: 'easeOut' }}
         className="mx-auto max-w-6xl px-4 py-8"
       >
-        <div className="mb-6 rounded-2xl border bg-card p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Comentarios del docente</h2>
-            <span className="text-xs text-muted-foreground">
-              Solo lectura
-            </span>
-          </div>
-          {feedbackLoading ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              Cargando comentarios...
-            </p>
-          ) : feedbackError ? (
-            <p className="mt-3 text-sm text-destructive">{feedbackError}</p>
-          ) : feedbackRows.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              Aun no hay comentarios para este ejercicio.
-            </p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {feedbackRows.map((row) => {
-                const teacherName =
-                  [row.teacher?.first_name, row.teacher?.last_name]
-                    .filter(Boolean)
-                    .join(' ') || 'Docente'
-                const when = new Date(row.created_at)
-                const whenLabel = Number.isNaN(when.getTime())
-                  ? row.created_at
-                  : when.toLocaleString('es-PE', {
-                      day: '2-digit',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
+        <div className="mb-6 rounded-2xl border border-white/10 bg-card p-6 shadow-lg shadow-black/5 backdrop-blur">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold">Comentarios del docente</h2>
+    
+              </div>
 
-                return (
-                  <div
-                    key={row.id}
-                    className="rounded-xl border bg-background p-4"
-                  >
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{teacherName}</span>
-                      <span>{whenLabel}</span>
-                    </div>
-                    <p className="mt-2 text-sm text-foreground whitespace-pre-wrap">
-                      {row.comment}
-                    </p>
-                  </div>
-                )
-              })}
+              <p className="text-sm text-muted-foreground">{previewMetaLabel}</p>
+              {previewExcerpt && (
+                <p className="text-sm text-foreground leading-relaxed">
+                  {previewExcerpt}
+                </p>
+              )}
             </div>
-          )}
+
+            <button
+              type="button"
+              onClick={() => setIsFeedbackModalOpen(true)}
+              className="inline-flex items-center gap-2 self-start rounded-full border border-transparent bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-2 text-xs font-semibold uppercase text-white shadow-lg shadow-emerald-500/40 transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span>Ver comentarios</span>
+            </button>
+          </div>
         </div>
         {!ExerciseComponent ? (
           <div className="flex flex-col items-center justify-center rounded-xl border bg-card p-10 text-center">
@@ -272,6 +333,46 @@ export const ExerciseRegistry = ({
           </div>
         )}
       </motion.div>
+      {isFeedbackModalOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setIsFeedbackModalOpen(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Comentarios del docente"
+            className="w-full max-w-3xl rounded-3xl border border-white/10 bg-gradient-to-br from-background/90 to-card/90 p-6 shadow-2xl shadow-black/60 backdrop-blur-3xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                  Feedback
+                </p>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Comentarios del docente
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFeedbackModalOpen(false)}
+                className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold uppercase text-muted-foreground transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="mt-5 max-h-[60vh] overflow-y-auto pr-1">
+              {renderFeedbackContent()}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   )
 }
