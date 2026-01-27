@@ -104,7 +104,7 @@ export default function AdminDashboardClient({
     stats,
     recentClassrooms,
     recentStudents,
-}: AdminDashboardClientProps) {
+}: any) {
     return (
         <div className="space-y-8">
             {/* Page Header */}
@@ -196,7 +196,7 @@ export default function AdminDashboardClient({
                         </p>
                     ) : (
                         <div className="space-y-2">
-                            {recentClassrooms.map((cls, i) => (
+                            {recentClassrooms.map((cls:any, i:any) => (
                                 <motion.div
                                     key={cls.id}
                                     custom={i + 1}
@@ -246,7 +246,7 @@ export default function AdminDashboardClient({
                         </p>
                     ) : (
                         <div className="space-y-2">
-                            {recentStudents.map((student, i) => (
+                            {recentStudents.map((student:any, i:any) => (
                                 <motion.div
                                     key={student.id}
                                     custom={i + 1}
