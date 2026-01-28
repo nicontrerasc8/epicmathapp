@@ -104,7 +104,7 @@ export default function AdvancedOptimization({
               <div className="rounded-xl border bg-card p-4">
                 <div className="font-semibold mb-2 flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4" />
-                  Paso 1 ? Reconoce el polinomio
+                  Paso 1 - Reconoce el polinomio
                 </div>
                 <p className="text-muted-foreground">
                   La derivada de C(p) = 2ap + b nos dice como cambia el costo con p.
@@ -114,7 +114,7 @@ export default function AdvancedOptimization({
               <div className="rounded-xl border bg-card p-4">
                 <div className="font-semibold mb-2 flex items-center gap-2">
                   <Timer className="h-4 w-4" />
-                  Paso 2 ? Igualar a cero
+                  Paso 2 - Igualar a cero
                 </div>
                 <p className="text-muted-foreground">
                   Resuelve 2ap + b = 0 para hallar el punto critico que minimiza el costo.
@@ -124,7 +124,7 @@ export default function AdvancedOptimization({
               <div className="rounded-xl border bg-card p-4">
                 <div className="font-semibold mb-2">Paso 3 ? Verifica el signo</div>
                 <p className="text-muted-foreground">
-                  Si a > 0, el punto es minimo. Confirma el numero exacto para comunicar la decision.
+                  Si a &gt; 0, el punto es minimo. Confirma el numero exacto para comunicar la decision.
                 </p>
                 <div className="mt-2 rounded-lg border bg-background p-3">
                   <MathTex block tex={`p^* = \\frac{-${ejercicio.b}}{2 \\cdot ${ejercicio.a}} = ${ejercicio.optimum}`} />
