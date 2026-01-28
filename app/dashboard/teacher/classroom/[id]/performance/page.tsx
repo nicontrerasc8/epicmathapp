@@ -186,6 +186,7 @@ export default function PerformancePage() {
   const [sortExercises, setSortExercises] = useState<SortKeyExercises>("attempts")
   const [descending, setDescending] = useState(true)
   const [currentChartIndex, setCurrentChartIndex] = useState(0)
+  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<"active" | "inactive">("active")
 
   useEffect(() => {
     if (!classroomId) return
@@ -218,7 +219,6 @@ export default function PerformancePage() {
         .from("edu_exercise_assignments")
         .select("exercise:edu_exercises ( id, description, exercise_type )")
         .eq("classroom_id", classroomId)
-        .eq("active", true)
 
       const attemptsQuery = supabase
         .from("edu_student_exercises")
@@ -241,10 +241,19 @@ export default function PerformancePage() {
         if (member?.profile_id) studentIds.add(member.profile_id)
       })
 
+      const statusTarget = assignmentStatusFilter === "active"
       const exerciseIds = new Set<string>()
+      const exerciseInfo = new Map<string, { label: string; type: string }>()
       ;(assignments || []).forEach((row: any) => {
         const ex = Array.isArray(row.exercise) ? row.exercise[0] : row.exercise
-        if (ex?.id) exerciseIds.add(ex.id)
+        if (!ex?.id) return
+        const isActive = row.active ?? true
+        if (isActive !== statusTarget) return
+        exerciseIds.add(ex.id)
+        exerciseInfo.set(ex.id, {
+          label: ex.description || ex.id,
+          type: ex.exercise_type || "sin_tipo",
+        })
       })
 
       let gamRows: GamRow[] = []
@@ -273,23 +282,33 @@ export default function PerformancePage() {
         }
       })
 
-      const exerciseMap = new Map<string, { label: string; type: string }>()
-      ;(assignments || []).forEach((row: any) => {
-        const exercise = Array.isArray(row.exercise) ? row.exercise[0] : row.exercise
-        if (!exercise?.id) return
-        exerciseMap.set(exercise.id, {
-          label: exercise.description || exercise.id,
-          type: exercise.exercise_type || "sin_tipo",
-        })
-      })
+      const exerciseMap = exerciseInfo
 
       const byStudent = new Map<string, StudentRow>()
+      studentNameMap.forEach((name, studentId) => {
+        byStudent.set(studentId, {
+          student_id: studentId,
+          name,
+          attempts_30d: 0,
+          correct_30d: 0,
+          incorrect_30d: 0,
+          accuracy_30d: 0,
+          last_attempt_30d: null,
+          avg_time_s_30d: null,
+          trophies: 0,
+          best_streak: 0,
+          last_played_at: null,
+        })
+      })
       const byExercise = new Map<string, ExerciseRow>()
-      const attemptsArr = (attempts || []) as AttemptRow[]
+      const attemptsArr = ((attempts || []) as AttemptRow[]).filter(
+        (row) => studentIds.has(row.student_id) && exerciseIds.has(row.exercise_id),
+      )
 
       for (const row of attemptsArr) {
         const studentName = studentNameMap.get(row.student_id) || row.student_id
-        const exInfo = exerciseMap.get(row.exercise_id) || { label: row.exercise_id, type: "sin_tipo" }
+        const exInfo =
+          exerciseMap.get(row.exercise_id) || { label: row.exercise_id, type: "sin_tipo" }
 
         const s = byStudent.get(row.student_id) || {
           student_id: row.student_id,
@@ -416,7 +435,7 @@ export default function PerformancePage() {
     }
 
     load()
-  }, [classroomId, supabase, institution?.id])
+  }, [classroomId, supabase, institution?.id, assignmentStatusFilter])
 
   const totals = useMemo(() => {
     const totalAttempts = students.reduce((a, s) => a + s.attempts_30d, 0)
@@ -885,6 +904,20 @@ export default function PerformancePage() {
               { value: "exercises", label: "Ejercicios", icon: BookOpenCheck },
             ]}
           />
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Ejercicios:
+            </span>
+            <Segmented
+              value={assignmentStatusFilter}
+              onChange={(v) => setAssignmentStatusFilter(v as "active" | "inactive")}
+              options={[
+                { value: "active", label: "Activos" },
+                { value: "inactive", label: "Inactivos" },
+              ]}
+            />
+          </div>
 
           <button
             onClick={() => setDescending((d) => !d)}

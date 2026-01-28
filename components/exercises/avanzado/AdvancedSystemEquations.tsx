@@ -6,6 +6,7 @@ import { Timer, ShieldCheck } from 'lucide-react'
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
 import { MathProvider, MathTex } from '../base/MathBlock'
+import { DetailedExplanation } from '../base/DetailedExplanation'
 import { ExerciseHud } from '../base/ExerciseHud'
 import { OptionsGrid, type Option } from '../base/OptionsGrid'
 import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
@@ -150,18 +151,56 @@ export default function AdvancedSystemEquations({
                 </p>
               </div>
 
-              <div className="rounded-xl border bg-card p-4">
-                <div className="font-semibold mb-2">Paso 3 - Verifica</div>
+            <div className="rounded-xl border bg-card p-4">
+              <div className="font-semibold mb-2">Paso 3 - Verifica</div>
                 <p className="text-muted-foreground">
                   Sustituye la pareja final en ambas ecuaciones para confirmar que ambas igualdades se mantienen.
                 </p>
                 <div className="mt-2 rounded-lg border bg-background p-3">
                   <MathTex block tex={`(${ejercicio.correctPair[0]}, ${ejercicio.correctPair[1]})`} />
-                </div>
               </div>
             </div>
-          </SolutionBox>
-        }
+            <DetailedExplanation
+              title="Solución guiada del sistema lineal"
+              steps={[
+                {
+                  title: 'Qué buscamos',
+                  detail: 'Identificar el par (x, y) que satisface ambas ecuaciones simultáneamente.',
+                  content: <MathTex block tex={ejercicio.latex} />,
+                },
+                {
+                  title: 'Elimina una variable',
+                  detail:
+                    'Multiplica y combina las ecuaciones para cancelar uno de los términos y resolver el primero.',
+                  content: (
+                    <MathTex
+                      block
+                      tex={`${ejercicio.a1}\\cdot(${ejercicio.b2}) - ${ejercicio.a2}\\cdot(${ejercicio.b1})`}
+                    />
+                  ),
+                },
+                {
+                  title: 'Sustituye y resuelve',
+                  detail: 'Reemplaza el valor encontrado para calcular la segunda variable pendiente.',
+                  content: (
+                    <MathTex
+                      block
+                      tex={`(${ejercicio.correctPair[0]}, ${ejercicio.correctPair[1]})`}
+                    />
+                  ),
+                },
+                {
+                  title: 'Verificación final',
+                  detail: 'Comprueba ambas ecuaciones para asegurar que el par obtenido es válido.',
+                },
+              ]}
+              concluding={
+                'La opción correcta es la pareja que satisface todas las ecuaciones del sistema.'
+              }
+            />
+          </div>
+        </SolutionBox>
+      }
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
           <div className="text-xs text-muted-foreground">Contexto</div>
@@ -196,6 +235,4 @@ export default function AdvancedSystemEquations({
     </MathProvider>
   )
 }
-
-
 

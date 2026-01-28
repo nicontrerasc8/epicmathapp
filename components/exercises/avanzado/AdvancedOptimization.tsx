@@ -1,11 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Timer, ShieldCheck } from 'lucide-react'
-
 import { ExerciseShell } from '../base/ExerciseShell'
 import { SolutionBox } from '../base/SolutionBox'
 import { MathProvider, MathTex } from '../base/MathBlock'
+import { DetailedExplanation } from '../base/DetailedExplanation'
 import { ExerciseHud } from '../base/ExerciseHud'
 import { OptionsGrid, type Option } from '../base/OptionsGrid'
 import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
@@ -100,37 +99,40 @@ export default function AdvancedOptimization({
         onNext={siguiente}
         solution={
           <SolutionBox>
-            <div className="space-y-4 text-sm leading-relaxed">
-              <div className="rounded-xl border bg-card p-4">
-                <div className="font-semibold mb-2 flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4" />
-                  Paso 1 - Reconoce el polinomio
-                </div>
-                <p className="text-muted-foreground">
-                  La derivada de C(p) = 2ap + b nos dice como cambia el costo con p.
-                </p>
-              </div>
-
-              <div className="rounded-xl border bg-card p-4">
-                <div className="font-semibold mb-2 flex items-center gap-2">
-                  <Timer className="h-4 w-4" />
-                  Paso 2 - Igualar a cero
-                </div>
-                <p className="text-muted-foreground">
-                  Resuelve 2ap + b = 0 para hallar el punto critico que minimiza el costo.
-                </p>
-              </div>
-
-              <div className="rounded-xl border bg-card p-4">
-                <div className="font-semibold mb-2">Paso 3 ? Verifica el signo</div>
-                <p className="text-muted-foreground">
-                  Si a &gt; 0, el punto es minimo. Confirma el numero exacto para comunicar la decision.
-                </p>
-                <div className="mt-2 rounded-lg border bg-background p-3">
-                  <MathTex block tex={`p^* = \\frac{-${ejercicio.b}}{2 \\cdot ${ejercicio.a}} = ${ejercicio.optimum}`} />
-                </div>
-              </div>
-            </div>
+            <DetailedExplanation
+              title="Optimización cuadrática paso a paso"
+              steps={[
+                {
+                  title: '¿Qué buscamos?',
+                  detail: 'Encontramos el vértice de la parábola de costo y comunicamos el precio óptimo.',
+                  content: (
+                    <MathTex block tex={`${ejercicio.a}p^2 + ${ejercicio.b}p + ${ejercicio.c}`} />
+                  ),
+                },
+                {
+                  title: 'Deriva para el cambio',
+                  detail: 'Aplicamos la derivada 2ap + b para medir la pendiente del costo.',
+                  content: <MathTex block tex={`\\frac{dC}{dp} = 2 \\cdot ${ejercicio.a}p + ${ejercicio.b}`} />,
+                },
+                {
+                  title: 'Resuelve el punto crítico',
+                  detail: `Iguala la derivada a cero. El valor resultante minimiza el costo porque a > 0.`,
+                  content: (
+                    <MathTex
+                      block
+                      tex={`p^* = \\frac{-${ejercicio.b}}{2 \\cdot ${ejercicio.a}} = ${ejercicio.optimum}`}
+                    />
+                  ),
+                },
+                {
+                  title: 'Verificación',
+                  detail: 'Confirma que el punto crítico se encuentra en el punto más bajo de la curva.',
+                  content: <MathTex block tex={`C(${ejercicio.optimum}) = ${ejercicio.a * ejercicio.optimum ** 2 + ejercicio.b * ejercicio.optimum + ejercicio.c}`} />,
+                  tip: 'Si ves un valor mayor a la respuesta se trata de un distractor por exceso de precio.',
+                },
+              ]}
+              concluding={`La respuesta correcta es ${ejercicio.optimum}, que coincide con el mínimo costo del ejercicio.`}
+            />
           </SolutionBox>
         }
       >

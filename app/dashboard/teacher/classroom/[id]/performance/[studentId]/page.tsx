@@ -26,7 +26,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Search,
-  FileDown,
+  FileSpreadsheet,
 } from "lucide-react"
 
 /* =========================
@@ -55,6 +55,7 @@ type ExerciseAgg = {
 type AssignmentRow = {
   id: string
   exercise_id: string | null
+  active: boolean | null
   exercise: {
     id: string
     description: string | null
@@ -137,23 +138,6 @@ function normalizeText(v: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
-}
-
-function downloadCSV(filename: string, rows: string[][]) {
-  const escapeCell = (cell: string) => {
-    const safe = (cell ?? "").replaceAll('"', '""')
-    return `"${safe}"`
-  }
-  const csv = rows.map(r => r.map(escapeCell).join(",")).join("\n")
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-  const url = URL.createObjectURL(blob)
-
-  const a = document.createElement("a")
-  a.href = url
-  a.download = filename
-  a.click()
-
-  URL.revokeObjectURL(url)
 }
 
 function PaginationBar({
@@ -264,6 +248,8 @@ export default function StudentPerformanceDetailPage() {
   const classroomId = params?.id
   const studentId = params?.studentId
 
+  const [exportingExcel, setExportingExcel] = useState(false)
+
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [rows, setRows] = useState<AttemptRow[]>([])
@@ -273,6 +259,8 @@ export default function StudentPerformanceDetailPage() {
   const [feedbackRows, setFeedbackRows] = useState<FeedbackRow[]>([])
   const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
+  const [assignmentsLoaded, setAssignmentsLoaded] = useState(false)
+  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<"active" | "inactive">("active")
 
   const [commentForm, setCommentForm] = useState({ assignmentId: "", comment: "" })
   const [commentStatus, setCommentStatus] = useState<{ tone: "error" | "success"; message: string } | null>(null)
@@ -284,12 +272,13 @@ export default function StudentPerformanceDetailPage() {
     const supabase = createClient()
     setFeedbackLoading(true)
     setFeedbackError(null)
+    setAssignmentsLoaded(false)
 
     try {
       const [assignmentsResult, feedbackResult] = await Promise.all([
         supabase
           .from("edu_exercise_assignments")
-          .select("id, exercise_id, exercise:edu_exercises ( id, description, exercise_type )")
+        .select("id, exercise_id, active, exercise:edu_exercises ( id, description, exercise_type )")
           .eq("classroom_id", classroomId)
           .eq("active", true),
         supabase
@@ -305,6 +294,7 @@ export default function StudentPerformanceDetailPage() {
       if (feedbackResult.error) throw feedbackResult.error
 
       setAssignments((assignmentsResult.data ?? []) as any[])
+      setAssignmentsLoaded(true)
       setFeedbackRows((feedbackResult.data ?? []) as any[])
     } catch (e) {
       console.error(e)
@@ -405,26 +395,47 @@ export default function StudentPerformanceDetailPage() {
     }
   }
 
+  const assignmentExerciseIds = useMemo(() => {
+    const set = new Set<string>()
+    assignments.forEach((assignment) => {
+      const id = assignment.exercise?.id || assignment.exercise_id
+      if (!id) return
+      const isActive = assignment.active ?? true
+      const matchesFilter = assignmentStatusFilter === "active" ? isActive : !isActive
+      if (matchesFilter) set.add(id)
+    })
+    return set
+  }, [assignments, assignmentStatusFilter])
+
   /* =========================
      RESÚMENES
   ========================= */
+  const relevantRows = useMemo(() => {
+    if (!assignmentsLoaded) return rows
+    if (assignmentExerciseIds.size === 0) return []
+    return rows.filter((row) => {
+      const id = row.exercise?.id
+      return id ? assignmentExerciseIds.has(id) : false
+    })
+  }, [rows, assignmentsLoaded, assignmentExerciseIds])
+
   const resumen = useMemo(() => {
-    const total = rows.length
-    const correctos = rows.filter(r => r.correct).length
+    const total = relevantRows.length
+    const correctos = relevantRows.filter((r) => r.correct).length
     const incorrectos = total - correctos
     const accuracy = total ? Math.round((correctos / total) * 100) : 0
     return { total, correctos, incorrectos, accuracy }
-  }, [rows])
+  }, [relevantRows])
 
   const attemptsSorted = useMemo(() => {
     // ya vienen ordenados, pero aseguramos por si acaso
-    return [...rows].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-  }, [rows])
+    return [...relevantRows].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }, [relevantRows])
 
   const exerciseAgg = useMemo<ExerciseAgg[]>(() => {
     const map = new Map<string, ExerciseAgg>()
 
-    rows.forEach(r => {
+    relevantRows.forEach((r) => {
       const e = r.exercise
       if (!e?.id) return
 
@@ -447,7 +458,7 @@ export default function StudentPerformanceDetailPage() {
       ...r,
       accuracy: r.attempts ? Math.round((r.correct / r.attempts) * 100) : 0,
     }))
-  }, [rows])
+  }, [relevantRows])
 
   /* =========================
      INSIGHTS PEDAGÓGICOS
@@ -541,6 +552,51 @@ export default function StudentPerformanceDetailPage() {
     const start = (summaryPage - 1) * summaryPageSize
     return filteredSummary.slice(start, start + summaryPageSize)
   }, [filteredSummary, summaryPage, summaryPageSize])
+
+  const handleExportToExcel = useCallback(async () => {
+    if (exportingExcel) return
+
+    setExportingExcel(true)
+    try {
+      const XLSX = await import("xlsx")
+
+      const attemptsData = [
+        ["Fecha y Hora", "Ejercicio", "Tipo", "Resultado"],
+        ...filteredAttempts.map((attempt) => {
+          const label = attempt.exercise?.description || attempt.exercise?.id || "Ejercicio"
+          const type = attempt.exercise?.exercise_type || "sin_tipo"
+          const result = attempt.correct ? "Correcto" : "Incorrecto"
+          return [formatAttemptDateTime(attempt.created_at), label, type, result]
+        }),
+      ]
+
+      const summaryData = [
+        ["Ejercicio", "Tipo", "Intentos", "Correctos", "Incorrectos", "Precisión"],
+        ...filteredSummary.map((row) => [
+          row.label,
+          row.type,
+          String(row.attempts),
+          String(row.correct),
+          String(row.incorrect),
+          `${row.accuracy}%`,
+        ]),
+      ]
+
+      const workbook = XLSX.utils.book_new()
+      const wsAttempts = XLSX.utils.aoa_to_sheet(attemptsData)
+      XLSX.utils.book_append_sheet(workbook, wsAttempts, "Intentos")
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData)
+      XLSX.utils.book_append_sheet(workbook, wsSummary, "Resumen")
+
+      const safeName = (studentName || "estudiante").replace(/[^a-zA-Z0-9]/g, "_")
+      const fileName = `detalle_${safeName}_${new Date().toISOString().split("T")[0]}.xlsx`
+      XLSX.writeFile(workbook, fileName)
+    } catch (error) {
+      console.error("Error exportando a Excel", error)
+    } finally {
+      setExportingExcel(false)
+    }
+  }, [exportingExcel, filteredAttempts, filteredSummary, studentName])
 
   /* =========================
      RENDER
@@ -972,25 +1028,57 @@ export default function StudentPerformanceDetailPage() {
                 />
               </div>
 
-              {/* <button
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-semibold text-muted-foreground">Mostrar:</span>
+                <button
+                  type="button"
+                  onClick={() => setAssignmentStatusFilter("active")}
+                  className={[
+                    "rounded-full px-3 py-1 text-xs font-semibold transition",
+                    assignmentStatusFilter === "active"
+                      ? "bg-primary text-white"
+                      : "bg-muted/20 text-muted-foreground",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  Activos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAssignmentStatusFilter("inactive")}
+                  className={[
+                    "rounded-full px-3 py-1 text-xs font-semibold transition",
+                    assignmentStatusFilter === "inactive"
+                      ? "bg-primary text-white"
+                      : "bg-muted/20 text-muted-foreground",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  Inactivos
+                </button>
+              </div>
+
+              <button
                 type="button"
-                onClick={() => {
-                  const data = filteredAttempts.map((r) => {
-                    const label = r.exercise?.description || r.exercise?.id || "Ejercicio"
-                    const type = r.exercise?.exercise_type || "sin_tipo"
-                    return [formatAttemptDateTime(r.created_at), label, type, r.correct ? "Correcto" : "Incorrecto"]
-                  })
-                  downloadCSV(
-                    `intentos_${studentName.replaceAll(" ", "_")}.csv`,
-                    [["Fecha y Hora", "Ejercicio", "Tipo", "Resultado"], ...data]
-                  )
-                }}
-                disabled={filteredAttempts.length === 0}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border-2 bg-background px-3 text-xs font-black transition-all hover:bg-muted/30 disabled:opacity-50"
+                onClick={handleExportToExcel}
+                disabled={exportingExcel || filteredAttempts.length === 0}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border-2 border-primary bg-primary/10 px-3 text-xs font-black text-primary transition-all hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <FileDown className="h-4 w-4" />
-                CSV
-              </button> */}
+                {exportingExcel ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    Exportando...
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Exportar Excel
+                  </>
+                )}
+              </button>
+
             </div>
           </div>
 
@@ -1091,28 +1179,6 @@ export default function StudentPerformanceDetailPage() {
                 />
               </div>
 
-              {/* <button
-                type="button"
-                onClick={() => {
-                  const data = filteredSummary.map((r) => [
-                    r.label,
-                    r.type,
-                    String(r.attempts),
-                    String(r.correct),
-                    String(r.incorrect),
-                    `${r.accuracy}%`,
-                  ])
-                  downloadCSV(
-                    `resumen_ejercicios_${studentName.replaceAll(" ", "_")}.csv`,
-                    [["Ejercicio", "Tipo", "Intentos", "Correctos", "Incorrectos", "Precisión"], ...data]
-                  )
-                }}
-                disabled={filteredSummary.length === 0}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border-2 bg-background px-3 text-xs font-black transition-all hover:bg-muted/30 disabled:opacity-50"
-              >
-                <FileDown className="h-4 w-4" />
-                CSV
-              </button> */}
             </div>
           </div>
 
