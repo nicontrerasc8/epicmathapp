@@ -1,10 +1,11 @@
-"use client"
+﻿"use client"
 
-import { useNavigation } from "next/navigation"
+import { useContext } from "react"
+import { GlobalLayoutRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime"
 
 export default function RouteChangeIndicator() {
-  const navigation = useNavigation()
-  const isLoading = navigation.state === "loading"
+  const routerState = useContext(GlobalLayoutRouterContext)
+  const isLoading = Boolean(routerState?.nextUrl)
 
   if (!isLoading) return null
 
@@ -15,7 +16,7 @@ export default function RouteChangeIndicator() {
         <div className="h-2 w-28 overflow-hidden rounded-full border border-primary/40 bg-primary/10">
           <div className="h-full w-full animate-[loading-bar_1.2s_ease-in-out_infinite] bg-gradient-to-r from-primary to-primary/60" />
         </div>
-        <span>Cargando p�gina...</span>
+        <span>Cargando página...</span>
       </div>
     </div>
   )
