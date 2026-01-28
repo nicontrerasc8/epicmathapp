@@ -1,0 +1,163 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import { Timer, ShieldCheck } from 'lucide-react'
+
+import { ExerciseShell } from '../base/ExerciseShell'
+import { SolutionBox } from '../base/SolutionBox'
+import { MathProvider, MathTex } from '../base/MathBlock'
+import { ExerciseHud } from '../base/ExerciseHud'
+import { OptionsGrid, type Option } from '../base/OptionsGrid'
+import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
+import { useExerciseSubmission } from '@/lib/exercises/useExerciseSubmission'
+import { useExerciseTimer } from '@/lib/exercises/useExerciseTimer'
+import { computeTrophyGain, WRONG_PENALTY } from '@/lib/exercises/gamification'
+
+function randInt(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1))
+}
+
+function buildMatrix() {
+  const a = randInt(-3, 3)
+  const b = randInt(-3, 3)
+  const c = randInt(-3, 3)
+  const d = randInt(-3, 3)
+  const determinant = a * d - b * c
+  return { a, b, c, d, determinant }
+}
+
+function buildOptions(correct: number): Option[] {
+  const offsets = [-4, -3, -2, 2, 3, 4]
+  const set = new Set<number>()
+  set.add(correct)
+  offsets.forEach(offset => set.add(correct + offset))
+  return Array.from(set)
+    .map(value => ({ value: value.toString(), correct: value === correct }))
+    .sort(() => Math.random() - 0.5)
+}
+
+export default function AdvancedMatrixTransformations({
+  exerciseId,
+  classroomId,
+  sessionId,
+}: {
+  exerciseId: string
+  classroomId: string
+  sessionId?: string
+}) {
+  const engine = useExerciseEngine({ maxAttempts: 1 })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
+
+  const [nonce, setNonce] = useState(0)
+  const [selected, setSelected] = useState<string | null>(null)
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
+
+  const ejercicio = useMemo(() => {
+    const data = buildMatrix()
+    const options = buildOptions(data.determinant)
+    return { ...data, options }
+  }, [nonce])
+
+  const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
+
+  async function pickOption(option: Option) {
+    if (!engine.canAnswer) return
+    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
+    setSelected(option.value)
+    engine.submit(option.correct)
+
+    await submitAttempt({
+      correct: option.correct,
+      answer: {
+        selected: option.value,
+        correctAnswer: ejercicio.determinant.toString(),
+        latex: `\\begin{vmatrix}${ejercicio.a} & ${ejercicio.b}\\${ejercicio.c} & ${ejercicio.d}\\end{vmatrix}`,
+        options: ejercicio.options.map(o => o.value),
+      },
+      timeSeconds,
+    })
+  }
+
+  function siguiente() {
+    setSelected(null)
+    engine.reset()
+    setNonce(n => n + 1)
+  }
+
+  return (
+    <MathProvider>
+      <ExerciseShell
+        title="Transformacion matricial"
+        prompt="Calcula el determinante de la matriz suministrada y selecciona la respuesta correcta."
+        status={engine.status}
+        attempts={engine.attempts}
+        maxAttempts={engine.maxAttempts}
+        onVerify={() => {}}
+        onNext={siguiente}
+        solution={
+          <SolutionBox>
+            <div className="space-y-4 text-sm leading-relaxed">
+              <div className="rounded-xl border bg-card p-4">
+                <div className="font-semibold mb-2 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4" />
+                  Paso 1 ? Identifica componentes
+                </div>
+                <p className="text-muted-foreground">
+                  El determinante de la matriz 2x2 es ad - bc. Mant?n el orden y signo de cada termino.
+                </p>
+              </div>
+
+              <div className="rounded-xl border bg-card p-4">
+                <div className="font-semibold mb-2 flex items-center gap-2">
+                  <Timer className="h-4 w-4" />
+                  Paso 2 ? Aplica la formula
+                </div>
+                <p className="text-muted-foreground">
+                  Multiplica las entradas diagonales principales y resta el producto de las diagonales secundarias.
+                </p>
+              </div>
+
+              <div className="rounded-xl border bg-card p-4">
+                <div className="font-semibold mb-2">Paso 3 ? Verifica legibilidad</div>
+                <p className="text-muted-foreground">
+                  Un determinante negativo cambia la orientacion del sistema. Revisa los signos antes de cerrar.
+                </p>
+                <div className="mt-2 rounded-lg border bg-background p-3">
+                  <MathTex
+                    block
+                    tex={`\\begin{vmatrix}${ejercicio.a} & ${ejercicio.b}\\${ejercicio.c} & ${ejercicio.d}\\end{vmatrix} = ${ejercicio.determinant}`}
+                  />
+                </div>
+              </div>
+            </div>
+          </SolutionBox>
+        }
+      >
+        <div className="rounded-xl border bg-card p-4 mb-4">
+          <div className="text-xs text-muted-foreground">Matriz</div>
+          <div className="mt-2">
+            <MathTex block tex={`\\begin{pmatrix}${ejercicio.a} & ${ejercicio.b}\\${ejercicio.c} & ${ejercicio.d}\\end{pmatrix}`} />
+          </div>
+        </div>
+
+        <OptionsGrid options={ejercicio.options} selectedValue={selected} status={engine.status} canAnswer={engine.canAnswer} onSelect={pickOption} />
+
+        <div className="mt-6">
+          <ExerciseHud
+            elapsed={elapsed}
+            trophyPreview={trophyPreview}
+            gami={gami}
+            gamiLoading={gamiLoading}
+            studentId={studentId}
+            wrongPenalty={WRONG_PENALTY}
+            status={engine.status}
+          />
+        </div>
+      </ExerciseShell>
+    </MathProvider>
+  )
+}

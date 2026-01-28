@@ -62,11 +62,15 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "5ffb7fcb-b4a6-4d01-83c1-4d6eef48a04a": () => import("./prisma/Prisma33"),
   "01e506fd-11d4-4a4a-8de6-19d7a32e6132": () => import("./prisma/Prisma34"),
   "7ed40df0-cc59-48e5-a156-71e9322c9a8f": () => import("./prisma/Prisma35"),
-  "213987398578932": () => import("./primaria/PrimariaSumaResta01"),
-  "5748678765": () => import("./primaria/PrimariaSumaResta02"),
-  "876286732": () => import("./primaria/PrimariaSumaResta03"),
-  "67485747": () => import("./primaria/PrimariaSumaResta04"),
-  "97843297248397": () => import("./primaria/PrimariaSumaResta05"),
+  "d187e75f-5da6-43d2-820b-e83486f07e53": () => import("./avanzado/AdvancedSystemEquations"),
+  "02519042-3d4b-489a-9f42-fbb9cd4a8885": () => import("./avanzado/AdvancedFunctionAnalysis"),
+  "fe9674ce-82ea-42d9-a5e8-89c6ca05c044": () => import("./avanzado/AdvancedOptimization"),
+  "738395f5-9495-4297-a04c-7b4dce5e1c54": () => import("./avanzado/AdvancedProbability"),
+  "05994607-8168-42f0-81d6-4b046de674e3": () => import("./avanzado/AdvancedMatrixTransformations"),
+  "7ee7b6ee-6dc1-4c3d-a8b1-b3cd412d25dd": () => import("./avanzado/AdvancedDynamicsRate"),
+  "7dcf3a0b-6b60-4338-992d-4613e2310e8b": () => import("./primaria/PrimariaStatsMeasure"),
+  "64702e6a-82b7-4fba-815e-b05c9b8c569e": () => import("./primaria/PrimariaFractionMultiply"),
+  "1f63052a-9665-4287-9ac6-da0ebdc62d7f": () => import("./primaria/PrimariaDivisionStory"),
 }
 
 const formatFeedbackDate = (value?: string) => {

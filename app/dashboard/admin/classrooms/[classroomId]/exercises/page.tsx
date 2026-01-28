@@ -258,12 +258,11 @@ export default function ClassroomExercisesPage() {
     }
 
     /* ---- RPC ---- */
-    const { error } = await supabase.rpc("assign_exercise_to_classrooms", {
-      p_classroom_id: classroomId,
-      p_exercise_id: exerciseId,
-      p_assign_to_grade: assignToGrade,
-      p_active: form.active,
-    })
+   const { error } = await supabase.rpc("assign_exercise_to_classrooms", {
+  p_exercise_id: exerciseId,
+  p_classroom_ids: [classroomId], // 👈 array
+})
+
 
     if (error) {
       setMessage({ type: "error", text: error.message })
