@@ -1,6 +1,7 @@
 import Navbar from "@/components/navbar";
 import { EnvVarWarning } from "@/components/env-var-warning";
 import { hasEnvVars } from "@/utils/supabase/check-env-vars";
+import RouteChangeIndicator from "@/components/loading/RouteChangeIndicator";
 import { Geist, Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import Link from "next/link";
