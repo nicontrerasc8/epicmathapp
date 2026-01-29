@@ -71,6 +71,10 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "7dcf3a0b-6b60-4338-992d-4613e2310e8b": () => import("./primaria/PrimariaStatsMeasure"),
   "64702e6a-82b7-4fba-815e-b05c9b8c569e": () => import("./primaria/PrimariaFractionMultiply"),
   "1f63052a-9665-4287-9ac6-da0ebdc62d7f": () => import("./primaria/PrimariaDivisionStory"),
+
+    "49b82682-8759-4b51-9de3-e35d0bc17d7d": () => import("./primaria/SumasLaPontificia"),
+  "97a15c4c-f677-4789-9e7b-1e4c8972c707": () => import("./primaria/RestasLaPontificia"),
+  "4f1075c6-8459-4297-872a-85de63da0312": () => import("./primaria/MultiplicacionesLaPontificia"),
 }
 
 const formatFeedbackDate = (value?: string) => {
