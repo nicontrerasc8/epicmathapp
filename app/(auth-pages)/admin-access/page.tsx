@@ -1,5 +1,23 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
+import fs from "fs";
+import path from "path";
+
+const logoExtensions = ["png", "jpg", "jpeg", "svg", "webp"];
+
+const resolveInstitutionLogo = (input: { slug: string | null; logo_url: string | null }) => {
+    if (input.logo_url) return input.logo_url;
+    if (!input.slug) return null;
+    const base = path.join(process.cwd(), "public", "logos");
+    for (const ext of logoExtensions) {
+        const filename = `${input.slug}.${ext}`;
+        const fullPath = path.join(base, filename);
+        if (fs.existsSync(fullPath)) {
+            return `/logos/${filename}`;
+        }
+    }
+    return null;
+};
 
 export default async function AdminAccessPage() {
     const supabase = await createClient();
@@ -101,6 +119,10 @@ export default async function AdminAccessPage() {
                                     ? `${inst.slug}.${rootDomain}`
                                     : `${inst.slug}.localhost${port}`;
                                 const dashboardUrl = `${protocol}://${host}/dashboard/admin`;
+                                const logoSrc = resolveInstitutionLogo({
+                                    slug: inst.slug,
+                                    logo_url: inst.logo_url,
+                                });
 
                                 return (
                                     <a
@@ -109,9 +131,23 @@ export default async function AdminAccessPage() {
                                         className="block rounded-lg border border-gray-200 p-4 transition-all hover:border-blue-500 hover:bg-blue-50"
                                     >
                                         <div className="flex items-center justify-between">
-                                            <div>
-                                                <h3 className="font-medium text-gray-900">{inst.name}</h3>
-                                                <p className="text-sm text-gray-500">{inst.slug}</p>
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex h-10 w-10 items-center justify-center rounded-md border border-gray-200 bg-white text-sm font-semibold text-gray-700">
+                                                    {logoSrc ? (
+                                                        // eslint-disable-next-line @next/next/no-img-element
+                                                        <img
+                                                            src={logoSrc}
+                                                            alt={`${inst.name} logo`}
+                                                            className="h-8 w-8 object-contain"
+                                                        />
+                                                    ) : (
+                                                        <span>{inst.name?.slice(0, 1).toUpperCase() || "I"}</span>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-medium text-gray-900">{inst.name}</h3>
+                                                    <p className="text-sm text-gray-500">{inst.slug}</p>
+                                                </div>
                                             </div>
                                             <svg
                                                 className="h-5 w-5 text-gray-400"

@@ -378,7 +378,12 @@ export default function InstitutionsTable({ initialData }: InstitutionsTableProp
                                 id="institutionLogo"
                                 value={form.logo_url}
                                 onChange={(e) => setForm((s) => ({ ...s, logo_url: e.target.value }))}
+                                placeholder="/logos/mi-colegio.png"
                             />
+                            <p className="text-xs text-muted-foreground">
+                                Sube el logo en <span className="font-mono">public/logos</span> y usa la ruta
+                                <span className="font-mono"> /logos/slug.png</span>.
+                            </p>
                         </div>
                         <div className="flex items-center gap-2 md:col-span-2">
                             <Checkbox
