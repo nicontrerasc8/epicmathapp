@@ -64,6 +64,8 @@ type BulkRow = {
   message?: string
 }
 
+const DEFAULT_PASSWORD = "123456"
+
 const columns: ColumnDef<Member>[] = [
   {
     key: "name",
@@ -104,6 +106,7 @@ function normalizeName(s: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/ñ/g, "n")
+    .replace(/[^a-z0-9\s]/g, "")
     .replace(/\s+/g, "")
 }
 
@@ -120,11 +123,39 @@ function slugifyInstitution(name: string) {
   return base || "academia"
 }
 
-function generatePassword(len = 10) {
-  const a = Math.random().toString(36).slice(2)
-  const b = Math.random().toString(36).toUpperCase().slice(2)
-  return (a + b).slice(0, len)
+function getNameInitial(name: string) {
+  const normalized = normalizeName(name)
+  return normalized.slice(0, 1)
 }
+
+function buildEmailLocal(firstName: string, lastName: string) {
+  const initial = getNameInitial(firstName)
+  const last = normalizeName(lastName)
+  if (!initial || !last) return ""
+  return `${initial}${last}`
+}
+
+function buildStudentEmail(firstName: string, lastName: string, institutionSlug: string) {
+  const local = buildEmailLocal(firstName, lastName)
+  if (!local) return ""
+  return `${local}@${institutionSlug}.ludus.edu`
+}
+
+function buildUniqueStudentEmail(
+  firstName: string,
+  lastName: string,
+  institutionSlug: string,
+  used: Map<string, number>,
+) {
+  const baseLocal = buildEmailLocal(firstName, lastName)
+  if (!baseLocal) return ""
+  const key = `${baseLocal}@${institutionSlug}`
+  const count = (used.get(key) ?? 0) + 1
+  used.set(key, count)
+  const local = count === 1 ? baseLocal : `${baseLocal}${count}`
+  return `${local}@${institutionSlug}.ludus.edu`
+}
+
 
 export default function ClassroomMembersPage() {
   const params = useParams()
@@ -145,8 +176,6 @@ export default function ClassroomMembersPage() {
   const [createForm, setCreateForm] = useState({
     firstName: "",
     lastName: "",
-    email: "",
-    password: "",
     role: "student",
   })
   const [creating, setCreating] = useState(false)
@@ -160,6 +189,9 @@ export default function ClassroomMembersPage() {
     if (institution?.slug) return institution.slug
     return slugifyInstitution(institution?.name || "")
   }, [institution?.name, institution?.slug])
+  const generatedEmail = useMemo(() => {
+    return buildStudentEmail(createForm.firstName, createForm.lastName, institutionSlug)
+  }, [createForm.firstName, createForm.lastName, institutionSlug])
 
   useEffect(() => {
     const fetchMembers = async () => {
@@ -290,8 +322,13 @@ export default function ClassroomMembersPage() {
       setActionError("Completa nombre y apellido.")
       return
     }
-    if (!createForm.email.trim()) {
-      setActionError("Completa el correo.")
+    const email = buildStudentEmail(
+      createForm.firstName,
+      createForm.lastName,
+      institutionSlug,
+    )
+    if (!email) {
+      setActionError("Completa nombre y apellido para generar el correo.")
       return
     }
 
@@ -299,20 +336,20 @@ export default function ClassroomMembersPage() {
       setCreating(true)
       setActionError(null)
       const result = await createStudentAction({
-        email: createForm.email.trim(),
-        password: createForm.password.trim() || undefined,
+        email,
+        password: DEFAULT_PASSWORD,
         first_name: createForm.firstName.trim(),
         last_name: createForm.lastName.trim(),
         role: createForm.role as "student" | "teacher",
         classroom_id: classroomId,
       })
-      const passwordInfo = result?.password ? ` Password: ${result.password}` : ""
+      const passwordInfo = result?.password
+        ? ` Password: ${result.password}`
+        : ` Password por defecto: ${DEFAULT_PASSWORD}`
       setActionSuccess(`Usuario creado y asignado.${passwordInfo}`)
       setCreateForm({
         firstName: "",
         lastName: "",
-        email: "",
-        password: "",
         role: "student",
       })
       await reloadMembers()
@@ -333,36 +370,37 @@ export default function ClassroomMembersPage() {
     const raw = XLSX.utils.sheet_to_json<any>(sheet, { defval: "" })
 
     const extracted = raw
-      .map((r) => ({
-        first_name: String(r.first_name || r.nombre || r.Nombre || "").trim(),
-        last_name: String(r.last_name || r.apellido || r.Apellido || "").trim(),
-      }))
+      .map((r) => {
+        const normalized = Object.fromEntries(
+          Object.entries(r).map(([k, v]) => [String(k).trim().toLowerCase(), v]),
+        )
+        return {
+          first_name: String(normalized.first_name || normalized.nombre || "").trim(),
+          last_name: String(normalized.last_name || normalized.apellido || "").trim(),
+        }
+      })
       .filter((r) => r.first_name && r.last_name)
 
     if (!extracted.length) {
-      setBulkError("No encontre filas. Usa columnas first_name y last_name.")
+      setBulkError("No encontre filas. Usa columnas nombre y apellido.")
       setBulkPreview([])
       return
     }
 
     const used = new Map<string, number>()
     const previewRows: BulkRow[] = extracted.map((r) => {
-      const baseLocal = `${normalizeName(r.first_name)}.${normalizeName(r.last_name)}`.replace(
-        /\.+/g,
-        ".",
+      const email = buildUniqueStudentEmail(
+        r.first_name,
+        r.last_name,
+        institutionSlug,
+        used,
       )
-      const key = `${baseLocal}@${institutionSlug}`
-      const n = (used.get(key) ?? 0) + 1
-      used.set(key, n)
-
-      const local = n === 1 ? baseLocal : `${baseLocal}.${n}`
-      const email = `${local}@${institutionSlug}.ludus.edu`
 
       return {
         first_name: r.first_name,
         last_name: r.last_name,
         email,
-        password: generatePassword(10),
+        password: DEFAULT_PASSWORD,
         status: "pending",
       }
     })
@@ -580,15 +618,15 @@ export default function ClassroomMembersPage() {
                     <div className="space-y-2">
                       <Label>Correo</Label>
                       <Input
-                        value={createForm.email}
-                        onChange={(e) => setCreateForm((s) => ({ ...s, email: e.target.value }))}
+                        value={generatedEmail}
+                        readOnly
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>Password</Label>
                       <Input
-                        value={createForm.password}
-                        onChange={(e) => setCreateForm((s) => ({ ...s, password: e.target.value }))}
+                        value={DEFAULT_PASSWORD}
+                        readOnly
                       />
                     </div>
                     <div className="space-y-2">
@@ -603,6 +641,9 @@ export default function ClassroomMembersPage() {
                       </select>
                     </div>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    El correo se genera con inicial del nombre + apellido. Password por defecto: {DEFAULT_PASSWORD}.
+                  </p>
                   <Button size="sm" onClick={handleCreate} disabled={creating}>
                     {creating ? "Creando..." : "Crear y asignar"}
                   </Button>
@@ -628,6 +669,14 @@ export default function ClassroomMembersPage() {
                           Archivo: <span className="font-mono">{bulkFileName}</span>
                         </div>
                       )}
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Button size="sm" variant="outline" asChild>
+                          <a href="/templates/plantilla-estudiantes.xlsx" download>
+                            Descargar plantilla
+                          </a>
+                        </Button>
+                        <span>Usa columnas: nombre, apellido.</span>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Dominio</Label>

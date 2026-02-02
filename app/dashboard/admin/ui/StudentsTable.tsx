@@ -89,6 +89,8 @@ type BulkRow = {
   message?: string
 }
 
+const DEFAULT_PASSWORD = "123456"
+
 const pageSizeOptions = [10, 20, 50, 100]
 
 function getPrimaryMembership(student: Student) {
@@ -127,6 +129,7 @@ function normalizeName(s: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/ñ/g, "n")
+    .replace(/[^a-z0-9\s]/g, "")
     .replace(/\s+/g, "")
 }
 
@@ -143,12 +146,39 @@ function slugifyInstitution(name: string) {
   return base || "academia"
 }
 
-function generatePassword(len = 10) {
-  // alfanum + un toque de mezcla
-  const a = Math.random().toString(36).slice(2)
-  const b = Math.random().toString(36).toUpperCase().slice(2)
-  return (a + b).slice(0, len)
+function getNameInitial(name: string) {
+  const normalized = normalizeName(name)
+  return normalized.slice(0, 1)
 }
+
+function buildEmailLocal(firstName: string, lastName: string) {
+  const initial = getNameInitial(firstName)
+  const last = normalizeName(lastName)
+  if (!initial || !last) return ""
+  return `${initial}${last}`
+}
+
+function buildStudentEmail(firstName: string, lastName: string, institutionSlug: string) {
+  const local = buildEmailLocal(firstName, lastName)
+  if (!local) return ""
+  return `${local}@${institutionSlug}.ludus.edu`
+}
+
+function buildUniqueStudentEmail(
+  firstName: string,
+  lastName: string,
+  institutionSlug: string,
+  used: Map<string, number>,
+) {
+  const baseLocal = buildEmailLocal(firstName, lastName)
+  if (!baseLocal) return ""
+  const key = `${baseLocal}@${institutionSlug}`
+  const count = (used.get(key) ?? 0) + 1
+  used.set(key, count)
+  const local = count === 1 ? baseLocal : `${baseLocal}${count}`
+  return `${local}@${institutionSlug}.ludus.edu`
+}
+
 
 // =====================
 // Filter configuration
@@ -308,8 +338,6 @@ export default function StudentsTable() {
   const [form, setForm] = useState<any>({
     firstName: "",
     lastName: "",
-    email: "",
-    password: "",
     role: "student",
     classroomId: "",
     active: true,
@@ -386,7 +414,6 @@ export default function StudentsTable() {
   }, [filteredRows, page, pageSize])
 
   const isFiltered = Boolean(values.search || values.active)
-  const emailInputValue = form.email.trim()
 
   const handleRowClick = (row: Student) => {
     router.push(`/dashboard/admin/students/${row.id}`)
@@ -413,8 +440,6 @@ export default function StudentsTable() {
             setForm({
               firstName: row.first_name,
               lastName: row.last_name,
-              email: "",
-              password: "",
               role: row.global_role || "student",
               classroomId: getPrimaryClassroom(member)?.classroom_id || "",
               active: Boolean(row.active),
@@ -445,8 +470,6 @@ export default function StudentsTable() {
     setForm({
       firstName: "",
       lastName: "",
-      email: "",
-      password: "",
       role: "student",
       classroomId: "",
       active: true,
@@ -465,29 +488,22 @@ export default function StudentsTable() {
     [classrooms, form.classroomId],
   )
 
-  const suggestedInstitutionSlug = useMemo(() => {
-    if (!selectedClassroom) return ""
-    if (selectedClassroom.edu_institutions?.slug) {
+  const institutionSlug = useMemo(() => {
+    if (selectedClassroom?.edu_institutions?.slug) {
       return selectedClassroom.edu_institutions.slug
     }
-    return slugifyInstitution(selectedClassroom.edu_institutions?.name || "")
-  }, [selectedClassroom])
-
-  const suggestedEmail = useMemo(() => {
-    if (
-      !selectedClassroom ||
-      !suggestedInstitutionSlug ||
-      !form.firstName.trim() ||
-      !form.lastName.trim()
-    ) {
-      return ""
+    if (selectedClassroom?.edu_institutions?.name) {
+      return slugifyInstitution(selectedClassroom.edu_institutions.name)
     }
-    const local = `${normalizeName(form.firstName)}.${normalizeName(form.lastName)}`.replace(
-      /\.+/g,
-      ".",
-    )
-    return `${local}@${suggestedInstitutionSlug}.ludus.edu`
-  }, [form.firstName, form.lastName, selectedClassroom, suggestedInstitutionSlug])
+    const fallback = classrooms.find((cls) => cls.edu_institutions?.slug || cls.edu_institutions?.name)
+    if (fallback?.edu_institutions?.slug) return fallback.edu_institutions.slug
+    if (fallback?.edu_institutions?.name) return slugifyInstitution(fallback.edu_institutions.name)
+    return "academia"
+  }, [classrooms, selectedClassroom])
+
+  const generatedEmail = useMemo(() => {
+    return buildStudentEmail(form.firstName, form.lastName, institutionSlug)
+  }, [form.firstName, form.lastName, institutionSlug])
 
   const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -496,15 +512,14 @@ export default function StudentsTable() {
 
     const firstName = form.firstName.trim()
     const lastName = form.lastName.trim()
-    const emailValue = form.email.trim()
-    const resolvedEmail = editId ? emailValue : emailValue || suggestedEmail
+    const resolvedEmail = buildStudentEmail(firstName, lastName, institutionSlug)
 
     if (!firstName || !lastName) {
       setCreateError("Completa nombre y apellido.")
       return
     }
     if (!editId && !resolvedEmail) {
-      setCreateError("Completa el correo.")
+      setCreateError("Completa nombre y apellido para generar el correo.")
       return
     }
 
@@ -522,14 +537,16 @@ export default function StudentsTable() {
       } else {
         const result = await createStudentAction({
           email: resolvedEmail,
-          password: form.password || undefined,
+          password: DEFAULT_PASSWORD,
           first_name: firstName,
           last_name: lastName,
           role: form.role,
           classroom_id: form.classroomId || null,
         })
         const roleLabel = form.role === "teacher" ? "Profesor" : "Alumno"
-        const passwordInfo = result?.password ? ` Password: ${result.password}` : ""
+        const passwordInfo = result?.password
+          ? ` Password: ${result.password}`
+          : ` Password por defecto: ${DEFAULT_PASSWORD}`
         setCreateSuccess(`${roleLabel} creado correctamente.${passwordInfo}`)
       }
       resetForm()
@@ -557,13 +574,17 @@ export default function StudentsTable() {
   const onBulkSelectClassroom = (id: string) => {
     setBulkClassroomId(id)
     const cls = classrooms.find((c) => c.id === id)
-    const instName = cls?.edu_institutions?.name || "Academia"
     setBulkInstitutionId(cls?.institution_id ?? null)
-    setBulkInstitutionSlug(slugifyInstitution(instName))
+    if (cls?.edu_institutions?.slug) {
+      setBulkInstitutionSlug(cls.edu_institutions.slug)
+    } else {
+      const instName = cls?.edu_institutions?.name || "Academia"
+      setBulkInstitutionSlug(slugifyInstitution(instName))
+    }
   }
 
   const downloadTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([{ first_name: "Juan", last_name: "Pérez" }])
+    const ws = XLSX.utils.json_to_sheet([{ nombre: "Juan", apellido: "Perez" }])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Plantilla")
     XLSX.writeFile(wb, "plantilla_alumnos.xlsx")
@@ -596,16 +617,20 @@ export default function StudentsTable() {
     const sheet = wb.Sheets[wb.SheetNames[0]]
     const raw = XLSX.utils.sheet_to_json<any>(sheet, { defval: "" })
 
-    // acepta: first_name/last_name o Nombre/Apellido
     const extracted = raw
-      .map((r) => ({
-        first_name: String(r.first_name || r.nombre || r.Nombre || "").trim(),
-        last_name: String(r.last_name || r.apellido || r.Apellido || "").trim(),
-      }))
+      .map((r) => {
+        const normalized = Object.fromEntries(
+          Object.entries(r).map(([k, v]) => [String(k).trim().toLowerCase(), v]),
+        )
+        return {
+          first_name: String(normalized.first_name || normalized.nombre || "").trim(),
+          last_name: String(normalized.last_name || normalized.apellido || "").trim(),
+        }
+      })
       .filter((r) => r.first_name && r.last_name)
 
     if (!extracted.length) {
-      setBulkError("No encontré filas. Asegúrate que el Excel tenga columnas first_name y last_name.")
+      setBulkError("No encontre filas. Asegurate que el Excel tenga columnas nombre y apellido.")
       setBulkPreview([])
       return
     }
@@ -614,19 +639,13 @@ export default function StudentsTable() {
     const used = new Map<string, number>()
 
     const previewRows: BulkRow[] = extracted.map((r) => {
-      const baseLocal = `${normalizeName(r.first_name)}.${normalizeName(r.last_name)}`.replace(/\.+/g, ".")
-      const key = `${baseLocal}@${slug}`
-      const n = (used.get(key) ?? 0) + 1
-      used.set(key, n)
-
-      const local = n === 1 ? baseLocal : `${baseLocal}.${n}`
-      const email = `${local}@${slug}.ludus.edu`
+      const email = buildUniqueStudentEmail(r.first_name, r.last_name, slug, used)
 
       return {
         first_name: r.first_name,
         last_name: r.last_name,
         email,
-        password: generatePassword(10),
+        password: DEFAULT_PASSWORD,
         status: "pending",
       }
     })
@@ -783,7 +802,7 @@ export default function StudentsTable() {
               <div>
                 <div className="text-base font-semibold">Importar estudiantes por Excel</div>
                 <div className="text-sm text-muted-foreground">
-                  Selecciona un aula, sube Excel (first_name, last_name) y verás el preview con correo/password dummy.
+                  Selecciona un aula, sube Excel (nombre, apellido) y verás el preview con correo y password 123456.
                 </div>
               </div>
               <Button
@@ -827,8 +846,8 @@ export default function StudentsTable() {
                     Descargar plantilla
                   </Button>
                   <div className="text-xs text-muted-foreground">
-                    Columnas: <span className="font-mono">first_name</span>,{" "}
-                    <span className="font-mono">last_name</span>
+                    Columnas: <span className="font-mono">nombre</span>,{" "}
+                    <span className="font-mono">apellido</span>
                   </div>
                 </div>
               </div>
@@ -934,13 +953,13 @@ export default function StudentsTable() {
                           </td>
                         </tr>
                       ))}
-                      {!bulkPreview.length && (
-                        <tr>
-                          <td className="px-3 py-6 text-muted-foreground" colSpan={4}>
-                            Sube un Excel para ver el preview (correo y password dummy).
-                          </td>
-                        </tr>
-                      )}
+                          {!bulkPreview.length && (
+                            <tr>
+                              <td className="px-3 py-6 text-muted-foreground" colSpan={4}>
+                                Sube un Excel para ver el preview (correo y password 123456).
+                              </td>
+                            </tr>
+                          )}
                     </tbody>
                   </table>
                 </div>
@@ -976,7 +995,7 @@ export default function StudentsTable() {
                   {editId ? "Editar usuario" : "Nuevo usuario"}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Completa los datos para crear estudiante o profesor.
+                  Completa nombre y apellido. El correo y password se generan automáticamente.
                 </div>
               </div>
               <Button variant="ghost" size="sm" onClick={closeCreateModal}>
@@ -1003,45 +1022,21 @@ export default function StudentsTable() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="studentEmail">Correo</Label>
-                    {!editId && suggestedEmail && emailInputValue !== suggestedEmail && (
-                      <Button
-                        variant="link"
-                        size="sm"
-                        type="button"
-                        onClick={() =>
-                          setForm((s: any) => ({ ...s, email: suggestedEmail }))
-                        }
-                      >
-                        Usar sugerido
-                      </Button>
-                    )}
-                  </div>
+                  <Label htmlFor="studentEmail">Correo</Label>
                   <Input
                     id="studentEmail"
                     type="email"
-                    value={form.email}
-                    onChange={(e) => setForm((s: any) => ({ ...s, email: e.target.value }))}
-                    disabled={Boolean(editId)}
+                    value={generatedEmail}
+                    readOnly
                   />
-                  {!editId && suggestedEmail && (
-                    <p className="text-xs text-muted-foreground">
-                      Sugerido: <span className="font-mono">{suggestedEmail}</span>
-                      {selectedClassroom && (
-                        <> Institucion: {selectedClassroom.edu_institutions?.name || "Sin institucion"}</>
-                      )}
-                    </p>
-                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="studentPassword">Password</Label>
                   <Input
                     id="studentPassword"
                     type="text"
-                    value={form.password}
-                    onChange={(e) => setForm((s: any) => ({ ...s, password: e.target.value }))}
-                    disabled={Boolean(editId)}
+                    value={DEFAULT_PASSWORD}
+                    readOnly
                   />
                 </div>
                 <div className="space-y-2">
@@ -1084,6 +1079,9 @@ export default function StudentsTable() {
 
               {createError && <p className="text-sm text-destructive">{createError}</p>}
               {createSuccess && <p className="text-sm text-foreground">{createSuccess}</p>}
+              <div className="text-xs text-muted-foreground">
+                El correo se genera con inicial del nombre + apellido. Password por defecto: {DEFAULT_PASSWORD}.
+              </div>
               <div className="text-xs text-muted-foreground">
                 Supabase Auth se encarga de crear el usuario y se registran los datos en{" "}
                 <span className="font-mono">edu_profiles</span> y{" "}
