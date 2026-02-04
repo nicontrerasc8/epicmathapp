@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
+  Brain,
 } from "lucide-react"
 
 type AttemptRow = {
@@ -42,6 +43,28 @@ type GamRow = {
   updated_at: string | null
 }
 
+type AdnRow = {
+  student_id: string
+  classroom_id: string
+  ritmo: string
+  tolerancia_error: string
+  persistencia: string
+  uso_pistas: string
+  reaccion_feedback: string
+  estilo_aprendizaje: string
+  total_attempts: number
+  total_correct: number
+  total_wrong: number
+  avg_time_seconds: number | null
+  wrong_rate: number | null
+  streak: number | null
+  trophies: number | null
+  hints_used: number
+  skips: number
+  abandons: number
+  feedback_views: number
+}
+
 type StudentRow = {
   student_id: string
   name: string
@@ -54,6 +77,17 @@ type StudentRow = {
   trophies: number
   best_streak: number
   last_played_at: string | null
+
+  // ✅ ADN
+  adn?: {
+    estilo: string
+    ritmo: string
+    persistencia: string
+    uso_pistas: string
+    tolerancia_error: string
+    reaccion_feedback: string
+    total_attempts: number
+  } | null
 }
 
 type ExerciseRow = {
@@ -126,10 +160,7 @@ function ProgressBar({ value, height = "h-2" }: { value: number; height?: string
 
   return (
     <div className={`${height} w-full rounded-full bg-muted overflow-hidden`}>
-      <div
-        className={`h-full rounded-full transition-all duration-500 ${colorClass}`}
-        style={{ width: `${v}%` }}
-      />
+      <div className={`h-full rounded-full transition-all duration-500 ${colorClass}`} style={{ width: `${v}%` }} />
     </div>
   )
 }
@@ -154,9 +185,7 @@ function Segmented({
             onClick={() => onChange(o.value)}
             className={[
               "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
-              active
-                ? "bg-foreground text-background shadow-md"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+              active ? "bg-foreground text-background shadow-md" : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
             ].join(" ")}
           >
             {Icon ? <Icon className="h-4 w-4" /> : null}
@@ -165,6 +194,109 @@ function Segmented({
         )
       })}
     </div>
+  )
+}
+
+function styleBadge(estilo: string) {
+  const s = (estilo || "").toLowerCase()
+  if (s.includes("impuls")) return "bg-fuchsia-600 text-white ring-2 ring-fuchsia-500/60"
+  if (s.includes("pens")) return "bg-sky-600 text-white ring-2 ring-sky-500/60"
+  if (s.includes("expl")) return "bg-emerald-600 text-white ring-2 ring-emerald-500/60"
+  if (s.includes("caut")) return "bg-amber-600 text-white ring-2 ring-amber-500/60"
+  if (s.includes("obser")) return "bg-slate-700 text-white ring-2 ring-slate-500/50"
+  return "bg-indigo-600 text-white ring-2 ring-indigo-500/60"
+}
+
+function labelStyle(estilo: string) {
+  const s = (estilo || "").toLowerCase()
+  if (s.includes("impuls")) return "⚡ Impulsivo"
+  if (s.includes("pens")) return "🐢 Pensador"
+  if (s.includes("expl")) return "🦊 Explorador"
+  if (s.includes("caut")) return "🐼 Cauteloso"
+  if (s.includes("obser")) return "👀 En observación"
+  return "🧠 Equilibrado"
+}
+
+function labelTrait(key: string, val: string) {
+  const k = key.toLowerCase()
+  const v = (val || "").toLowerCase()
+
+  const prettyKey =
+    k === "ritmo"
+      ? "Ritmo"
+      : k === "persistencia"
+      ? "Persistencia"
+      : k === "uso_pistas"
+      ? "Uso de pistas"
+      : k === "tolerancia_error"
+      ? "Tolerancia al error"
+      : k === "reaccion_feedback"
+      ? "Reacción al feedback"
+      : key
+
+  const prettyVal =
+    v === "rápido"
+      ? "Rápido"
+      : v === "lento"
+      ? "Lento"
+      : v === "medio"
+      ? "Medio"
+      : v === "alta"
+      ? "Alta"
+      : v === "media"
+      ? "Media"
+      : v === "baja"
+      ? "Baja"
+      : v === "independiente"
+      ? "Independiente"
+      : v === "equilibrado"
+      ? "Equilibrado"
+      : v === "dependiente"
+      ? "Dependiente"
+      : v === "ignora"
+      ? "Ignora"
+      : v === "mejora"
+      ? "Mejora"
+      : v === "neutro"
+      ? "Neutro"
+      : v === "desconocido"
+      ? "Desconocido"
+      : val
+
+  return `${prettyKey}: ${prettyVal}`
+}
+
+function AdnPill({
+  adn,
+}: {
+  adn?: StudentRow["adn"] | null
+}) {
+  if (!adn) {
+    return (
+      <span className="inline-flex items-center gap-2 rounded-full bg-slate-700 text-white px-4 py-1.5 text-sm font-black shadow-md ring-2 ring-slate-500/50">
+        <Brain className="h-4 w-4" />
+        👀 En observación
+      </span>
+    )
+  }
+
+  return (
+    <span
+      className={[
+        "inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-black shadow-md",
+        styleBadge(adn.estilo),
+      ].join(" ")}
+      title={[
+        labelTrait("ritmo", adn.ritmo),
+        labelTrait("persistencia", adn.persistencia),
+        labelTrait("uso_pistas", adn.uso_pistas),
+        labelTrait("tolerancia_error", adn.tolerancia_error),
+        labelTrait("reaccion_feedback", adn.reaccion_feedback),
+      ].join(" • ")}
+    >
+      <Brain className="h-4 w-4" />
+      {labelStyle(adn.estilo)}
+    </span>
   )
 }
 
@@ -226,18 +358,32 @@ export default function PerformancePage() {
         .eq("classroom_id", classroomId)
         .gte("created_at", since30)
 
-      const [{ data: members, error: membersErr }, { data: assignments, error: assErr }, { data: attempts, error: attErr }] =
-        await Promise.all([membersQuery, assignmentsQuery, attemptsQuery])
+      const adnQuery = supabase
+        .from("edu_student_learning_adn_view")
+        .select(
+          "student_id, classroom_id, ritmo, tolerancia_error, persistencia, uso_pistas, reaccion_feedback, estilo_aprendizaje, total_attempts"
+        )
+        .eq("classroom_id", classroomId)
 
-      if (membersErr || assErr || attErr) {
-        console.error({ membersErr, assErr, attErr })
+      const [
+        { data: members, error: membersErr },
+        { data: assignments, error: assErr },
+        { data: attempts, error: attErr },
+        { data: adnRows, error: adnErr },
+      ] = await Promise.all([membersQuery, assignmentsQuery, attemptsQuery, adnQuery])
+
+      if (membersErr || assErr || attErr || adnErr) {
+        console.error({ membersErr, assErr, attErr, adnErr })
       }
+
+      const adnByStudent = new Map<string, AdnRow>()
+      ;(adnRows || []).forEach((r: any) => {
+        if (r?.student_id) adnByStudent.set(r.student_id, r as AdnRow)
+      })
 
       const studentIds = new Set<string>()
       ;(members || []).forEach((row: any) => {
-        const member = Array.isArray(row.edu_institution_members)
-          ? row.edu_institution_members[0]
-          : row.edu_institution_members
+        const member = Array.isArray(row.edu_institution_members) ? row.edu_institution_members[0] : row.edu_institution_members
         if (member?.profile_id) studentIds.add(member.profile_id)
       })
 
@@ -260,9 +406,7 @@ export default function PerformancePage() {
       if (studentIds.size > 0 && exerciseIds.size > 0) {
         const { data: gam, error: gamErr } = await supabase
           .from("edu_student_gamification")
-          .select(
-            "student_id, exercise_id, attempts, correct_attempts, wrong_attempts, trophies, streak, last_played_at, updated_at"
-          )
+          .select("student_id, exercise_id, attempts, correct_attempts, wrong_attempts, trophies, streak, last_played_at, updated_at")
           .in("student_id", Array.from(studentIds))
           .in("exercise_id", Array.from(exerciseIds))
 
@@ -272,20 +416,20 @@ export default function PerformancePage() {
 
       const studentNameMap = new Map<string, string>()
       ;(members || []).forEach((row: any) => {
-        const member = Array.isArray(row.edu_institution_members)
-          ? row.edu_institution_members[0]
-          : row.edu_institution_members
+        const member = Array.isArray(row.edu_institution_members) ? row.edu_institution_members[0] : row.edu_institution_members
         const profile = Array.isArray(member?.edu_profiles) ? member?.edu_profiles[0] : member?.edu_profiles
         const fullName = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim()
-        if (member?.profile_id) {
-          studentNameMap.set(member.profile_id, fullName || member.profile_id)
-        }
+        if (member?.profile_id) studentNameMap.set(member.profile_id, fullName || member.profile_id)
       })
-
-      const exerciseMap = exerciseInfo
 
       const byStudent = new Map<string, StudentRow>()
       studentNameMap.forEach((name, studentId) => {
+        const adn = adnByStudent.get(studentId)
+
+        // ✅ gating: si no tiene suficientes intentos totales, lo marcamos "observación"
+        const totalAttemptsAll = adn?.total_attempts ?? 0
+        const hasAdn = totalAttemptsAll >= 5
+
         byStudent.set(studentId, {
           student_id: studentId,
           name,
@@ -298,8 +442,20 @@ export default function PerformancePage() {
           trophies: 0,
           best_streak: 0,
           last_played_at: null,
+          adn: hasAdn && adn
+            ? {
+                estilo: adn.estilo_aprendizaje,
+                ritmo: adn.ritmo,
+                persistencia: adn.persistencia,
+                uso_pistas: adn.uso_pistas,
+                tolerancia_error: adn.tolerancia_error,
+                reaccion_feedback: adn.reaccion_feedback,
+                total_attempts: totalAttemptsAll,
+              }
+            : null,
         })
       })
+
       const byExercise = new Map<string, ExerciseRow>()
       const attemptsArr = ((attempts || []) as AttemptRow[]).filter(
         (row) => studentIds.has(row.student_id) && exerciseIds.has(row.exercise_id),
@@ -307,8 +463,7 @@ export default function PerformancePage() {
 
       for (const row of attemptsArr) {
         const studentName = studentNameMap.get(row.student_id) || row.student_id
-        const exInfo =
-          exerciseMap.get(row.exercise_id) || { label: row.exercise_id, type: "sin_tipo" }
+        const exInfo = exerciseInfo.get(row.exercise_id) || { label: row.exercise_id, type: "sin_tipo" }
 
         const s = byStudent.get(row.student_id) || {
           student_id: row.student_id,
@@ -322,6 +477,7 @@ export default function PerformancePage() {
           trophies: 0,
           best_streak: 0,
           last_played_at: null,
+          adn: null,
         }
 
         const e = byExercise.get(row.exercise_id) || {
@@ -352,14 +508,10 @@ export default function PerformancePage() {
 
         if (row.time_seconds != null) {
           s.avg_time_s_30d =
-            s.avg_time_s_30d == null
-              ? row.time_seconds
-              : (s.avg_time_s_30d * (s.attempts_30d - 1) + row.time_seconds) / s.attempts_30d
+            s.avg_time_s_30d == null ? row.time_seconds : (s.avg_time_s_30d * (s.attempts_30d - 1) + row.time_seconds) / s.attempts_30d
 
           e.avg_time_s_30d =
-            e.avg_time_s_30d == null
-              ? row.time_seconds
-              : (e.avg_time_s_30d * (e.attempts_30d - 1) + row.time_seconds) / e.attempts_30d
+            e.avg_time_s_30d == null ? row.time_seconds : (e.avg_time_s_30d * (e.attempts_30d - 1) + row.time_seconds) / e.attempts_30d
         }
 
         if (!s.last_attempt_30d || new Date(row.created_at) > new Date(s.last_attempt_30d)) {
@@ -376,7 +528,6 @@ export default function PerformancePage() {
         set.add(row.student_id)
         studentsPerExercise.set(row.exercise_id, set)
       }
-
       studentsPerExercise.forEach((studentSet, exerciseId) => {
         const e = byExercise.get(exerciseId)
         if (e) {
@@ -453,6 +604,15 @@ export default function PerformancePage() {
     const totalTrophies = students.reduce((a, s) => a + s.trophies, 0)
     const bestStreak = students.reduce((a, s) => Math.max(a, s.best_streak), 0)
 
+    const adnCounts = students.reduce(
+      (acc, s) => {
+        const k = (s.adn?.estilo || "en_observacion").toLowerCase()
+        acc[k] = (acc[k] || 0) + 1
+        return acc
+      },
+      {} as Record<string, number>,
+    )
+
     return {
       totalAttempts,
       totalCorrect,
@@ -463,17 +623,14 @@ export default function PerformancePage() {
       bestStreak,
       activeStudents: students.length,
       activeExercises: exercises.length,
+      adnCounts,
     }
   }, [students, exercises])
 
   const filteredStudents = useMemo(() => {
     const q = query.trim().toLowerCase()
     const base = q
-      ? students.filter(
-          (s) =>
-            s.name.toLowerCase().includes(q) ||
-            s.student_id.toLowerCase().includes(q)
-        )
+      ? students.filter((s) => s.name.toLowerCase().includes(q) || s.student_id.toLowerCase().includes(q))
       : students
 
     const get = (s: StudentRow) => {
@@ -514,7 +671,7 @@ export default function PerformancePage() {
           (e) =>
             e.label.toLowerCase().includes(q) ||
             e.exercise_id.toLowerCase().includes(q) ||
-            e.type.toLowerCase().includes(q)
+            e.type.toLowerCase().includes(q),
         )
       : exercises
 
@@ -547,36 +704,25 @@ export default function PerformancePage() {
     })
   }, [exercises, query, sortExercises, descending])
 
-  const studentsByAccuracy = useMemo(
-    () => [...students].sort((a, b) => b.accuracy_30d - a.accuracy_30d),
-    [students],
-  )
+  const studentsByAccuracy = useMemo(() => [...students].sort((a, b) => b.accuracy_30d - a.accuracy_30d), [students])
 
   const studentAccuracyChart = useMemo(
     () => ({
-      labels: studentsByAccuracy.map((s, index) =>
-        `${index + 1}. ${s.name.split(' ').slice(0, 2).join(' ')}`
-      ),
+      labels: studentsByAccuracy.map((s, index) => `${index + 1}. ${s.name.split(" ").slice(0, 2).join(" ")}`),
       values: studentsByAccuracy.map((s) => s.accuracy_30d),
       label: "Precisión %",
     }),
     [studentsByAccuracy],
   )
 
-  const exercisesByAttempts = useMemo(
-    () => [...exercises].sort((a, b) => b.attempts_30d - a.attempts_30d),
-    [exercises],
-  )
+  const exercisesByAttempts = useMemo(() => [...exercises].sort((a, b) => b.attempts_30d - a.attempts_30d), [exercises])
 
-  const exercisesByAccuracy = useMemo(
-    () => [...exercises].sort((a, b) => b.accuracy_30d - a.accuracy_30d),
-    [exercises],
-  )
+  const exercisesByAccuracy = useMemo(() => [...exercises].sort((a, b) => b.accuracy_30d - a.accuracy_30d), [exercises])
 
   const exerciseAttemptsChart = useMemo(
     () => ({
-      labels: exercisesByAttempts.map((e, index) =>
-        `${index + 1}. ${e.label.slice(0, 30)}${e.label.length > 30 ? '...' : ''}`
+      labels: exercisesByAttempts.map(
+        (e, index) => `${index + 1}. ${e.label.slice(0, 30)}${e.label.length > 30 ? "..." : ""}`,
       ),
       values: exercisesByAttempts.map((e) => e.attempts_30d),
       label: "Intentos",
@@ -586,8 +732,8 @@ export default function PerformancePage() {
 
   const exerciseAccuracyChart = useMemo(
     () => ({
-      labels: exercisesByAccuracy.map((e, index) => 
-        `${index + 1}. ${e.label.slice(0, 30)}${e.label.length > 30 ? '...' : ''}`
+      labels: exercisesByAccuracy.map(
+        (e, index) => `${index + 1}. ${e.label.slice(0, 30)}${e.label.length > 30 ? "..." : ""}`,
       ),
       values: exercisesByAccuracy.map((e) => e.accuracy_30d),
       label: "Precisión %",
@@ -608,18 +754,36 @@ export default function PerformancePage() {
     }
   }, [students])
 
+  // ✅ NUEVO: Distribución ADN del aula
+  const adnDistributionData = useMemo(() => {
+    const counts: Record<string, number> = {}
+    students.forEach((s) => {
+      const k = (s.adn?.estilo || "en_observacion").toLowerCase()
+      counts[k] = (counts[k] || 0) + 1
+    })
+
+    const order = ["explorador", "equilibrado", "pensador", "cauteloso", "impulsivo", "en_observacion"]
+    const labelsMap: Record<string, string> = {
+      explorador: "🦊 Explorador",
+      equilibrado: "🧠 Equilibrado",
+      pensador: "🐢 Pensador",
+      cauteloso: "🐼 Cauteloso",
+      impulsivo: "⚡ Impulsivo",
+      en_observacion: "👀 Observación",
+    }
+
+    const labels = order.filter((k) => counts[k] != null).map((k) => labelsMap[k] || k)
+    const values = order.filter((k) => counts[k] != null).map((k) => counts[k])
+
+    return { labels, values }
+  }, [students])
+
   const charts = [
     {
       id: "student-accuracy",
       title: "Estudiantes por Precisión",
       subtitle: `Todos los estudiantes del aula (${students.length} total)`,
-      component: (
-        <BarChart
-          data={studentAccuracyChart}
-          height={520}
-          color="accent"
-        />
-      ),
+      component: <BarChart data={studentAccuracyChart} height={520} color="accent" />,
       hasData: studentAccuracyChart.values.length > 0,
     },
     {
@@ -636,21 +800,15 @@ export default function PerformancePage() {
           />
           <div className="grid grid-cols-3 gap-4 text-center text-sm">
             <div className="rounded-xl border bg-emerald-500/5 p-4">
-              <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-                {accuracyDistributionData.values[0]}
-              </div>
+              <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{accuracyDistributionData.values[0]}</div>
               <div className="mt-1 text-xs text-muted-foreground">Excelente</div>
             </div>
             <div className="rounded-xl border bg-amber-500/5 p-4">
-              <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">
-                {accuracyDistributionData.values[1]}
-              </div>
+              <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">{accuracyDistributionData.values[1]}</div>
               <div className="mt-1 text-xs text-muted-foreground">Bueno</div>
             </div>
             <div className="rounded-xl border bg-rose-500/5 p-4">
-              <div className="text-3xl font-bold text-rose-600 dark:text-rose-400">
-                {accuracyDistributionData.values[2]}
-              </div>
+              <div className="text-3xl font-bold text-rose-600 dark:text-rose-400">{accuracyDistributionData.values[2]}</div>
               <div className="mt-1 text-xs text-muted-foreground">A Mejorar</div>
             </div>
           </div>
@@ -658,73 +816,69 @@ export default function PerformancePage() {
       ),
       hasData: accuracyDistributionData.values.reduce((a, v) => a + v, 0) > 0,
     },
+    // ✅ NUEVO: ADN
+    {
+      id: "adn-distribution",
+      title: "ADN de Aprendizaje del Aula",
+      subtitle: "Cómo aprenden los estudiantes según su comportamiento",
+      component: (
+        <div className="space-y-6">
+          <DoughnutChart data={adnDistributionData} height={420} showLegend />
+          <div className="rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground">
+            Tip: coloca el mouse sobre el badge 🧠 del alumno para ver rasgos (ritmo, persistencia, uso de pistas, etc.).
+          </div>
+        </div>
+      ),
+      hasData: adnDistributionData.values.reduce((a, v) => a + v, 0) > 0,
+    },
     {
       id: "exercise-attempts",
       title: "Ejercicios Más Practicados",
       subtitle: `Todos los ejercicios del aula (${exercises.length} total)`,
-      component: (
-        <BarChart
-          data={exerciseAttemptsChart}
-          height={520}
-          color="secondary"
-        />
-      ),
+      component: <BarChart data={exerciseAttemptsChart} height={520} color="secondary" />,
       hasData: exerciseAttemptsChart.values.length > 0,
     },
     {
       id: "exercise-accuracy",
       title: "Ejercicios por Precisión",
       subtitle: "Todos los ejercicios ordenados por nivel de dominio",
-      component: (
-        <BarChart
-          data={exerciseAccuracyChart}
-          height={520}
-          color="primary"
-          horizontal
-        />
-      ),
+      component: <BarChart data={exerciseAccuracyChart} height={520} color="primary" horizontal />,
       hasData: exerciseAccuracyChart.values.length > 0,
     },
   ]
 
   const currentChart = charts[currentChartIndex]
-
-  const nextChart = () => {
-    setCurrentChartIndex((prev) => (prev + 1) % charts.length)
-  }
-
-  const prevChart = () => {
-    setCurrentChartIndex((prev) => (prev - 1 + charts.length) % charts.length)
-  }
+  const nextChart = () => setCurrentChartIndex((prev) => (prev + 1) % charts.length)
+  const prevChart = () => setCurrentChartIndex((prev) => (prev - 1 + charts.length) % charts.length)
 
   const handleExportToExcel = async () => {
     setExporting(true)
     try {
-      const XLSX = await import('xlsx')
-      
+      const XLSX = await import("xlsx")
       const wb = XLSX.utils.book_new()
-      
-      // Hoja de resumen
+
       const summaryData = [
-        ['REPORTE DE RENDIMIENTO DEL AULA'],
-        ['Fecha de generación:', new Date().toLocaleDateString()],
-        [''],
-        ['RESUMEN GENERAL'],
-        ['Total de estudiantes:', totals.activeStudents],
-        ['Total de ejercicios:', totals.activeExercises],
-        ['Total de intentos:', totals.totalAttempts],
-        ['Precisión promedio:', `${totals.accuracy}%`],
-        ['Respuestas correctas:', totals.totalCorrect],
-        ['Respuestas incorrectas:', totals.totalIncorrect],
-        ['Trofeos totales:', totals.totalTrophies],
-        ['Mejor racha:', totals.bestStreak],
+        ["REPORTE DE RENDIMIENTO DEL AULA"],
+        ["Fecha de generación:", new Date().toLocaleDateString()],
+        [""],
+        ["RESUMEN GENERAL"],
+        ["Total de estudiantes:", totals.activeStudents],
+        ["Total de ejercicios:", totals.activeExercises],
+        ["Total de intentos:", totals.totalAttempts],
+        ["Precisión promedio:", `${totals.accuracy}%`],
+        ["Respuestas correctas:", totals.totalCorrect],
+        ["Respuestas incorrectas:", totals.totalIncorrect],
+        ["Trofeos totales:", totals.totalTrophies],
+        ["Mejor racha:", totals.bestStreak],
+        [""],
+        ["ADN DEL AULA (conteo)"],
+        ...Object.entries(totals.adnCounts).map(([k, v]) => [k, v]),
       ]
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData)
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen')
-      
-      // Hoja de estudiantes
+      XLSX.utils.book_append_sheet(wb, wsSummary, "Resumen")
+
       const studentsData = [
-        ['Ranking', 'Nombre', 'Intentos', 'Correctas', 'Incorrectas', 'Precisión %', 'Trofeos', 'Mejor Racha', 'Último Intento'],
+        ["Ranking", "Nombre", "Intentos", "Correctas", "Incorrectas", "Precisión %", "Trofeos", "Mejor Racha", "ADN", "Ritmo", "Persistencia", "Uso de pistas", "Tolerancia error", "Reacción feedback", "Último Intento"],
         ...filteredStudents.map((s, index) => [
           index + 1,
           s.name,
@@ -734,15 +888,20 @@ export default function PerformancePage() {
           s.accuracy_30d,
           s.trophies,
           s.best_streak,
+          s.adn?.estilo ?? "en_observacion",
+          s.adn?.ritmo ?? "",
+          s.adn?.persistencia ?? "",
+          s.adn?.uso_pistas ?? "",
+          s.adn?.tolerancia_error ?? "",
+          s.adn?.reaccion_feedback ?? "",
           formatDate(s.last_attempt_30d),
         ]),
       ]
       const wsStudents = XLSX.utils.aoa_to_sheet(studentsData)
-      XLSX.utils.book_append_sheet(wb, wsStudents, 'Estudiantes')
-      
-      // Hoja de ejercicios
+      XLSX.utils.book_append_sheet(wb, wsStudents, "Estudiantes")
+
       const exercisesData = [
-        ['Ranking', 'Ejercicio', 'Tipo', 'Intentos', 'Correctas', 'Incorrectas', 'Precisión %', 'Estudiantes', 'Trofeos', 'Racha'],
+        ["Ranking", "Ejercicio", "Tipo", "Intentos", "Correctas", "Incorrectas", "Precisión %", "Estudiantes", "Trofeos", "Racha"],
         ...filteredExercises.map((e, index) => [
           index + 1,
           e.label,
@@ -757,12 +916,12 @@ export default function PerformancePage() {
         ]),
       ]
       const wsExercises = XLSX.utils.aoa_to_sheet(exercisesData)
-      XLSX.utils.book_append_sheet(wb, wsExercises, 'Ejercicios')
-      
-      XLSX.writeFile(wb, `Rendimiento_Aula_${new Date().toISOString().split('T')[0]}.xlsx`)
+      XLSX.utils.book_append_sheet(wb, wsExercises, "Ejercicios")
+
+      XLSX.writeFile(wb, `Rendimiento_Aula_${new Date().toISOString().split("T")[0]}.xlsx`)
     } catch (error) {
-      console.error('Error al exportar:', error)
-      alert('Hubo un error al exportar los datos')
+      console.error("Error al exportar:", error)
+      alert("Hubo un error al exportar los datos")
     } finally {
       setExporting(false)
     }
@@ -772,7 +931,7 @@ export default function PerformancePage() {
     <div className="space-y-8">
       <PageHeader
         title="Rendimiento del Aula"
-        description="Análisis detallado de desempeño, participación y gamificación de los últimos 30 días."
+        description="Análisis detallado de desempeño, participación, gamificación y ADN de aprendizaje."
         breadcrumbs={[
           { label: "Mis Clases", href: "/dashboard/teacher" },
           { label: "Aula", href: `/dashboard/teacher/classroom/${classroomId}` },
@@ -791,12 +950,8 @@ export default function PerformancePage() {
                   <Activity className="h-8 w-8 text-primary" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-                    Rendimiento General
-                  </div>
-                  <div className="text-4xl font-bold tracking-tight">
-                    {totals.accuracy}% Precisión
-                  </div>
+                  <div className="text-sm font-medium uppercase tracking-wider text-muted-foreground">Rendimiento General</div>
+                  <div className="text-4xl font-bold tracking-tight">{totals.accuracy}% Precisión</div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
@@ -843,15 +998,10 @@ export default function PerformancePage() {
 
       {/* Chart Carousel */}
       <div className="relative">
-        <ChartCard
-          title={currentChart.title}
-          subtitle={currentChart.subtitle}
-          className="shadow-2xl"
-        >
+        <ChartCard title={currentChart.title} subtitle={currentChart.subtitle} className="shadow-2xl">
           {currentChart.hasData ? (
             <div className="relative">
               {currentChart.component}
-              
               <div className="absolute left-0 right-0 top-1/2 flex -translate-y-1/2 items-center justify-between px-4 pointer-events-none">
                 <button
                   onClick={prevChart}
@@ -874,7 +1024,7 @@ export default function PerformancePage() {
               <p className="text-sm text-muted-foreground">Sin datos disponibles</p>
             </div>
           )}
-          
+
           <div className="mt-6 flex items-center justify-center gap-2">
             {charts.map((chart, index) => (
               <button
@@ -882,9 +1032,7 @@ export default function PerformancePage() {
                 onClick={() => setCurrentChartIndex(index)}
                 className={[
                   "h-2 rounded-full transition-all",
-                  index === currentChartIndex
-                    ? "w-8 bg-primary"
-                    : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50",
+                  index === currentChartIndex ? "w-8 bg-primary" : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50",
                 ].join(" ")}
                 aria-label={`Ver ${chart.title}`}
               />
@@ -906,9 +1054,7 @@ export default function PerformancePage() {
           />
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Ejercicios:
-            </span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ejercicios:</span>
             <Segmented
               value={assignmentStatusFilter}
               onChange={(v) => setAssignmentStatusFilter(v as "active" | "inactive")}
@@ -1000,15 +1146,11 @@ export default function PerformancePage() {
             <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-6 py-5">
               <div>
                 <h2 className="text-xl font-bold">Ranking de Estudiantes</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Análisis detallado de desempeño, tiempo y gamificación
-                </p>
+                <p className="mt-1 text-sm text-muted-foreground">Desempeño, tiempo, gamificación y ADN de aprendizaje</p>
               </div>
               <div className="rounded-2xl border bg-background px-4 py-2 text-center shadow-sm">
                 <div className="text-2xl font-bold">{filteredStudents.length}</div>
-                <div className="text-xs text-muted-foreground">
-                  {filteredStudents.length === 1 ? "estudiante" : "estudiantes"}
-                </div>
+                <div className="text-xs text-muted-foreground">{filteredStudents.length === 1 ? "estudiante" : "estudiantes"}</div>
               </div>
             </div>
 
@@ -1016,9 +1158,7 @@ export default function PerformancePage() {
               <div className="flex h-96 items-center justify-center">
                 <div className="text-center">
                   <Search className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">
-                    No hay datos disponibles o no se encontraron coincidencias
-                  </p>
+                  <p className="text-sm text-muted-foreground">No hay datos disponibles o no se encontraron coincidencias</p>
                 </div>
               </div>
             ) : (
@@ -1027,11 +1167,7 @@ export default function PerformancePage() {
                   <button
                     key={s.student_id}
                     type="button"
-                    onClick={() =>
-                      router.push(
-                        `/dashboard/teacher/classroom/${classroomId}/performance/${s.student_id}`
-                      )
-                    }
+                    onClick={() => router.push(`/dashboard/teacher/classroom/${classroomId}/performance/${s.student_id}`)}
                     className="group w-full text-left px-6 py-5 transition-all hover:bg-primary/5 hover:border-l-4 hover:border-l-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
                   >
                     <div className="flex items-start gap-4">
@@ -1042,13 +1178,10 @@ export default function PerformancePage() {
                       <div className="flex-1 space-y-4">
                         <div className="flex flex-wrap items-center gap-3">
                           <div className="flex items-center gap-2">
-                            <div className="text-xl font-black text-foreground group-hover:text-primary transition-colors">
-                              {s.name}
-                            </div>
-                            <div className="text-sm text-primary font-semibold group-hover:underline">
-                              Ver detalle →
-                            </div>
+                            <div className="text-xl font-black text-foreground group-hover:text-primary transition-colors">{s.name}</div>
+                            <div className="text-sm text-primary font-semibold group-hover:underline">Ver detalle →</div>
                           </div>
+
                           <span
                             className={[
                               "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-black uppercase tracking-wide shadow-md ring-2",
@@ -1062,6 +1195,10 @@ export default function PerformancePage() {
                             <Target className="h-4 w-4" />
                             {s.accuracy_30d}%
                           </span>
+
+                          {/* ✅ ADN badge */}
+                          <AdnPill adn={s.adn} />
+
                           {s.trophies > 0 && (
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 text-white px-4 py-1.5 text-sm font-black shadow-md ring-2 ring-amber-500">
                               <Trophy className="h-4 w-4" />
@@ -1124,15 +1261,11 @@ export default function PerformancePage() {
             <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-6 py-5">
               <div>
                 <h2 className="text-xl font-bold">Análisis de Ejercicios</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Desempeño, participación y métricas de gamificación
-                </p>
+                <p className="mt-1 text-sm text-muted-foreground">Desempeño, participación y métricas de gamificación</p>
               </div>
               <div className="rounded-2xl border bg-background px-4 py-2 text-center shadow-sm">
                 <div className="text-2xl font-bold">{filteredExercises.length}</div>
-                <div className="text-xs text-muted-foreground">
-                  {filteredExercises.length === 1 ? "ejercicio" : "ejercicios"}
-                </div>
+                <div className="text-xs text-muted-foreground">{filteredExercises.length === 1 ? "ejercicio" : "ejercicios"}</div>
               </div>
             </div>
 
@@ -1140,9 +1273,7 @@ export default function PerformancePage() {
               <div className="flex h-96 items-center justify-center">
                 <div className="text-center">
                   <Search className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">
-                    No hay datos disponibles o no se encontraron coincidencias
-                  </p>
+                  <p className="text-sm text-muted-foreground">No hay datos disponibles o no se encontraron coincidencias</p>
                 </div>
               </div>
             ) : (

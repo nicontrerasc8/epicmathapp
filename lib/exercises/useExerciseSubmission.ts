@@ -7,7 +7,7 @@ export function useExerciseSubmission(input: {
   sessionId?: string
 }) {
   const { studentId, gami, gamiLoading, applyGamification } =
-    useExerciseGamification(input.exerciseId)
+    useExerciseGamification(input.exerciseId, input.classroomId)
 
   const submitAttempt = async (params: {
     correct: boolean

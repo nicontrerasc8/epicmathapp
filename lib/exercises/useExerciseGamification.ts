@@ -12,20 +12,28 @@ export type GamificationRow = {
   last_played_at: string | null
 }
 
-export function useExerciseGamification(exerciseId: string) {
+export function useExerciseGamification(
+  exerciseId: string,
+  classroomId: string
+) {
   const supabase = createClient()
   const [studentId, setStudentId] = useState<string | null>(null)
   const [gami, setGami] = useState<GamificationRow | null>(null)
   const [gamiLoading, setGamiLoading] = useState(true)
 
+  /* ======================================================
+     LOAD GAMIFICATION
+  ====================================================== */
   useEffect(() => {
     let alive = true
+
     const run = async () => {
       setGamiLoading(true)
 
       const { data } = await supabase.auth.getUser()
       const uid = data?.user?.id ?? null
       if (!alive) return
+
       setStudentId(uid)
 
       if (!uid) {
@@ -37,7 +45,16 @@ export function useExerciseGamification(exerciseId: string) {
       const { data: row, error } = await supabase
         .from("edu_student_gamification")
         .select(
-          "student_id, exercise_id, attempts, correct_attempts, wrong_attempts, trophies, streak, last_played_at"
+          `
+          student_id,
+          exercise_id,
+          attempts,
+          correct_attempts,
+          wrong_attempts,
+          trophies,
+          streak,
+          last_played_at
+        `
         )
         .eq("student_id", uid)
         .eq("exercise_id", exerciseId)
@@ -61,11 +78,23 @@ export function useExerciseGamification(exerciseId: string) {
     }
   }, [supabase, exerciseId])
 
+  /* ======================================================
+     REFRESH
+  ====================================================== */
   const refresh = async (uid: string) => {
     const { data: row } = await supabase
       .from("edu_student_gamification")
       .select(
-        "student_id, exercise_id, attempts, correct_attempts, wrong_attempts, trophies, streak, last_played_at"
+        `
+        student_id,
+        exercise_id,
+        attempts,
+        correct_attempts,
+        wrong_attempts,
+        trophies,
+        streak,
+        last_played_at
+      `
       )
       .eq("student_id", uid)
       .eq("exercise_id", exerciseId)
@@ -74,20 +103,27 @@ export function useExerciseGamification(exerciseId: string) {
     setGami((row as any) ?? null)
   }
 
+  /* ======================================================
+     APPLY GAMIFICATION + LEARNING (RPC ÚNICA)
+  ====================================================== */
   const applyGamification = async (params: {
     uid: string
     correct: boolean
     timeSeconds: number
   }) => {
-    const { error } = await supabase.rpc("fn_apply_student_gamification", {
-      p_student_id: params.uid,
-      p_exercise_id: exerciseId,
-      p_correct: params.correct,
-      p_time_seconds: Math.floor(params.timeSeconds),
-    })
+    const { error } = await supabase.rpc(
+      "fn_apply_gamification_and_learning",
+      {
+        p_student_id: params.uid,
+        p_classroom_id: classroomId,
+        p_exercise_id: exerciseId,
+        p_correct: params.correct,
+        p_time_seconds: Math.floor(params.timeSeconds),
+      }
+    )
 
     if (error) {
-      console.warn("[exercise gamification] rpc error", error)
+      console.warn("[gamification + learning] rpc error", error)
       return
     }
 
