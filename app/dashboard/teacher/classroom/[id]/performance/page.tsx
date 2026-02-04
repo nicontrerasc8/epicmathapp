@@ -266,6 +266,25 @@ function labelTrait(key: string, val: string) {
   return `${prettyKey}: ${prettyVal}`
 }
 
+const ADN_PROFILE_ORDER = ["explorador", "equilibrado", "pensador", "cauteloso", "impulsivo", "en_observacion"] as const
+type AdnProfileKey = (typeof ADN_PROFILE_ORDER)[number]
+const ADN_PROFILE_LABELS: Record<AdnProfileKey, string> = {
+  explorador: "🦊 Explorador",
+  equilibrado: "🧠 Equilibrado",
+  pensador: "🐢 Pensador",
+  cauteloso: "🐼 Cauteloso",
+  impulsivo: "⚡ Impulsivo",
+  en_observacion: "👀 Observación",
+}
+const ADN_PROFILE_COLOR_MAP: Record<AdnProfileKey, string> = {
+  explorador: chartColors.secondary,
+  equilibrado: chartColors.primary,
+  pensador: chartColors.accent,
+  cauteloso: chartColors.destructive,
+  impulsivo: chartColors.secondaryLight,
+  en_observacion: chartColors.muted,
+}
+
 function AdnPill({
   adn,
 }: {
@@ -588,6 +607,31 @@ export default function PerformancePage() {
     load()
   }, [classroomId, supabase, institution?.id, assignmentStatusFilter])
 
+  const adnProfileDistribution = useMemo(() => {
+    const counts = ADN_PROFILE_ORDER.reduce((acc, key) => {
+      acc[key] = 0
+      return acc
+    }, {} as Record<AdnProfileKey, number>)
+
+    students.forEach((s) => {
+      const key = ((s.adn?.estilo || "en_observacion") as AdnProfileKey).toLowerCase() as AdnProfileKey
+      counts[key] = (counts[key] ?? 0) + 1
+    })
+
+    const entries = ADN_PROFILE_ORDER.map((key) => ({
+      key,
+      label: ADN_PROFILE_LABELS[key],
+      value: counts[key],
+    })).filter((entry) => entry.value > 0)
+
+    return {
+      counts,
+      entries,
+      labels: entries.map((entry) => entry.label),
+      values: entries.map((entry) => entry.value),
+    }
+  }, [students])
+
   const totals = useMemo(() => {
     const totalAttempts = students.reduce((a, s) => a + s.attempts_30d, 0)
     const totalCorrect = students.reduce((a, s) => a + s.correct_30d, 0)
@@ -604,14 +648,7 @@ export default function PerformancePage() {
     const totalTrophies = students.reduce((a, s) => a + s.trophies, 0)
     const bestStreak = students.reduce((a, s) => Math.max(a, s.best_streak), 0)
 
-    const adnCounts = students.reduce(
-      (acc, s) => {
-        const k = (s.adn?.estilo || "en_observacion").toLowerCase()
-        acc[k] = (acc[k] || 0) + 1
-        return acc
-      },
-      {} as Record<string, number>,
-    )
+    const adnCounts = { ...adnProfileDistribution.counts }
 
     return {
       totalAttempts,
@@ -625,7 +662,7 @@ export default function PerformancePage() {
       activeExercises: exercises.length,
       adnCounts,
     }
-  }, [students, exercises])
+  }, [students, exercises, adnProfileDistribution])
 
   const filteredStudents = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -754,29 +791,10 @@ export default function PerformancePage() {
     }
   }, [students])
 
-  // ✅ NUEVO: Distribución ADN del aula
-  const adnDistributionData = useMemo(() => {
-    const counts: Record<string, number> = {}
-    students.forEach((s) => {
-      const k = (s.adn?.estilo || "en_observacion").toLowerCase()
-      counts[k] = (counts[k] || 0) + 1
-    })
-
-    const order = ["explorador", "equilibrado", "pensador", "cauteloso", "impulsivo", "en_observacion"]
-    const labelsMap: Record<string, string> = {
-      explorador: "🦊 Explorador",
-      equilibrado: "🧠 Equilibrado",
-      pensador: "🐢 Pensador",
-      cauteloso: "🐼 Cauteloso",
-      impulsivo: "⚡ Impulsivo",
-      en_observacion: "👀 Observación",
-    }
-
-    const labels = order.filter((k) => counts[k] != null).map((k) => labelsMap[k] || k)
-    const values = order.filter((k) => counts[k] != null).map((k) => counts[k])
-
-    return { labels, values }
-  }, [students])
+  const adnDistributionData = {
+    labels: adnProfileDistribution.labels,
+    values: adnProfileDistribution.values,
+  }
 
   const charts = [
     {
@@ -1041,6 +1059,47 @@ export default function PerformancePage() {
         </ChartCard>
       </div>
 
+      <ChartCard
+        title="Perfiles de ADN en el aula"
+        subtitle="Resumen visual del tipo de perfil que tiene cada estudiante"
+        className="shadow-2xl"
+      >
+        <div className="grid gap-6 lg:grid-cols-[1fr,minmax(200px,0.45fr)] items-center">
+          <div>
+            <DoughnutChart
+              data={adnDistributionData}
+              height={320}
+              showLegend={false}
+              colors={adnProfileDistribution.entries.map((entry) => ADN_PROFILE_COLOR_MAP[entry.key])}
+            />
+          </div>
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Leyenda de perfiles</p>
+            {adnProfileDistribution.entries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay perfiles definidos aún.</p>
+            ) : (
+              <div className="space-y-2">
+                {adnProfileDistribution.entries.map((entry) => (
+                  <div
+                    key={entry.key}
+                    className="flex items-center justify-between rounded-2xl border px-4 py-2 text-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="h-3.5 w-3.5 rounded-full"
+                        style={{ background: ADN_PROFILE_COLOR_MAP[entry.key] }}
+                      />
+                      <span className="font-semibold">{entry.label}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{entry.value} estudiantes</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </ChartCard>
+
       {/* Controls */}
       <div className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-lg md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-3">
@@ -1199,18 +1258,6 @@ export default function PerformancePage() {
                           {/* ✅ ADN badge */}
                           <AdnPill adn={s.adn} />
 
-                          {s.trophies > 0 && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 text-white px-4 py-1.5 text-sm font-black shadow-md ring-2 ring-amber-500">
-                              <Trophy className="h-4 w-4" />
-                              {s.trophies}
-                            </span>
-                          )}
-                          {s.best_streak > 0 && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-600 text-white px-4 py-1.5 text-sm font-black shadow-md ring-2 ring-orange-500">
-                              <Flame className="h-4 w-4" />
-                              {s.best_streak}
-                            </span>
-                          )}
                         </div>
 
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
