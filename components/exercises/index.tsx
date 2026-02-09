@@ -75,12 +75,22 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "49b82682-8759-4b51-9de3-e35d0bc17d7d": () => import("./primaria/SumasLaPontificia"),
   "97a15c4c-f677-4789-9e7b-1e4c8972c707": () => import("./primaria/RestasLaPontificia"),
   "4f1075c6-8459-4297-872a-85de63da0312": () => import("./primaria/MultiplicacionesLaPontificia"),
+<<<<<<< HEAD
   "2f4793be-c77b-4e5e-8dd6-a149599fb58d": () => import("./primaria/SumasLaPontificia"),
   "98ba8bab-9ed8-43c9-9d66-2c75ece6a247": () => import("./primaria/RestasLaPontificia"),
   "c518852b-88f0-4ae2-842b-01ab420afcf6": () => import("./primaria/MultiplicacionesLaPontificia"),
 
 
 
+=======
+  "d64f714a-0fd7-4b27-9129-340693d12711": () => import("./primaria/SumasLaPontificia"),
+  "c6d80a78-128c-464f-917c-d75fd9a0f1c5": () => import("./primaria/RestasLaPontificia"),
+  "02823510-6da2-478c-8600-958f4cd37fe4": () => import("./primaria/MultiplicacionesLaPontificia"),
+
+  "2f4793be-c77b-4e5e-8dd6-a149599fb58d": () => import("./primaria/SumasLaPontificia"),
+  "98ba8bab-9ed8-43c9-9d66-2c75ece6a247": () => import("./primaria/RestasLaPontificia"),
+  "c518852b-88f0-4ae2-842b-01ab420afcf6": () => import("./primaria/MultiplicacionesLaPontificia"),
+>>>>>>> d6dfc080f726b5020ed9209d4173577438023c87
 }
 
 const formatFeedbackDate = (value?: string) => {
