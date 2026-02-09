@@ -78,6 +78,9 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "2f4793be-c77b-4e5e-8dd6-a149599fb58d": () => import("./primaria/SumasLaPontificia"),
   "98ba8bab-9ed8-43c9-9d66-2c75ece6a247": () => import("./primaria/RestasLaPontificia"),
   "c518852b-88f0-4ae2-842b-01ab420afcf6": () => import("./primaria/MultiplicacionesLaPontificia"),
+  "d64f714a-0fd7-4b27-9129-340693d12711": () => import("./primaria/SumasLaPontificia"),
+  "c6d80a78-128c-464f-917c-d75fd9a0f1c5": () => import("./primaria/RestasLaPontificia"),
+  "02823510-6da2-478c-8600-958f4cd37fe4": () => import("./primaria/MultiplicacionesLaPontificia"),
 
 }
 
