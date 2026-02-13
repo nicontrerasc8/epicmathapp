@@ -23,7 +23,7 @@ const config: Config = {
         input: "#F3F4F6",      // gris clarito
         ring: "#93C5FD",       // azul claro
         primary: {
-          DEFAULT: "#3B82F6", // azul
+          DEFAULT: "#1c5fcc", // azul
           foreground: "#ffffff",
         },
  secondary: {
