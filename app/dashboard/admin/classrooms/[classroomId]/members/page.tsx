@@ -13,6 +13,7 @@ import { useInstitution } from "@/components/institution-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import * as XLSX from "xlsx"
 import {
   addMemberToClassroomAction,
@@ -156,6 +157,10 @@ function buildUniqueStudentEmail(
   return `${local}@${institutionSlug}.ludus.edu`
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
 
 export default function ClassroomMembersPage() {
   const params = useParams()
@@ -184,6 +189,8 @@ export default function ClassroomMembersPage() {
   const [bulkPreview, setBulkPreview] = useState<BulkRow[]>([])
   const [bulkError, setBulkError] = useState<string | null>(null)
   const [bulkCreating, setBulkCreating] = useState(false)
+  const [bulkRole, setBulkRole] = useState<"student" | "teacher">("student")
+  const [bulkIncludeEmail, setBulkIncludeEmail] = useState(false)
 
   const institutionSlug = useMemo(() => {
     if (institution?.slug) return institution.slug
@@ -360,6 +367,22 @@ export default function ClassroomMembersPage() {
     }
   }
 
+  const downloadTemplate = () => {
+    const sample: Record<string, string> = {
+      nombre: "Juan",
+      apellido: "Perez",
+    }
+    if (bulkIncludeEmail) {
+      sample.correo = "juan.perez@correo.com"
+    }
+    const ws = XLSX.utils.json_to_sheet([sample])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "Plantilla")
+    const roleLabel = bulkRole === "teacher" ? "profesores" : "estudiantes"
+    const suffix = bulkIncludeEmail ? "_con_correo" : ""
+    XLSX.writeFile(wb, `plantilla_${roleLabel}${suffix}.xlsx`)
+  }
+
   const parseExcel = async (file: File) => {
     setBulkError(null)
     setBulkFileName(file.name)
@@ -374,38 +397,78 @@ export default function ClassroomMembersPage() {
         const normalized = Object.fromEntries(
           Object.entries(r).map(([k, v]) => [String(k).trim().toLowerCase(), v]),
         )
+        const rawEmail = String(
+          normalized.email || normalized.correo || normalized.mail || "",
+        )
+          .trim()
+          .toLowerCase()
         return {
           first_name: String(normalized.first_name || normalized.nombre || "").trim(),
           last_name: String(normalized.last_name || normalized.apellido || "").trim(),
+          email: rawEmail,
         }
       })
       .filter((r) => r.first_name && r.last_name)
 
     if (!extracted.length) {
-      setBulkError("No encontre filas. Usa columnas nombre y apellido.")
+      const columnsLabel = bulkIncludeEmail
+        ? "nombre, apellido y correo"
+        : "nombre y apellido"
+      setBulkError(`No encontre filas. Usa columnas ${columnsLabel}.`)
       setBulkPreview([])
       return
     }
 
     const used = new Map<string, number>()
+    const usedEmails = new Map<string, number>()
     const previewRows: BulkRow[] = extracted.map((r) => {
-      const email = buildUniqueStudentEmail(
-        r.first_name,
-        r.last_name,
-        institutionSlug,
-        used,
-      )
+      let email = r.email
+      let status: BulkRow["status"] = "pending"
+      let message: string | undefined
+
+      if (bulkIncludeEmail) {
+        const lowerEmail = email.toLowerCase()
+        if (!lowerEmail || !isValidEmail(lowerEmail)) {
+          status = "error"
+          message = "Correo invalido"
+        } else {
+          const count = (usedEmails.get(lowerEmail) ?? 0) + 1
+          usedEmails.set(lowerEmail, count)
+          if (count > 1) {
+            status = "error"
+            message = "Correo duplicado"
+          }
+        }
+        email = lowerEmail
+      } else {
+        email = buildUniqueStudentEmail(
+          r.first_name,
+          r.last_name,
+          institutionSlug,
+          used,
+        )
+      }
 
       return {
         first_name: r.first_name,
         last_name: r.last_name,
         email,
         password: DEFAULT_PASSWORD,
-        status: "pending",
+        status,
+        message,
       }
     })
 
     setBulkPreview(previewRows)
+
+    if (bulkIncludeEmail) {
+      const invalidCount = previewRows.filter((r) => r.status === "error").length
+      if (invalidCount > 0) {
+        setBulkError(
+          `Se detectaron ${invalidCount} filas con correos invalidos o duplicados.`,
+        )
+      }
+    }
   }
 
   const createBulkStudents = async () => {
@@ -418,15 +481,24 @@ export default function ClassroomMembersPage() {
       return
     }
 
+    const rowsToCreate = bulkPreview
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => row.status !== "error")
+
+    if (!rowsToCreate.length) {
+      setBulkError("No hay filas validas para crear. Corrige el Excel.")
+      return
+    }
+
     setBulkCreating(true)
     setBulkError(null)
     try {
-      const payload = bulkPreview.map((r) => ({
-        email: r.email,
-        password: r.password,
-        first_name: r.first_name,
-        last_name: r.last_name,
-        role: "student" as const,
+      const payload = rowsToCreate.map(({ row }) => ({
+        email: row.email,
+        password: row.password,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        role: bulkRole,
         institution_id: institution.id,
         classroom_id: classroomId,
       }))
@@ -434,6 +506,7 @@ export default function ClassroomMembersPage() {
 
       setBulkPreview((prev) =>
         prev.map((row) => {
+          if (row.status === "error") return row
           const failed = report?.failed?.find((f: any) => f.email === row.email)
           if (failed) {
             return { ...row, status: "error", message: failed.error }
@@ -476,7 +549,7 @@ export default function ClassroomMembersPage() {
               <div>
                 <div className="text-base font-semibold">Agregar miembros</div>
                 <div className="text-sm text-muted-foreground">
-                  Puedes agregar usuarios existentes, crear nuevos o importar estudiantes.
+                  Puedes agregar usuarios existentes, crear nuevos o importar estudiantes y profesores.
                 </div>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>
@@ -504,7 +577,7 @@ export default function ClassroomMembersPage() {
                 variant={tab === "bulk" ? "default" : "outline"}
                 onClick={() => setTab("bulk")}
               >
-                Importar Excel (estudiantes)
+                Importar Excel
               </Button>
             </div>
 
@@ -652,6 +725,36 @@ export default function ClassroomMembersPage() {
 
               {tab === "bulk" && (
                 <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium">Tipo de usuario</span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={bulkRole === "student" ? "default" : "outline"}
+                        onClick={() => setBulkRole("student")}
+                      >
+                        Estudiantes
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={bulkRole === "teacher" ? "default" : "outline"}
+                        onClick={() => {
+                          setBulkRole("teacher")
+                          if (!bulkIncludeEmail) {
+                            setBulkIncludeEmail(true)
+                            setBulkPreview([])
+                            setBulkFileName(null)
+                            setBulkError(null)
+                          }
+                        }}
+                      >
+                        Profesores
+                      </Button>
+                    </div>
+                  </div>
+
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2 md:col-span-2">
                       <Label>Archivo Excel</Label>
@@ -670,17 +773,39 @@ export default function ClassroomMembersPage() {
                         </div>
                       )}
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <Button size="sm" variant="outline" asChild>
-                          <a href="/templates/plantilla-estudiantes.xlsx" download>
-                            Descargar plantilla
-                          </a>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="bulkIncludeEmail"
+                            checked={bulkIncludeEmail}
+                            onCheckedChange={(val) => {
+                              setBulkIncludeEmail(Boolean(val))
+                              setBulkPreview([])
+                              setBulkFileName(null)
+                              setBulkError(null)
+                            }}
+                          />
+                          <Label htmlFor="bulkIncludeEmail" className="text-xs">
+                            Incluir correo en plantilla
+                          </Label>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={downloadTemplate}>
+                          Descargar plantilla
                         </Button>
-                        <span>Usa columnas: nombre, apellido.</span>
+                        <span>
+                          Usa columnas: nombre, apellido
+                          {bulkIncludeEmail ? ", correo" : ""}.
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Dominio</Label>
-                      <Input value={`${institutionSlug}.ludus.edu`} readOnly />
+                      {bulkIncludeEmail ? (
+                        <div className="text-xs text-muted-foreground">
+                          Se usaran los correos del Excel.
+                        </div>
+                      ) : (
+                        <Input value={`${institutionSlug}.ludus.edu`} readOnly />
+                      )}
                     </div>
                   </div>
 
@@ -696,7 +821,7 @@ export default function ClassroomMembersPage() {
                         onClick={createBulkStudents}
                         disabled={bulkCreating || !bulkPreview.length}
                       >
-                        {bulkCreating ? "Creando..." : "Crear estudiantes"}
+                        {bulkCreating ? "Creando..." : `Crear ${bulkRole === "teacher" ? "profesores" : "estudiantes"}`}
                       </Button>
                     </div>
                     <div className="max-h-[360px] overflow-auto">

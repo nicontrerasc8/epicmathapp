@@ -179,6 +179,10 @@ function buildUniqueStudentEmail(
   return `${local}@${institutionSlug}.ludus.edu`
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
 
 // =====================
 // Filter configuration
@@ -352,6 +356,8 @@ export default function StudentsTable() {
   const [bulkInstitutionSlug, setBulkInstitutionSlug] = useState<string>("academia")
   const [bulkPreview, setBulkPreview] = useState<BulkRow[]>([])
   const [bulkCreating, setBulkCreating] = useState(false)
+  const [bulkRole, setBulkRole] = useState<"student" | "teacher">("student")
+  const [bulkIncludeEmail, setBulkIncludeEmail] = useState(false)
 
   // Filters
   const { values, onChange, onClear } = useFilters({
@@ -569,6 +575,8 @@ export default function StudentsTable() {
     setBulkInstitutionSlug("academia")
     setBulkPreview([])
     setBulkCreating(false)
+    setBulkRole("student")
+    setBulkIncludeEmail(false)
   }
 
   const onBulkSelectClassroom = (id: string) => {
@@ -584,10 +592,19 @@ export default function StudentsTable() {
   }
 
   const downloadTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([{ nombre: "Juan", apellido: "Perez" }])
+    const sample: Record<string, string> = {
+      nombre: "Juan",
+      apellido: "Perez",
+    }
+    if (bulkIncludeEmail) {
+      sample.correo = "juan.perez@correo.com"
+    }
+    const ws = XLSX.utils.json_to_sheet([sample])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Plantilla")
-    XLSX.writeFile(wb, "plantilla_alumnos.xlsx")
+    const roleLabel = bulkRole === "teacher" ? "profesores" : "estudiantes"
+    const suffix = bulkIncludeEmail ? "_con_correo" : ""
+    XLSX.writeFile(wb, `plantilla_${roleLabel}${suffix}.xlsx`)
   }
 
   const exportPreviewExcel = () => {
@@ -622,35 +639,77 @@ export default function StudentsTable() {
         const normalized = Object.fromEntries(
           Object.entries(r).map(([k, v]) => [String(k).trim().toLowerCase(), v]),
         )
+        const rawEmail = String(
+          normalized.email || normalized.correo || normalized.mail || "",
+        )
+          .trim()
+          .toLowerCase()
         return {
           first_name: String(normalized.first_name || normalized.nombre || "").trim(),
           last_name: String(normalized.last_name || normalized.apellido || "").trim(),
+          email: rawEmail,
         }
       })
       .filter((r) => r.first_name && r.last_name)
 
     if (!extracted.length) {
-      setBulkError("No encontre filas. Asegurate que el Excel tenga columnas nombre y apellido.")
+      const columnsLabel = bulkIncludeEmail
+        ? "nombre, apellido y correo"
+        : "nombre y apellido"
+      setBulkError(
+        `No encontre filas. Asegurate que el Excel tenga columnas ${columnsLabel}.`,
+      )
       setBulkPreview([])
       return
     }
 
     const slug = bulkInstitutionSlug || "academia"
     const used = new Map<string, number>()
+    const usedEmails = new Map<string, number>()
 
     const previewRows: BulkRow[] = extracted.map((r) => {
-      const email = buildUniqueStudentEmail(r.first_name, r.last_name, slug, used)
+      let email = r.email
+      let status: BulkRow["status"] = "pending"
+      let message: string | undefined
+
+      if (bulkIncludeEmail) {
+        const lowerEmail = email.toLowerCase()
+        if (!lowerEmail || !isValidEmail(lowerEmail)) {
+          status = "error"
+          message = "Correo invalido"
+        } else {
+          const count = (usedEmails.get(lowerEmail) ?? 0) + 1
+          usedEmails.set(lowerEmail, count)
+          if (count > 1) {
+            status = "error"
+            message = "Correo duplicado"
+          }
+        }
+        email = lowerEmail
+      } else {
+        email = buildUniqueStudentEmail(r.first_name, r.last_name, slug, used)
+      }
 
       return {
         first_name: r.first_name,
         last_name: r.last_name,
         email,
         password: DEFAULT_PASSWORD,
-        status: "pending",
+        status,
+        message,
       }
     })
 
     setBulkPreview(previewRows)
+
+    if (bulkIncludeEmail) {
+      const invalidCount = previewRows.filter((r) => r.status === "error").length
+      if (invalidCount > 0) {
+        setBulkError(
+          `Se detectaron ${invalidCount} filas con correos invalidos o duplicados.`,
+        )
+      }
+    }
   }
 
   const createBulkUsers = async () => {
@@ -669,15 +728,24 @@ export default function StudentsTable() {
       return
     }
 
+    const rowsToCreate = bulkPreview
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => row.status !== "error")
+
+    if (!rowsToCreate.length) {
+      setBulkError("No hay filas validas para crear. Corrige el Excel.")
+      return
+    }
+
     setBulkCreating(true)
 
-    for (let i = 0; i < bulkPreview.length; i++) {
-      const r = bulkPreview[i]
+    for (let i = 0; i < rowsToCreate.length; i++) {
+      const { row: r, index } = rowsToCreate[i]
 
       // marca como “procesando”
       setBulkPreview((prev) =>
         prev.map((x, idx) =>
-          idx === i ? { ...x, status: "pending", message: "Creando..." } : x
+          idx === index ? { ...x, status: "pending", message: "Creando..." } : x
         )
       )
 
@@ -692,7 +760,7 @@ export default function StudentsTable() {
           id: userId,
           first_name: r.first_name,
           last_name: r.last_name,
-          global_role: "student",
+          global_role: bulkRole,
           active: true,
         })
         if (pErr) throw new Error(`edu_profiles: ${pErr.message}`)
@@ -703,7 +771,7 @@ export default function StudentsTable() {
           .insert({
             profile_id: userId,
             institution_id: bulkInstitutionId,
-            role: "student",
+            role: bulkRole,
             active: true,
           })
           .select("id")
@@ -722,13 +790,13 @@ export default function StudentsTable() {
 
         setBulkPreview((prev) =>
           prev.map((x, idx) =>
-            idx === i ? { ...x, status: "ok", message: "OK" } : x
+            idx === index ? { ...x, status: "ok", message: "OK" } : x
           )
         )
       } catch (e: any) {
         setBulkPreview((prev) =>
           prev.map((x, idx) =>
-            idx === i ? { ...x, status: "error", message: e?.message ?? "Error" } : x
+            idx === index ? { ...x, status: "error", message: e?.message ?? "Error" } : x
           )
         )
       }
@@ -777,7 +845,7 @@ export default function StudentsTable() {
               }}
             >
               <Upload className="w-4 h-4 mr-2" />
-              Importar Excel por aula
+              Importar usuarios por aula
             </Button>
 
             <Button
@@ -800,9 +868,11 @@ export default function StudentsTable() {
           <div className="w-full max-w-4xl rounded-2xl border bg-card shadow-xl">
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
-                <div className="text-base font-semibold">Importar estudiantes por Excel</div>
+                <div className="text-base font-semibold">
+                  Importar {bulkRole === "teacher" ? "profesores" : "estudiantes"} por Excel
+                </div>
                 <div className="text-sm text-muted-foreground">
-                  Selecciona un aula, sube Excel (nombre, apellido) y verás el preview con correo y password 123456.
+                  Selecciona un aula, sube Excel y veras el preview con correo y password 123456.
                 </div>
               </div>
               <Button
@@ -818,6 +888,35 @@ export default function StudentsTable() {
             </div>
 
             <div className="space-y-4 px-5 py-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">Tipo de usuario</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={bulkRole === "student" ? "default" : "outline"}
+                    onClick={() => setBulkRole("student")}
+                  >
+                    Estudiantes
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={bulkRole === "teacher" ? "default" : "outline"}
+                    onClick={() => {
+                      setBulkRole("teacher")
+                      if (!bulkIncludeEmail) {
+                        setBulkIncludeEmail(true)
+                        setBulkPreview([])
+                        setBulkFileName(null)
+                        setBulkError(null)
+                      }
+                    }}
+                  >
+                    Profesores
+                  </Button>
+                </div>
+              </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2 md:col-span-2">
                   <Label>Aula</Label>
@@ -833,14 +932,35 @@ export default function StudentsTable() {
                       </option>
                     ))}
                   </select>
-                  <div className="text-xs text-muted-foreground">
-                    Dominio generado:{" "}
-                    <span className="font-mono">{bulkInstitutionSlug}.ludus.edu</span>
-                  </div>
+                  {bulkIncludeEmail ? (
+                    <div className="text-xs text-muted-foreground">
+                      Se usaran los correos del Excel.
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      Dominio generado:{" "}
+                      <span className="font-mono">{bulkInstitutionSlug}.ludus.edu</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <Label>Plantilla</Label>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="bulkIncludeEmail"
+                      checked={bulkIncludeEmail}
+                      onCheckedChange={(val) => {
+                        setBulkIncludeEmail(Boolean(val))
+                        setBulkPreview([])
+                        setBulkFileName(null)
+                        setBulkError(null)
+                      }}
+                    />
+                    <Label htmlFor="bulkIncludeEmail" className="text-xs">
+                      Incluir correo en plantilla
+                    </Label>
+                  </div>
                   <Button variant="outline" className="w-full" onClick={downloadTemplate}>
                     <Download className="h-4 w-4 mr-2" />
                     Descargar plantilla
@@ -848,6 +968,11 @@ export default function StudentsTable() {
                   <div className="text-xs text-muted-foreground">
                     Columnas: <span className="font-mono">nombre</span>,{" "}
                     <span className="font-mono">apellido</span>
+                    {bulkIncludeEmail && (
+                      <>
+                        , <span className="font-mono">correo</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -907,7 +1032,7 @@ export default function StudentsTable() {
                       onClick={createBulkUsers}
                       disabled={bulkCreating || !bulkPreview.length}
                     >
-                      {bulkCreating ? "Creando..." : "Crear usuarios"}
+                      {bulkCreating ? "Creando..." : `Crear ${bulkRole === "teacher" ? "profesores" : "estudiantes"}`}
                     </Button>
                     <Button
                       size="sm"
@@ -956,7 +1081,7 @@ export default function StudentsTable() {
                           {!bulkPreview.length && (
                             <tr>
                               <td className="px-3 py-6 text-muted-foreground" colSpan={4}>
-                                Sube un Excel para ver el preview (correo y password 123456).
+                                Sube un Excel para ver el preview.
                               </td>
                             </tr>
                           )}
