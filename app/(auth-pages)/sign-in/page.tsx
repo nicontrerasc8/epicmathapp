@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
 
-type Mode = 'student' | 'teacher'
+type Mode = 'student' | 'teacher' | 'parent'
 
 export default function SignInPage() {
   const router = useRouter()
@@ -61,13 +61,14 @@ export default function SignInPage() {
       return
     }
 
-    if (mode === 'student' && profile.global_role !== 'student') {
-      setError('Tu cuenta no es de estudiante. Cambia a modo profesor.')
-      return
+    const roleLabelByMode: Record<Mode, string> = {
+      student: 'alumno',
+      teacher: 'profesor',
+      parent: 'padre',
     }
 
-    if (mode === 'teacher' && profile.global_role === 'student') {
-      setError('Tu cuenta es de estudiante. Cambia a modo alumno.')
+    if (profile.global_role !== mode && profile.global_role !== 'admin') {
+      setError(`Tu cuenta no es de ${roleLabelByMode[mode]}. Cambia el modo de ingreso.`)
       return
     }
 
@@ -83,6 +84,11 @@ export default function SignInPage() {
 
     if (profile.global_role === 'student') {
       router.push('/student/play')
+      return
+    }
+
+    if (profile.global_role === 'parent') {
+      router.push('/parent')
       return
     }
 
@@ -104,7 +110,7 @@ export default function SignInPage() {
             </h1>
           </div>
 
-          <div className="flex gap-2 mb-6">
+          <div className="grid grid-cols-3 gap-2 mb-6">
             <button
               type="button"
               onClick={() => {
@@ -120,7 +126,7 @@ export default function SignInPage() {
                   : 'bg-transparent text-foreground border-border'
               }`}
             >
-              Soy alumno
+              Soy Alumno
             </button>
             <button
               type="button"
@@ -137,7 +143,24 @@ export default function SignInPage() {
                   : 'bg-transparent text-foreground border-border'
               }`}
             >
-              Soy profesor
+              Soy Profesor
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('parent')
+                setError('')
+                setLoading(false)
+                setLoadingMode(null)
+              }}
+              disabled={loading}
+              className={`flex-1 rounded-lg border px-4 py-2 text-sm font-semibold ${
+                mode === 'parent'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-transparent text-foreground border-border'
+              }`}
+            >
+              Soy Padre
             </button>
           </div>
 

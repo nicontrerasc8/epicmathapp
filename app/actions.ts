@@ -105,6 +105,9 @@ export const signInAction = async (formData: FormData) => {
     case "student":
       return redirect("/student/play");
 
+    case "parent":
+      return redirect("/parent");
+
     default:
       return encodedRedirect(
         "error",
