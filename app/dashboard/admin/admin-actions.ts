@@ -24,6 +24,44 @@ const allowedClassroomGrades = new Set([
     "5-Secundaria",
 ])
 
+const DEFAULT_PASSWORD = "123456"
+
+const normalizeName = (value: string) =>
+    (value ?? "")
+        .toLowerCase()
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/Ã±/g, "n")
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\s+/g, "")
+
+const slugifyInstitution = (name: string) => {
+    const base = (name ?? "")
+        .toLowerCase()
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/Ã±/g, "n")
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+    return base || "academia"
+}
+
+const buildEmailLocal = (firstName: string, lastName: string) => {
+    const initial = normalizeName(firstName).slice(0, 1)
+    const last = normalizeName(lastName)
+    if (!initial || !last) return ""
+    return `${initial}${last}`
+}
+
+const buildParentEmail = (firstName: string, lastName: string, institutionSlug: string) => {
+    const local = buildEmailLocal(firstName, lastName)
+    if (!local) return ""
+    return `${local}@${institutionSlug}.ludus.edu`
+}
+
 const normalizeInstitutionCode = (value: string) =>
     value.toUpperCase().replace(/[^A-Z0-9]/g, "")
 
@@ -60,6 +98,134 @@ const getInstitutionCode = async (
 const getInstitutionId = async () => {
     const institution = await requireInstitution()
     return institution.id
+}
+
+const getInstitutionSlug = async () => {
+    const institution = await requireInstitution()
+    if (institution.slug) return institution.slug
+    return slugifyInstitution(institution.name)
+}
+
+const getAuthUserIdByEmail = async (email: string) => {
+    const target = email.trim().toLowerCase()
+    if (!target) return null
+
+    const perPage = 1000
+    let page = 1
+    let guard = 0
+
+    while (guard < 50) {
+        guard += 1
+        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
+        if (error) throw new Error(`auth.listUsers: ${error.message}`)
+
+        const users = data?.users ?? []
+        const found = users.find((u) => (u.email || "").toLowerCase() === target)
+        if (found?.id) return found.id
+
+        if (!data?.nextPage) break
+        page = data.nextPage
+    }
+
+    return null
+}
+
+const ensureParentForStudent = async (input: {
+    student_id: string
+    parent_first_name: string
+    parent_last_name: string
+    institution_id: string
+    institution_slug: string
+}) => {
+    const parentEmail = buildParentEmail(
+        input.parent_first_name,
+        input.parent_last_name,
+        input.institution_slug,
+    )
+    if (!parentEmail) {
+        throw new Error("No se pudo generar el correo del padre")
+    }
+
+    let parentId = await getAuthUserIdByEmail(parentEmail)
+    if (!parentId) {
+        const { data: auth, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+            email: parentEmail,
+            password: DEFAULT_PASSWORD,
+            email_confirm: true,
+        })
+        if (authErr || !auth?.user?.id) {
+            parentId = await getAuthUserIdByEmail(parentEmail)
+            if (!parentId) {
+                throw new Error(authErr?.message || "Error creando usuario padre")
+            }
+        } else {
+            parentId = auth.user.id
+        }
+    }
+
+    const { data: profile, error: profileErr } = await supabaseAdmin
+        .from("edu_profiles")
+        .select("id, global_role")
+        .eq("id", parentId)
+        .maybeSingle()
+    if (profileErr) throw new Error(profileErr.message)
+
+    if (!profile) {
+        const { error: insertProfileErr } = await supabaseAdmin.from("edu_profiles").insert({
+            id: parentId,
+            first_name: input.parent_first_name.trim(),
+            last_name: input.parent_last_name.trim(),
+            global_role: "parent",
+            active: true,
+        })
+        if (insertProfileErr) throw new Error(insertProfileErr.message)
+    } else if (profile.global_role && profile.global_role !== "parent") {
+        throw new Error("El correo del padre ya pertenece a otro rol")
+    }
+
+    const { data: member, error: memberErr } = await supabaseAdmin
+        .from("edu_institution_members")
+        .select("id, role")
+        .eq("profile_id", parentId)
+        .eq("institution_id", input.institution_id)
+        .maybeSingle()
+    if (memberErr) throw new Error(memberErr.message)
+
+    if (!member) {
+        const { error: insertMemberErr } = await supabaseAdmin
+            .from("edu_institution_members")
+            .insert({
+                profile_id: parentId,
+                institution_id: input.institution_id,
+                role: "parent",
+                active: true,
+            })
+        if (insertMemberErr) throw new Error(insertMemberErr.message)
+    } else if (member.role !== "parent") {
+        throw new Error("El usuario ya tiene otro rol en la institucion")
+    }
+
+    const { data: link, error: linkErr } = await supabaseAdmin
+        .from("edu_parent_students")
+        .select("id")
+        .eq("parent_id", parentId)
+        .eq("student_id", input.student_id)
+        .eq("institution_id", input.institution_id)
+        .maybeSingle()
+    if (linkErr) throw new Error(linkErr.message)
+
+    if (!link) {
+        const { error: insertLinkErr } = await supabaseAdmin
+            .from("edu_parent_students")
+            .insert({
+                parent_id: parentId,
+                student_id: input.student_id,
+                institution_id: input.institution_id,
+            })
+        if (insertLinkErr) throw new Error(insertLinkErr.message)
+    }
+
+    return { parent_id: parentId, parent_email: parentEmail }
 }
 
 // -----------------------------------------------------------------------------
@@ -198,8 +364,13 @@ export async function createStudentAction(input: {
     last_name: string
     role?: "student" | "teacher"
     classroom_id?: string | null
+    parent?: {
+        first_name: string
+        last_name: string
+    } | null
 }) {
     const institutionId = await getInstitutionId()
+    const institutionSlug = await getInstitutionSlug()
     const email = input.email.trim().toLowerCase()
     if (!email) throw new Error("Correo invalido")
     if (!input.first_name.trim() || !input.last_name.trim()) {
@@ -266,7 +437,46 @@ export async function createStudentAction(input: {
         if (cmErr) throw new Error(cmErr.message)
     }
 
-    return { id: userId, password: input.password?.trim() ? null : password }
+    let parentWarning: string | null = null
+    if (role === "student" && input.parent?.first_name && input.parent?.last_name) {
+        try {
+            await ensureParentForStudent({
+                student_id: userId,
+                parent_first_name: input.parent.first_name,
+                parent_last_name: input.parent.last_name,
+                institution_id: institutionId,
+                institution_slug: institutionSlug,
+            })
+        } catch (e: any) {
+            parentWarning = e?.message ?? "Error creando padre"
+        }
+    }
+
+    return {
+        id: userId,
+        password: input.password?.trim() ? null : password,
+        parent_warning: parentWarning,
+    }
+}
+
+export async function ensureParentLinkAction(input: {
+    student_id: string
+    parent_first_name: string
+    parent_last_name: string
+}) {
+    if (!input.student_id) throw new Error("Estudiante invalido")
+    if (!input.parent_first_name.trim() || !input.parent_last_name.trim()) {
+        throw new Error("Nombre y apellido del padre son requeridos")
+    }
+    const institutionId = await getInstitutionId()
+    const institutionSlug = await getInstitutionSlug()
+    return ensureParentForStudent({
+        student_id: input.student_id,
+        parent_first_name: input.parent_first_name,
+        parent_last_name: input.parent_last_name,
+        institution_id: institutionId,
+        institution_slug: institutionSlug,
+    })
 }
 
 export async function updateStudentAction(

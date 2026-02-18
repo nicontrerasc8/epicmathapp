@@ -26,6 +26,7 @@ import {
   createStudentAction,
   updateStudentAction,
   deactivateStudentAction,
+  ensureParentLinkAction,
 } from "../admin-actions"
 
 // =====================
@@ -85,6 +86,9 @@ type BulkRow = {
   last_name: string
   email: string
   password: string
+  parent_first_name?: string
+  parent_last_name?: string
+  parent_email?: string
   status: "pending" | "ok" | "error"
   message?: string
 }
@@ -159,6 +163,12 @@ function buildEmailLocal(firstName: string, lastName: string) {
 }
 
 function buildStudentEmail(firstName: string, lastName: string, institutionSlug: string) {
+  const local = buildEmailLocal(firstName, lastName)
+  if (!local) return ""
+  return `${local}@${institutionSlug}.ludus.edu`
+}
+
+function buildParentEmail(firstName: string, lastName: string, institutionSlug: string) {
   const local = buildEmailLocal(firstName, lastName)
   if (!local) return ""
   return `${local}@${institutionSlug}.ludus.edu`
@@ -345,6 +355,9 @@ export default function StudentsTable() {
     role: "student",
     classroomId: "",
     active: true,
+    assignParent: false,
+    parentFirstName: "",
+    parentLastName: "",
   })
 
   // BULK EXCEL
@@ -358,6 +371,7 @@ export default function StudentsTable() {
   const [bulkCreating, setBulkCreating] = useState(false)
   const [bulkRole, setBulkRole] = useState<"student" | "teacher">("student")
   const [bulkIncludeEmail, setBulkIncludeEmail] = useState(false)
+  const [bulkIncludeParent, setBulkIncludeParent] = useState(false)
 
   // Filters
   const { values, onChange, onClear } = useFilters({
@@ -449,6 +463,9 @@ export default function StudentsTable() {
               role: row.global_role || "student",
               classroomId: getPrimaryClassroom(member)?.classroom_id || "",
               active: Boolean(row.active),
+              assignParent: false,
+              parentFirstName: "",
+              parentLastName: "",
             })
           },
         },
@@ -479,6 +496,9 @@ export default function StudentsTable() {
       role: "student",
       classroomId: "",
       active: true,
+      assignParent: false,
+      parentFirstName: "",
+      parentLastName: "",
     })
     setCreateError(null)
     setEditId(null)
@@ -511,6 +531,11 @@ export default function StudentsTable() {
     return buildStudentEmail(form.firstName, form.lastName, institutionSlug)
   }, [form.firstName, form.lastName, institutionSlug])
 
+  const generatedParentEmail = useMemo(() => {
+    if (!form.assignParent || form.role !== "student") return ""
+    return buildParentEmail(form.parentFirstName, form.parentLastName, institutionSlug)
+  }, [form.assignParent, form.parentFirstName, form.parentLastName, form.role, institutionSlug])
+
   const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setCreateError(null)
@@ -519,6 +544,9 @@ export default function StudentsTable() {
     const firstName = form.firstName.trim()
     const lastName = form.lastName.trim()
     const resolvedEmail = buildStudentEmail(firstName, lastName, institutionSlug)
+    const assignParent = form.role === "student" && form.assignParent
+    const parentFirstName = form.parentFirstName.trim()
+    const parentLastName = form.parentLastName.trim()
 
     if (!firstName || !lastName) {
       setCreateError("Completa nombre y apellido.")
@@ -526,6 +554,10 @@ export default function StudentsTable() {
     }
     if (!editId && !resolvedEmail) {
       setCreateError("Completa nombre y apellido para generar el correo.")
+      return
+    }
+    if (assignParent && (!parentFirstName || !parentLastName)) {
+      setCreateError("Completa nombre y apellido del padre.")
       return
     }
 
@@ -548,12 +580,18 @@ export default function StudentsTable() {
           last_name: lastName,
           role: form.role,
           classroom_id: form.classroomId || null,
+          parent: assignParent
+            ? { first_name: parentFirstName, last_name: parentLastName }
+            : null,
         })
         const roleLabel = form.role === "teacher" ? "Profesor" : "Alumno"
         const passwordInfo = result?.password
           ? ` Password: ${result.password}`
           : ` Password por defecto: ${DEFAULT_PASSWORD}`
-        setCreateSuccess(`${roleLabel} creado correctamente.${passwordInfo}`)
+        const parentInfo = result?.parent_warning
+          ? ` Advertencia: ${result.parent_warning}`
+          : ""
+        setCreateSuccess(`${roleLabel} creado correctamente.${passwordInfo}${parentInfo}`)
       }
       resetForm()
       await fetchStudents()
@@ -577,6 +615,7 @@ export default function StudentsTable() {
     setBulkCreating(false)
     setBulkRole("student")
     setBulkIncludeEmail(false)
+    setBulkIncludeParent(false)
   }
 
   const onBulkSelectClassroom = (id: string) => {
@@ -596,6 +635,10 @@ export default function StudentsTable() {
       nombre: "Juan",
       apellido: "Perez",
     }
+    if (bulkRole === "student" && bulkIncludeParent) {
+      sample.padre_nombre = "Carlos"
+      sample.padre_apellido = "Perez"
+    }
     if (bulkIncludeEmail) {
       sample.correo = "juan.perez@correo.com"
     }
@@ -603,22 +646,33 @@ export default function StudentsTable() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Plantilla")
     const roleLabel = bulkRole === "teacher" ? "profesores" : "estudiantes"
-    const suffix = bulkIncludeEmail ? "_con_correo" : ""
+    const suffixParent =
+      bulkRole === "student" && bulkIncludeParent ? "_con_padre" : ""
+    const suffixEmail = bulkIncludeEmail ? "_con_correo" : ""
+    const suffix = `${suffixParent}${suffixEmail}`
     XLSX.writeFile(wb, `plantilla_${roleLabel}${suffix}.xlsx`)
   }
 
   const exportPreviewExcel = () => {
     const cls = classrooms.find((c) => c.id === bulkClassroomId)
     const label = cls ? `${cls.edu_institutions?.name || "SinInstitucion"} - ${getClassroomLabel(cls)} - ${cls.academic_year}` : ""
-    const payload = bulkPreview.map((r) => ({
-      first_name: r.first_name,
-      last_name: r.last_name,
-      email: r.email,
-      password: r.password,
-      classroom_id: bulkClassroomId,
-      classroom_label: label,
-      institution_slug: bulkInstitutionSlug,
-    }))
+    const payload = bulkPreview.map((r) => {
+      const base: Record<string, string> = {
+        first_name: r.first_name,
+        last_name: r.last_name,
+        email: r.email,
+        password: r.password,
+        classroom_id: bulkClassroomId,
+        classroom_label: label,
+        institution_slug: bulkInstitutionSlug,
+      }
+      if (bulkRole === "student" && bulkIncludeParent) {
+        base.parent_first_name = r.parent_first_name || ""
+        base.parent_last_name = r.parent_last_name || ""
+        base.parent_email = r.parent_email || ""
+      }
+      return base
+    })
     const ws = XLSX.utils.json_to_sheet(payload)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Usuarios")
@@ -644,18 +698,41 @@ export default function StudentsTable() {
         )
           .trim()
           .toLowerCase()
+        const parentFirstName = bulkIncludeParent
+          ? String(
+              normalized.padre_nombre ||
+                normalized.nombre_padre ||
+                normalized.parent_first_name ||
+                normalized.parent_nombre ||
+                "",
+            ).trim()
+          : ""
+        const parentLastName = bulkIncludeParent
+          ? String(
+              normalized.padre_apellido ||
+                normalized.apellido_padre ||
+                normalized.parent_last_name ||
+                normalized.parent_apellido ||
+                "",
+            ).trim()
+          : ""
         return {
           first_name: String(normalized.first_name || normalized.nombre || "").trim(),
           last_name: String(normalized.last_name || normalized.apellido || "").trim(),
           email: rawEmail,
+          parent_first_name: parentFirstName,
+          parent_last_name: parentLastName,
         }
       })
       .filter((r) => r.first_name && r.last_name)
 
     if (!extracted.length) {
-      const columnsLabel = bulkIncludeEmail
-        ? "nombre, apellido y correo"
-        : "nombre y apellido"
+    const baseCols = bulkIncludeEmail
+      ? "nombre, apellido y correo"
+      : "nombre y apellido"
+    const parentCols =
+      bulkRole === "student" && bulkIncludeParent ? " + padre_nombre, padre_apellido" : ""
+    const columnsLabel = `${baseCols}${parentCols}`
       setBulkError(
         `No encontre filas. Asegurate que el Excel tenga columnas ${columnsLabel}.`,
       )
@@ -671,6 +748,14 @@ export default function StudentsTable() {
       let email = r.email
       let status: BulkRow["status"] = "pending"
       let message: string | undefined
+      let parentFirstName = r.parent_first_name || ""
+      let parentLastName = r.parent_last_name || ""
+      let parentEmail = ""
+
+      if (bulkRole !== "student" || !bulkIncludeParent) {
+        parentFirstName = ""
+        parentLastName = ""
+      }
 
       if (bulkIncludeEmail) {
         const lowerEmail = email.toLowerCase()
@@ -690,11 +775,29 @@ export default function StudentsTable() {
         email = buildUniqueStudentEmail(r.first_name, r.last_name, slug, used)
       }
 
+      if (bulkRole === "student" && bulkIncludeParent) {
+        if (!parentFirstName || !parentLastName) {
+          if (status !== "error") {
+            status = "error"
+            message = "Padre requerido (nombre y apellido)"
+          }
+        } else {
+          parentEmail = buildParentEmail(parentFirstName, parentLastName, slug)
+          if (!parentEmail && status !== "error") {
+            status = "error"
+            message = "Correo del padre invalido"
+          }
+        }
+      }
+
       return {
         first_name: r.first_name,
         last_name: r.last_name,
         email,
         password: DEFAULT_PASSWORD,
+        parent_first_name: parentFirstName || "",
+        parent_last_name: parentLastName || "",
+        parent_email: parentEmail || "",
         status,
         message,
       }
@@ -786,6 +889,19 @@ export default function StudentsTable() {
               classroom_id: bulkClassroomId,
             })
           if (cmErr) throw new Error(`classroom_members: ${cmErr.message}`)
+        }
+
+        if (
+          bulkRole === "student" &&
+          bulkIncludeParent &&
+          r.parent_first_name &&
+          r.parent_last_name
+        ) {
+          await ensureParentLinkAction({
+            student_id: userId,
+            parent_first_name: r.parent_first_name,
+            parent_last_name: r.parent_last_name,
+          })
         }
 
         setBulkPreview((prev) =>
@@ -911,6 +1027,12 @@ export default function StudentsTable() {
                         setBulkFileName(null)
                         setBulkError(null)
                       }
+                      if (bulkIncludeParent) {
+                        setBulkIncludeParent(false)
+                        setBulkPreview([])
+                        setBulkFileName(null)
+                        setBulkError(null)
+                      }
                     }}
                   >
                     Profesores
@@ -961,6 +1083,23 @@ export default function StudentsTable() {
                       Incluir correo en plantilla
                     </Label>
                   </div>
+                  {bulkRole === "student" && (
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="bulkIncludeParent"
+                        checked={bulkIncludeParent}
+                        onCheckedChange={(val) => {
+                          setBulkIncludeParent(Boolean(val))
+                          setBulkPreview([])
+                          setBulkFileName(null)
+                          setBulkError(null)
+                        }}
+                      />
+                      <Label htmlFor="bulkIncludeParent" className="text-xs">
+                        Incluir padre en plantilla
+                      </Label>
+                    </div>
+                  )}
                   <Button variant="outline" className="w-full" onClick={downloadTemplate}>
                     <Download className="h-4 w-4 mr-2" />
                     Descargar plantilla
@@ -968,6 +1107,12 @@ export default function StudentsTable() {
                   <div className="text-xs text-muted-foreground">
                     Columnas: <span className="font-mono">nombre</span>,{" "}
                     <span className="font-mono">apellido</span>
+                    {bulkRole === "student" && bulkIncludeParent && (
+                      <>
+                        , <span className="font-mono">padre_nombre</span>,{" "}
+                        <span className="font-mono">padre_apellido</span>
+                      </>
+                    )}
                     {bulkIncludeEmail && (
                       <>
                         , <span className="font-mono">correo</span>
@@ -1050,6 +1195,12 @@ export default function StudentsTable() {
                     <thead className="bg-muted">
                       <tr className="text-left">
                         <th className="px-3 py-2">Nombre</th>
+                        {bulkRole === "student" && bulkIncludeParent && (
+                          <>
+                            <th className="px-3 py-2">Padre</th>
+                            <th className="px-3 py-2">Correo padre</th>
+                          </>
+                        )}
                         <th className="px-3 py-2">Correo</th>
                         <th className="px-3 py-2">Password</th>
                         <th className="px-3 py-2 w-[160px]">Estado</th>
@@ -1061,6 +1212,18 @@ export default function StudentsTable() {
                           <td className="px-3 py-2">
                             {r.first_name} {r.last_name}
                           </td>
+                          {bulkRole === "student" && bulkIncludeParent && (
+                            <>
+                              <td className="px-3 py-2">
+                                {r.parent_first_name || r.parent_last_name
+                                  ? `${r.parent_first_name ?? ""} ${r.parent_last_name ?? ""}`.trim()
+                                  : "—"}
+                              </td>
+                              <td className="px-3 py-2 font-mono">
+                                {r.parent_email || "—"}
+                              </td>
+                            </>
+                          )}
                           <td className="px-3 py-2 font-mono">{r.email}</td>
                           <td className="px-3 py-2 font-mono">{r.password}</td>
                           <td className="px-3 py-2">
@@ -1080,7 +1243,10 @@ export default function StudentsTable() {
                       ))}
                           {!bulkPreview.length && (
                             <tr>
-                              <td className="px-3 py-6 text-muted-foreground" colSpan={4}>
+                              <td
+                                className="px-3 py-6 text-muted-foreground"
+                                colSpan={bulkRole === "student" && bulkIncludeParent ? 6 : 4}
+                              >
                                 Sube un Excel para ver el preview.
                               </td>
                             </tr>
@@ -1169,7 +1335,21 @@ export default function StudentsTable() {
                   <select
                     id="studentRole"
                     value={form.role}
-                    onChange={(e) => setForm((s: any) => ({ ...s, role: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((s: any) => {
+                        const role = e.target.value
+                        if (role !== "student") {
+                          return {
+                            ...s,
+                            role,
+                            assignParent: false,
+                            parentFirstName: "",
+                            parentLastName: "",
+                          }
+                        }
+                        return { ...s, role }
+                      })
+                    }
                     className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                   >
                     <option value="student">Estudiante</option>
@@ -1200,6 +1380,60 @@ export default function StudentsTable() {
                   />
                   <Label htmlFor="studentActive">Activo</Label>
                 </div>
+
+                {!editId && form.role === "student" && (
+                  <div className="flex items-center gap-2 md:col-span-4">
+                    <Checkbox
+                      id="studentAssignParent"
+                      checked={form.assignParent}
+                      onCheckedChange={(val) =>
+                        setForm((s: any) => ({
+                          ...s,
+                          assignParent: Boolean(val),
+                          parentFirstName: val ? s.parentFirstName : "",
+                          parentLastName: val ? s.parentLastName : "",
+                        }))
+                      }
+                    />
+                    <Label htmlFor="studentAssignParent">
+                      Asignar a padre
+                    </Label>
+                  </div>
+                )}
+
+                {!editId && form.role === "student" && form.assignParent && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="parentFirstName">Nombre del padre</Label>
+                      <Input
+                        id="parentFirstName"
+                        value={form.parentFirstName}
+                        onChange={(e) =>
+                          setForm((s: any) => ({ ...s, parentFirstName: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="parentLastName">Apellido del padre</Label>
+                      <Input
+                        id="parentLastName"
+                        value={form.parentLastName}
+                        onChange={(e) =>
+                          setForm((s: any) => ({ ...s, parentLastName: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="parentEmail">Correo del padre</Label>
+                      <Input
+                        id="parentEmail"
+                        type="email"
+                        value={generatedParentEmail}
+                        readOnly
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {createError && <p className="text-sm text-destructive">{createError}</p>}
@@ -1207,6 +1441,11 @@ export default function StudentsTable() {
               <div className="text-xs text-muted-foreground">
                 El correo se genera con inicial del nombre + apellido. Password por defecto: {DEFAULT_PASSWORD}.
               </div>
+              {!editId && form.role === "student" && (
+                <div className="text-xs text-muted-foreground">
+                  Si asignas un padre, su correo tambien se genera con inicial del nombre + apellido.
+                </div>
+              )}
               <div className="text-xs text-muted-foreground">
                 Supabase Auth se encarga de crear el usuario y se registran los datos en{" "}
                 <span className="font-mono">edu_profiles</span> y{" "}

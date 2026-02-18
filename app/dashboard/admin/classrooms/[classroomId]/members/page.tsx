@@ -61,6 +61,9 @@ type BulkRow = {
   last_name: string
   email: string
   password: string
+  parent_first_name?: string
+  parent_last_name?: string
+  parent_email?: string
   status: "pending" | "ok" | "error"
   message?: string
 }
@@ -142,6 +145,12 @@ function buildStudentEmail(firstName: string, lastName: string, institutionSlug:
   return `${local}@${institutionSlug}.ludus.edu`
 }
 
+function buildParentEmail(firstName: string, lastName: string, institutionSlug: string) {
+  const local = buildEmailLocal(firstName, lastName)
+  if (!local) return ""
+  return `${local}@${institutionSlug}.ludus.edu`
+}
+
 function buildUniqueStudentEmail(
   firstName: string,
   lastName: string,
@@ -182,6 +191,9 @@ export default function ClassroomMembersPage() {
     firstName: "",
     lastName: "",
     role: "student",
+    assignParent: false,
+    parentFirstName: "",
+    parentLastName: "",
   })
   const [creating, setCreating] = useState(false)
 
@@ -191,6 +203,7 @@ export default function ClassroomMembersPage() {
   const [bulkCreating, setBulkCreating] = useState(false)
   const [bulkRole, setBulkRole] = useState<"student" | "teacher">("student")
   const [bulkIncludeEmail, setBulkIncludeEmail] = useState(false)
+  const [bulkIncludeParent, setBulkIncludeParent] = useState(false)
 
   const institutionSlug = useMemo(() => {
     if (institution?.slug) return institution.slug
@@ -199,6 +212,20 @@ export default function ClassroomMembersPage() {
   const generatedEmail = useMemo(() => {
     return buildStudentEmail(createForm.firstName, createForm.lastName, institutionSlug)
   }, [createForm.firstName, createForm.lastName, institutionSlug])
+  const generatedParentEmail = useMemo(() => {
+    if (!createForm.assignParent || createForm.role !== "student") return ""
+    return buildParentEmail(
+      createForm.parentFirstName,
+      createForm.parentLastName,
+      institutionSlug,
+    )
+  }, [
+    createForm.assignParent,
+    createForm.parentFirstName,
+    createForm.parentLastName,
+    createForm.role,
+    institutionSlug,
+  ])
 
   useEffect(() => {
     const fetchMembers = async () => {
@@ -329,6 +356,14 @@ export default function ClassroomMembersPage() {
       setActionError("Completa nombre y apellido.")
       return
     }
+    if (
+      createForm.role === "student" &&
+      createForm.assignParent &&
+      (!createForm.parentFirstName.trim() || !createForm.parentLastName.trim())
+    ) {
+      setActionError("Completa nombre y apellido del padre.")
+      return
+    }
     const email = buildStudentEmail(
       createForm.firstName,
       createForm.lastName,
@@ -349,15 +384,26 @@ export default function ClassroomMembersPage() {
         last_name: createForm.lastName.trim(),
         role: createForm.role as "student" | "teacher",
         classroom_id: classroomId,
+        parent:
+          createForm.role === "student" && createForm.assignParent
+            ? {
+                first_name: createForm.parentFirstName.trim(),
+                last_name: createForm.parentLastName.trim(),
+              }
+            : null,
       })
       const passwordInfo = result?.password
         ? ` Password: ${result.password}`
         : ` Password por defecto: ${DEFAULT_PASSWORD}`
-      setActionSuccess(`Usuario creado y asignado.${passwordInfo}`)
+      const parentInfo = result?.parent_warning ? ` Advertencia: ${result.parent_warning}` : ""
+      setActionSuccess(`Usuario creado y asignado.${passwordInfo}${parentInfo}`)
       setCreateForm({
         firstName: "",
         lastName: "",
         role: "student",
+        assignParent: false,
+        parentFirstName: "",
+        parentLastName: "",
       })
       await reloadMembers()
     } catch (err: any) {
@@ -372,6 +418,10 @@ export default function ClassroomMembersPage() {
       nombre: "Juan",
       apellido: "Perez",
     }
+    if (bulkRole === "student" && bulkIncludeParent) {
+      sample.padre_nombre = "Carlos"
+      sample.padre_apellido = "Perez"
+    }
     if (bulkIncludeEmail) {
       sample.correo = "juan.perez@correo.com"
     }
@@ -379,7 +429,10 @@ export default function ClassroomMembersPage() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Plantilla")
     const roleLabel = bulkRole === "teacher" ? "profesores" : "estudiantes"
-    const suffix = bulkIncludeEmail ? "_con_correo" : ""
+    const suffixParent =
+      bulkRole === "student" && bulkIncludeParent ? "_con_padre" : ""
+    const suffixEmail = bulkIncludeEmail ? "_con_correo" : ""
+    const suffix = `${suffixParent}${suffixEmail}`
     XLSX.writeFile(wb, `plantilla_${roleLabel}${suffix}.xlsx`)
   }
 
@@ -402,18 +455,41 @@ export default function ClassroomMembersPage() {
         )
           .trim()
           .toLowerCase()
+        const parentFirstName = bulkIncludeParent
+          ? String(
+              normalized.padre_nombre ||
+                normalized.nombre_padre ||
+                normalized.parent_first_name ||
+                normalized.parent_nombre ||
+                "",
+            ).trim()
+          : ""
+        const parentLastName = bulkIncludeParent
+          ? String(
+              normalized.padre_apellido ||
+                normalized.apellido_padre ||
+                normalized.parent_last_name ||
+                normalized.parent_apellido ||
+                "",
+            ).trim()
+          : ""
         return {
           first_name: String(normalized.first_name || normalized.nombre || "").trim(),
           last_name: String(normalized.last_name || normalized.apellido || "").trim(),
           email: rawEmail,
+          parent_first_name: parentFirstName,
+          parent_last_name: parentLastName,
         }
       })
       .filter((r) => r.first_name && r.last_name)
 
     if (!extracted.length) {
-      const columnsLabel = bulkIncludeEmail
+      const baseCols = bulkIncludeEmail
         ? "nombre, apellido y correo"
         : "nombre y apellido"
+      const parentCols =
+        bulkRole === "student" && bulkIncludeParent ? " + padre_nombre, padre_apellido" : ""
+      const columnsLabel = `${baseCols}${parentCols}`
       setBulkError(`No encontre filas. Usa columnas ${columnsLabel}.`)
       setBulkPreview([])
       return
@@ -425,6 +501,9 @@ export default function ClassroomMembersPage() {
       let email = r.email
       let status: BulkRow["status"] = "pending"
       let message: string | undefined
+      let parentFirstName = r.parent_first_name || ""
+      let parentLastName = r.parent_last_name || ""
+      let parentEmail = ""
 
       if (bulkIncludeEmail) {
         const lowerEmail = email.toLowerCase()
@@ -449,11 +528,34 @@ export default function ClassroomMembersPage() {
         )
       }
 
+      if (bulkRole !== "student" || !bulkIncludeParent) {
+        parentFirstName = ""
+        parentLastName = ""
+      }
+
+      if (bulkRole === "student" && bulkIncludeParent) {
+        if (!parentFirstName || !parentLastName) {
+          if (status !== "error") {
+            status = "error"
+            message = "Padre requerido (nombre y apellido)"
+          }
+        } else {
+          parentEmail = buildParentEmail(parentFirstName, parentLastName, institutionSlug)
+          if (!parentEmail && status !== "error") {
+            status = "error"
+            message = "Correo del padre invalido"
+          }
+        }
+      }
+
       return {
         first_name: r.first_name,
         last_name: r.last_name,
         email,
         password: DEFAULT_PASSWORD,
+        parent_first_name: parentFirstName || "",
+        parent_last_name: parentLastName || "",
+        parent_email: parentEmail || "",
         status,
         message,
       }
@@ -501,6 +603,8 @@ export default function ClassroomMembersPage() {
         role: bulkRole,
         institution_id: institution.id,
         classroom_id: classroomId,
+        parent_first_name: row.parent_first_name || "",
+        parent_last_name: row.parent_last_name || "",
       }))
       const report: any = await importUsersAction(payload as any)
 
@@ -706,17 +810,81 @@ export default function ClassroomMembersPage() {
                       <Label>Rol</Label>
                       <select
                         value={createForm.role}
-                        onChange={(e) => setCreateForm((s) => ({ ...s, role: e.target.value }))}
+                        onChange={(e) =>
+                          setCreateForm((s) => {
+                            const role = e.target.value
+                            if (role !== "student") {
+                              return {
+                                ...s,
+                                role,
+                                assignParent: false,
+                                parentFirstName: "",
+                                parentLastName: "",
+                              }
+                            }
+                            return { ...s, role }
+                          })
+                        }
                         className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                       >
                         <option value="student">Estudiante</option>
                         <option value="teacher">Profesor</option>
                       </select>
                     </div>
+
+                    {createForm.role === "student" && (
+                      <div className="flex items-center gap-2 md:col-span-4">
+                        <Checkbox
+                          id="assignParent"
+                          checked={createForm.assignParent}
+                          onCheckedChange={(val) =>
+                            setCreateForm((s) => ({
+                              ...s,
+                              assignParent: Boolean(val),
+                              parentFirstName: val ? s.parentFirstName : "",
+                              parentLastName: val ? s.parentLastName : "",
+                            }))
+                          }
+                        />
+                        <Label htmlFor="assignParent">Asignar a padre</Label>
+                      </div>
+                    )}
+
+                    {createForm.role === "student" && createForm.assignParent && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Nombre del padre</Label>
+                          <Input
+                            value={createForm.parentFirstName}
+                            onChange={(e) =>
+                              setCreateForm((s) => ({ ...s, parentFirstName: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Apellido del padre</Label>
+                          <Input
+                            value={createForm.parentLastName}
+                            onChange={(e) =>
+                              setCreateForm((s) => ({ ...s, parentLastName: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Correo del padre</Label>
+                          <Input value={generatedParentEmail} readOnly />
+                        </div>
+                      </>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     El correo se genera con inicial del nombre + apellido. Password por defecto: {DEFAULT_PASSWORD}.
                   </p>
+                  {createForm.role === "student" && (
+                    <p className="text-xs text-muted-foreground">
+                      Si asignas un padre, su correo tambien se genera con inicial del nombre + apellido.
+                    </p>
+                  )}
                   <Button size="sm" onClick={handleCreate} disabled={creating}>
                     {creating ? "Creando..." : "Crear y asignar"}
                   </Button>
@@ -744,6 +912,12 @@ export default function ClassroomMembersPage() {
                           setBulkRole("teacher")
                           if (!bulkIncludeEmail) {
                             setBulkIncludeEmail(true)
+                            setBulkPreview([])
+                            setBulkFileName(null)
+                            setBulkError(null)
+                          }
+                          if (bulkIncludeParent) {
+                            setBulkIncludeParent(false)
                             setBulkPreview([])
                             setBulkFileName(null)
                             setBulkError(null)
@@ -788,11 +962,31 @@ export default function ClassroomMembersPage() {
                             Incluir correo en plantilla
                           </Label>
                         </div>
+                        {bulkRole === "student" && (
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="bulkIncludeParent"
+                              checked={bulkIncludeParent}
+                              onCheckedChange={(val) => {
+                                setBulkIncludeParent(Boolean(val))
+                                setBulkPreview([])
+                                setBulkFileName(null)
+                                setBulkError(null)
+                              }}
+                            />
+                            <Label htmlFor="bulkIncludeParent" className="text-xs">
+                              Incluir padre en plantilla
+                            </Label>
+                          </div>
+                        )}
                         <Button size="sm" variant="outline" onClick={downloadTemplate}>
                           Descargar plantilla
                         </Button>
                         <span>
                           Usa columnas: nombre, apellido
+                          {bulkRole === "student" && bulkIncludeParent
+                            ? ", padre_nombre, padre_apellido"
+                            : ""}
                           {bulkIncludeEmail ? ", correo" : ""}.
                         </span>
                       </div>
@@ -829,6 +1023,12 @@ export default function ClassroomMembersPage() {
                         <thead className="bg-muted">
                           <tr className="text-left">
                             <th className="px-3 py-2">Nombre</th>
+                            {bulkRole === "student" && bulkIncludeParent && (
+                              <>
+                                <th className="px-3 py-2">Padre</th>
+                                <th className="px-3 py-2">Correo padre</th>
+                              </>
+                            )}
                             <th className="px-3 py-2">Correo</th>
                             <th className="px-3 py-2">Password</th>
                             <th className="px-3 py-2 w-[160px]">Estado</th>
@@ -840,6 +1040,18 @@ export default function ClassroomMembersPage() {
                               <td className="px-3 py-2">
                                 {r.first_name} {r.last_name}
                               </td>
+                              {bulkRole === "student" && bulkIncludeParent && (
+                                <>
+                                  <td className="px-3 py-2">
+                                    {r.parent_first_name || r.parent_last_name
+                                      ? `${r.parent_first_name ?? ""} ${r.parent_last_name ?? ""}`.trim()
+                                      : "—"}
+                                  </td>
+                                  <td className="px-3 py-2 font-mono">
+                                    {r.parent_email || "—"}
+                                  </td>
+                                </>
+                              )}
                               <td className="px-3 py-2 font-mono">{r.email}</td>
                               <td className="px-3 py-2 font-mono">{r.password}</td>
                               <td className="px-3 py-2">
@@ -859,7 +1071,10 @@ export default function ClassroomMembersPage() {
                           ))}
                           {!bulkPreview.length && (
                             <tr>
-                              <td className="px-3 py-6 text-muted-foreground" colSpan={4}>
+                              <td
+                                className="px-3 py-6 text-muted-foreground"
+                                colSpan={bulkRole === "student" && bulkIncludeParent ? 6 : 4}
+                              >
                                 Sube un Excel para ver el preview.
                               </td>
                             </tr>

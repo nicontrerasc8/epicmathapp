@@ -3,6 +3,7 @@
 import { createClient } from "@supabase/supabase-js"
 import crypto from "crypto"
 import { requireInstitution } from "@/lib/institution"
+import { ensureParentLinkAction } from "@/app/dashboard/admin/admin-actions"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,6 +18,8 @@ type Row = {
   role: "student" | "teacher"
   institution_id: string
   classroom_id?: string
+  parent_first_name?: string
+  parent_last_name?: string
 }
 
 export async function importUsersAction(rows: Row[]) {
@@ -33,6 +36,8 @@ export async function importUsersAction(rows: Row[]) {
       const lastName = row.last_name?.trim()
       const role = row.role?.trim().toLowerCase() as Row["role"] | undefined
       const institutionId = row.institution_id?.trim()
+      const parentFirstName = row.parent_first_name?.trim() || ""
+      const parentLastName = row.parent_last_name?.trim() || ""
 
       if (!email || !firstName || !lastName || !institutionId || !role) {
         report.failed.push({
@@ -46,6 +51,13 @@ export async function importUsersAction(rows: Row[]) {
         report.failed.push({
           email,
           error: "Role invalido (student o teacher)",
+        })
+        continue
+      }
+      if ((parentFirstName || parentLastName) && (!parentFirstName || !parentLastName)) {
+        report.failed.push({
+          email,
+          error: "Padre requerido (nombre y apellido)",
         })
         continue
       }
@@ -102,6 +114,14 @@ export async function importUsersAction(rows: Row[]) {
             classroom_id: row.classroom_id,
           })
         if (cmErr) throw cmErr
+      }
+
+      if (role === "student" && parentFirstName && parentLastName) {
+        await ensureParentLinkAction({
+          student_id: userId,
+          parent_first_name: parentFirstName,
+          parent_last_name: parentLastName,
+        })
       }
 
       report.created.push({
