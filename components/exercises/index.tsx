@@ -82,6 +82,10 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "c6d80a78-128c-464f-917c-d75fd9a0f1c5": () => import("./primaria/RestasLaPontificia"),
   "02823510-6da2-478c-8600-958f4cd37fe4": () => import("./primaria/MultiplicacionesLaPontificia"),
 
+  "a38847f3-2a33-4fb1-9a9f-3440b52d9d2c": () => import("./prisma/SR01"),
+
+  "5ca2ced7-1067-46fb-8d94-0d0bab7b983d": () => import("./prisma/SR02"),
+
 }
 
 const formatFeedbackDate = (value?: string) => {

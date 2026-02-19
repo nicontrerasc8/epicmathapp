@@ -21,6 +21,53 @@ export function useExerciseGamification(
   const [gami, setGami] = useState<GamificationRow | null>(null)
   const [gamiLoading, setGamiLoading] = useState(true)
 
+  const fetchRow = async (uid: string) => {
+    const { data: row, error } = await supabase
+      .from("edu_student_gamification")
+      .select(
+        `
+        student_id,
+        exercise_id,
+        attempts,
+        correct_attempts,
+        wrong_attempts,
+        trophies,
+        streak,
+        last_played_at
+      `
+      )
+      .eq("student_id", uid)
+      .eq("exercise_id", exerciseId)
+      .maybeSingle()
+
+    return { row: (row as GamificationRow | null) ?? null, error }
+  }
+
+  const ensureRow = async (uid: string) => {
+    const { row, error } = await fetchRow(uid)
+    if (error) return { row: null, error }
+    if (row) return { row, error: null }
+
+    const baseRow = {
+      student_id: uid,
+      exercise_id: exerciseId,
+      attempts: 0,
+      correct_attempts: 0,
+      wrong_attempts: 0,
+      trophies: 0,
+      streak: 0,
+      last_played_at: null as string | null,
+    }
+
+    const { error: upsertError } = await supabase
+      .from("edu_student_gamification")
+      .upsert(baseRow, { onConflict: "student_id,exercise_id" })
+
+    if (upsertError) return { row: null, error: upsertError }
+
+    return fetchRow(uid)
+  }
+
   /* ======================================================
      LOAD GAMIFICATION
   ====================================================== */
@@ -42,23 +89,7 @@ export function useExerciseGamification(
         return
       }
 
-      const { data: row, error } = await supabase
-        .from("edu_student_gamification")
-        .select(
-          `
-          student_id,
-          exercise_id,
-          attempts,
-          correct_attempts,
-          wrong_attempts,
-          trophies,
-          streak,
-          last_played_at
-        `
-        )
-        .eq("student_id", uid)
-        .eq("exercise_id", exerciseId)
-        .maybeSingle()
+      const { row, error } = await ensureRow(uid)
 
       if (!alive) return
 
@@ -66,7 +97,7 @@ export function useExerciseGamification(
         console.warn("[exercise gamification] load error", error)
         setGami(null)
       } else {
-        setGami((row as any) ?? null)
+        setGami(row)
       }
 
       setGamiLoading(false)
@@ -82,25 +113,13 @@ export function useExerciseGamification(
      REFRESH
   ====================================================== */
   const refresh = async (uid: string) => {
-    const { data: row } = await supabase
-      .from("edu_student_gamification")
-      .select(
-        `
-        student_id,
-        exercise_id,
-        attempts,
-        correct_attempts,
-        wrong_attempts,
-        trophies,
-        streak,
-        last_played_at
-      `
-      )
-      .eq("student_id", uid)
-      .eq("exercise_id", exerciseId)
-      .maybeSingle()
-
-    setGami((row as any) ?? null)
+    const { row, error } = await ensureRow(uid)
+    if (error) {
+      console.warn("[exercise gamification] refresh error", error)
+      setGami(null)
+      return
+    }
+    setGami(row)
   }
 
   /* ======================================================
