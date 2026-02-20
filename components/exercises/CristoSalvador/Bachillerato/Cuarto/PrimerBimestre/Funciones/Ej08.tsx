@@ -1,14 +1,14 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ShieldCheck, Sigma } from "lucide-react"
+import { ShieldCheck, Sigma, Divide } from "lucide-react"
 
 import { useExerciseEngine } from "@/lib/exercises/useExerciseEngine"
 import { useExerciseSubmission } from "@/lib/exercises/useExerciseSubmission"
 import { useExerciseTimer } from "@/lib/exercises/useExerciseTimer"
 import { computeTrophyGain, WRONG_PENALTY } from "@/lib/exercises/gamification"
 
-import { Option, OptionsGrid } from "@/components/exercises/base/OptionsGrid"
+import { type Option, OptionsGrid } from "@/components/exercises/base/OptionsGrid"
 import { MathProvider, MathTex } from "@/components/exercises/base/MathBlock"
 import { ExerciseHud } from "@/components/exercises/base/ExerciseHud"
 import { SolutionBox } from "@/components/exercises/base/SolutionBox"
@@ -16,48 +16,59 @@ import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
 /* =========================
-   ESCENARIO (Pregunta 3)
-   (3×10^4)(2×10^-6)
+   HELPERS
 ========================= */
-function scenarioP3() {
-  const a1 = 3
-  const k1 = 4
-  const a2 = 2
-  const k2 = -6
 
-  const mantissa = a1 * a2 // 6
-  const exponent = k1 + k2 // -2
+function randInt(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1))
+}
 
-  const correct = `${mantissa} \\times 10^{${exponent}}` // 6×10^-2
+function shuffle<T>(arr: T[]): T[] {
+  return [...arr].sort(() => Math.random() - 0.5)
+}
 
-  const exprTex = `(${a1} \\times 10^{${k1}})(${a2} \\times 10^{${k2}})`
+/* =========================
+   GENERADOR
+   Forma de la recta
+========================= */
 
-  // Opciones A–E como la imagen (incluye equivalentes NO normalizados)
-  const options: Option[] = [
-    { value: `6 \\times 10^{-2}`, correct: true }, // A
-    { value: `6 \\times 10^{2}`, correct: false }, // B
-    { value: `6 \\times 10^{-10}`, correct: false }, // C
-    { value: `0{,}6 \\times 10^{-1}`, correct: false }, // D (equivalente, no normalizado)
-    { value: `60 \\times 10^{-3}`, correct: false }, // E (equivalente, no normalizado)
-  ]
+type Scenario = ReturnType<typeof generateScenario>
+
+function generateScenario() {
+  const m = randInt(-5, 5) || 2
+  const x0 = randInt(-5, 5)
+  const y0 = randInt(-5, 5)
+
+  const exprTex = `y ${y0 >= 0 ? "-" : "+"} ${Math.abs(y0)} = ${m}(x ${
+    x0 >= 0 ? "-" : "+"
+  } ${Math.abs(x0)})`
 
   return {
-    a1,
-    k1,
-    a2,
-    k2,
-    mantissa,
-    exponent,
-    correct,
+    m,
+    x0,
+    y0,
     exprTex,
-    options,
+    correct: "Punto–pendiente",
   }
+}
+
+function generateOptions(correct: string): Option[] {
+  const all: Option[] = [
+    { value: "General", correct: false },
+    { value: "Pendiente–intersección", correct: false },
+    { value: "Punto–pendiente", correct: true },
+    { value: "Segmentaria", correct: false },
+    { value: "Vectorial", correct: false },
+  ]
+
+  return shuffle(all)
 }
 
 /* ============================================================
    COMPONENTE
 ============================================================ */
-export default function NotacionCientificaPregunta3Game({
+
+export default function FormaRectaGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -67,24 +78,36 @@ export default function NotacionCientificaPregunta3Game({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
-  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
-    exerciseId,
-    classroomId,
-    sessionId,
-  })
+  const { studentId, gami, gamiLoading, submitAttempt } =
+    useExerciseSubmission({
+      exerciseId,
+      classroomId,
+      sessionId,
+    })
 
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
-  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
+  const { elapsed, startedAtRef } = useExerciseTimer(
+    engine.canAnswer,
+    nonce
+  )
 
-  const scenario = useMemo(() => scenarioP3(), [nonce])
-  const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
+  const scenario = useMemo(() => {
+    const s = generateScenario()
+    return { ...s, options: generateOptions(s.correct) }
+  }, [nonce])
+
+  const trophyPreview = useMemo(
+    () => computeTrophyGain(elapsed),
+    [elapsed]
+  )
 
   async function pickOption(op: Option) {
     if (!engine.canAnswer) return
 
-    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
+    const timeSeconds =
+      (Date.now() - startedAtRef.current) / 1000
     setSelected(op.value)
     engine.submit(op.correct)
 
@@ -94,18 +117,13 @@ export default function NotacionCientificaPregunta3Game({
         selected: op.value,
         correctAnswer: scenario.correct,
         question: {
-          type: "notacion_cientifica_p3",
-          expr_tex: scenario.exprTex,
+          expression: scenario.exprTex,
         },
         computed: {
-          mantissa: scenario.mantissa,
-          exponent: scenario.exponent,
+          rule:
+            "La forma punto–pendiente es: y - y₀ = m(x - x₀).",
         },
         options: scenario.options.map(o => o.value),
-        extra: {
-          time_seconds: Math.floor(timeSeconds),
-          trophy_preview: computeTrophyGain(timeSeconds),
-        },
       },
       timeSeconds,
     })
@@ -117,11 +135,13 @@ export default function NotacionCientificaPregunta3Game({
     setNonce(n => n + 1)
   }
 
+  const questionTex = `\\text{La ecuación } ${scenario.exprTex} \\text{ está expresada en forma:}`
+
   return (
     <MathProvider>
       <ExerciseShell
-        title="Operaciones con números de la forma a×10^k — Pregunta 3"
-        prompt="Calcular y expresar en notación científica:"
+        title="Formas de la ecuación de la recta"
+        prompt="Selecciona la opción correcta:"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -130,47 +150,51 @@ export default function NotacionCientificaPregunta3Game({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Resolución paso a paso"
+              title="Guía paso a paso"
               steps={[
                 {
-                  title: "Multiplicar las mantisas",
+                  title: "Reconocer la estructura",
                   detail: (
                     <span>
-                      Multiplicamos los números que están antes del <MathTex tex={`10^k`} />.
+                      La ecuación tiene la forma
+                      <b> y − y₀ = m(x − x₀)</b>.
                     </span>
                   ),
                   icon: Sigma,
-                  content: <MathTex block tex={`${scenario.a1} \\cdot ${scenario.a2} = ${scenario.mantissa}`} />,
+                  content: (
+                    <div className="space-y-3">
+                      <MathTex
+                        block
+                        tex={`y - y_0 = m(x - x_0)`}
+                      />
+                      <MathTex block tex={scenario.exprTex} />
+                    </div>
+                  ),
                 },
                 {
-                  title: "Sumar los exponentes",
+                  title: "Identificar sus elementos",
                   detail: (
                     <span>
-                      En multiplicación, los exponentes de 10 <b>se suman</b>.
+                      m es la pendiente, y (x₀, y₀) es un punto de la recta.
                     </span>
                   ),
-                  icon: Sigma,
-                  content: <MathTex block tex={`${scenario.k1} + (${scenario.k2}) = ${scenario.exponent}`} />,
+                  icon: Divide,
                 },
                 {
-                  title: "Escribir en notación científica",
+                  title: "Conclusión",
                   detail: (
                     <span>
-                      La mantisa debe cumplir <MathTex tex={`1 \\le m < 10`} />. Aquí <MathTex tex={`m=6`} /> sí cumple.
+                      Por lo tanto, está en forma
+                      <b> punto–pendiente</b>.
                     </span>
                   ),
                   icon: ShieldCheck,
-                  content: <MathTex block tex={scenario.correct} />,
-                  tip: (
-                    <span>
-                      <MathTex tex={`6 \\times 10^{-1}`} /> y <MathTex tex={`60 \\times 10^{-3}`} /> valen lo mismo, pero no están normalizadas.
-                    </span>
-                  ),
                 },
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: <b>{scenario.correct}</b> (opción A).
+                  Respuesta final:{" "}
+                  <b>{scenario.correct}</b>.
                 </span>
               }
             />
@@ -178,19 +202,23 @@ export default function NotacionCientificaPregunta3Game({
         }
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
-          <div className="text-xs text-muted-foreground mb-2">Expresión</div>
+          <div className="text-xs text-muted-foreground mb-2">
+            Pregunta
+          </div>
           <div className="rounded-lg border bg-background p-3">
-            <MathTex block tex={scenario.exprTex} />
+            <MathTex block tex={questionTex} />
           </div>
         </div>
 
         <OptionsGrid
-          options={scenario.options} // orden A–E como la imagen
+          options={scenario.options}
           selectedValue={selected}
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={op => (
+            <MathTex tex={`\\text{${op.value}}`} />
+          )}
         />
 
         <div className="mt-6">

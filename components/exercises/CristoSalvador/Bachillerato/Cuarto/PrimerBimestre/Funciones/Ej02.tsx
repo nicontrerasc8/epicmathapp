@@ -8,7 +8,7 @@ import { useExerciseSubmission } from "@/lib/exercises/useExerciseSubmission"
 import { useExerciseTimer } from "@/lib/exercises/useExerciseTimer"
 import { computeTrophyGain, WRONG_PENALTY } from "@/lib/exercises/gamification"
 
-import { type Option, OptionsGrid } from "@/components/exercises/base/OptionsGrid"
+import { Option, OptionsGrid } from "@/components/exercises/base/OptionsGrid"
 import { MathProvider, MathTex } from "@/components/exercises/base/MathBlock"
 import { ExerciseHud } from "@/components/exercises/base/ExerciseHud"
 import { SolutionBox } from "@/components/exercises/base/SolutionBox"
@@ -22,72 +22,72 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
-function shuffle<T>(arr: T[]): T[] {
+function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
 
 /* =========================
-   GENERADOR
-   Error porcentual
-   Fórmula: |real - esperado| / esperado × 100%
+   GENERADOR (Recta con pendiente y punto)
 ========================= */
 
 type Scenario = ReturnType<typeof generateScenario>
 
 function generateScenario() {
-  // generamos valores razonables
-  const esperado = randInt(200, 800)
-  const errorAbs = randInt(5, 40)
-  const recibe = esperado - errorAbs
+  const m = randInt(2, 6) // pendiente positiva
+  const x0 = randInt(-3, 3)
+  const y0 = randInt(-5, 5)
 
-  const error = Math.abs(esperado - recibe)
-  const porcentaje = Math.round((error / esperado) * 100)
+  const b = y0 - m * x0
 
-  // distractores típicos
-  const wrong1 = Math.round((error / recibe) * 100) // dividir mal
-  const wrong2 = Math.round((recibe / esperado) * 100) // porcentaje directo
-  const wrong3 = error // confundir con mg
-  const wrong4 = porcentaje + 1
+  const questionTex = `
+\\text{¿Cuál es la ecuación de la recta con pendiente } ${m} 
+\\text{ que pasa por el punto } (${x0}, ${y0})?
+`
+
+  const correct = `y=${m}x${b >= 0 ? "+" + b : b}`
 
   return {
-    esperado,
-    recibe,
-    error,
-    porcentaje,
-    candidates: [porcentaje, wrong1, wrong2, wrong3, wrong4],
+    m,
+    x0,
+    y0,
+    b,
+    questionTex,
+    correct,
   }
 }
 
+/* =========================
+   OPCIONES
+========================= */
+
 function generateOptions(s: Scenario): Option[] {
-  const seen = new Set<number>()
-  const unique: number[] = []
+  const correct = s.correct
 
-  for (const n of s.candidates) {
-    if (!seen.has(n) && n >= 0 && n <= 100) {
-      seen.add(n)
-      unique.push(n)
-    }
-  }
+  const wrong1 = `y=${s.m}x${s.b + 2 >= 0 ? "+" + (s.b + 2) : s.b + 2}`
+  const wrong2 = `y=-${s.m}x${s.b >= 0 ? "+" + s.b : s.b}`
+  const wrong3 = `y=${s.m}x`
+  const wrong4 = `y=${s.m}x${s.b - 2 >= 0 ? "+" + (s.b - 2) : s.b - 2}`
 
-  while (unique.length < 5) {
-    const extra = randInt(1, 10)
-    if (!seen.has(extra)) {
-      seen.add(extra)
-      unique.push(extra)
-    }
-  }
+  const all: Option[] = [
+    { value: correct, correct: true },
+    { value: wrong1, correct: false },
+    { value: wrong2, correct: false },
+    { value: wrong3, correct: false },
+    { value: wrong4, correct: false },
+  ]
 
-  return shuffle(unique).slice(0, 5).map(n => ({
-    value: `${n}\\%`,
-    correct: n === s.porcentaje,
-  }))
+  const unique = Array.from(
+    new Map(all.map(o => [o.value, o])).values()
+  )
+
+  return shuffle(unique).slice(0, 5)
 }
 
 /* ============================================================
    COMPONENTE
 ============================================================ */
 
-export default function ErrorPorcentualGame({
+export default function EcuacionRectaGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -97,28 +97,37 @@ export default function ErrorPorcentualGame({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
-  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
-    exerciseId,
-    classroomId,
-    sessionId,
-  })
+  const { studentId, gami, gamiLoading, submitAttempt } =
+    useExerciseSubmission({
+      exerciseId,
+      classroomId,
+      sessionId,
+    })
 
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
-  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
+  const { elapsed, startedAtRef } = useExerciseTimer(
+    engine.canAnswer,
+    nonce
+  )
 
   const scenario = useMemo(() => {
     const s = generateScenario()
     return { ...s, options: generateOptions(s) }
   }, [nonce])
 
-  const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
+  const trophyPreview = useMemo(
+    () => computeTrophyGain(elapsed),
+    [elapsed]
+  )
 
   async function pickOption(op: Option) {
     if (!engine.canAnswer) return
 
-    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
+    const timeSeconds =
+      (Date.now() - startedAtRef.current) / 1000
+
     setSelected(op.value)
     engine.submit(op.correct)
 
@@ -126,15 +135,10 @@ export default function ErrorPorcentualGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: `${scenario.porcentaje}%`,
-        question: {
-          esperado: scenario.esperado,
-          recibe: scenario.recibe,
-        },
-        computed: {
-          error: scenario.error,
-          formula: "|real - esperado| / esperado × 100%",
-        },
+        correctAnswer: scenario.correct,
+        m: scenario.m,
+        point: [scenario.x0, scenario.y0],
+        b: scenario.b,
         options: scenario.options.map(o => o.value),
       },
       timeSeconds,
@@ -147,18 +151,11 @@ export default function ErrorPorcentualGame({
     setNonce(n => n + 1)
   }
 
-  const questionTex1 = `\\text{Un paciente debe recibir } ${scenario.esperado}\\,\\text{mg de un medicamento,}`
-  const questionTex2 = `\\text{pero recibe } ${scenario.recibe}\\,\\text{mg.}`
-  const questionTex3 = `\\text{¿Cuál es el error porcentual?}`
-
-  const step1 = `\\text{Error absoluto} = |${scenario.esperado}-${scenario.recibe}| = ${scenario.error}`
-  const step2 = `\\frac{${scenario.error}}{${scenario.esperado}} \\times 100 = ${scenario.porcentaje}\\%`
-
   return (
     <MathProvider>
       <ExerciseShell
-        title="Error porcentual"
-        prompt="Selecciona la opción correcta:"
+        title="Ecuación de la recta"
+        prompt="Resolver:"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -170,43 +167,69 @@ export default function ErrorPorcentualGame({
               title="Guía paso a paso"
               steps={[
                 {
-                  title: "Calcular el error absoluto",
-                  detail: <span>Restamos el valor real y el esperado.</span>,
+                  title: "Usar la forma y = mx + b",
+                  detail: (
+                    <span>
+                      Partimos de la forma general de la recta con pendiente conocida.
+                    </span>
+                  ),
                   icon: Sigma,
                   content: (
-                    <div className="space-y-3">
-                      <MathTex block tex={step1} />
-                    </div>
+                    <MathTex
+                      block
+                      tex={`y = ${scenario.m}x + b`}
+                    />
                   ),
                 },
                 {
-                  title: "Aplicar la fórmula de error porcentual",
+                  title: "Sustituir el punto dado",
                   detail: (
                     <span>
-                      Fórmula: <MathTex tex={`|real-esperado|/esperado\\times100\\%`} />.
+                      Reemplazamos el punto <b>({scenario.x0}, {scenario.y0})</b> para hallar <MathTex tex={`b`} />.
                     </span>
                   ),
                   icon: Divide,
                   content: (
-                    <div className="space-y-3">
-                      <MathTex block tex={step2} />
-                    </div>
+                    <MathTex
+                      block
+                      tex={`${scenario.y0} = ${scenario.m}(${scenario.x0}) + b`}
+                    />
                   ),
                 },
                 {
-                  title: "Resultado final",
-                  detail: <span>Ese es el porcentaje de error.</span>,
+                  title: "Despejar b",
+                  detail: (
+                    <span>
+                      Aislamos el término independiente.
+                    </span>
+                  ),
                   icon: ShieldCheck,
                   content: (
-                    <div className="space-y-3">
-                      <MathTex block tex={`\\text{Respuesta: } ${scenario.porcentaje}\\%`} />
-                    </div>
+                    <MathTex
+                      block
+                      tex={`b = ${scenario.b}`}
+                    />
+                  ),
+                },
+                {
+                  title: "Escribir la ecuación final",
+                  detail: (
+                    <span>
+                      Sustituimos el valor de <MathTex tex={`b`} /> en la ecuación de la recta.
+                    </span>
+                  ),
+                  icon: ShieldCheck,
+                  content: (
+                    <MathTex
+                      block
+                      tex={scenario.correct}
+                    />
                   ),
                 },
               ]}
               concluding={
                 <span>
-                  Respuesta final: <b>{scenario.porcentaje}%</b>.
+                  Respuesta final: <b>{scenario.correct}</b>.
                 </span>
               }
             />
@@ -214,11 +237,11 @@ export default function ErrorPorcentualGame({
         }
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
-          <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
-          <div className="rounded-lg border bg-background p-3 space-y-2">
-            <MathTex block tex={questionTex1} />
-            <MathTex block tex={questionTex2} />
-            <MathTex block tex={questionTex3} />
+          <div className="text-xs text-muted-foreground mb-2">
+            Pregunta
+          </div>
+          <div className="rounded-lg border bg-background p-3">
+            <MathTex block tex={scenario.questionTex} />
           </div>
         </div>
 

@@ -63,7 +63,7 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "01e506fd-11d4-4a4a-8de6-19d7a32e6132": () => import("./prisma/Prisma34"),
   "7ed40df0-cc59-48e5-a156-71e9322c9a8f": () => import("./prisma/Prisma35"),
   "d187e75f-5da6-43d2-820b-e83486f07e53": () => import("./avanzado/AdvancedSystemEquations"),
-  "02519042-3d4b-489a-9f42-fbb9cd4a8885": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej15"),
+  "02519042-3d4b-489a-9f42-fbb9cd4a8885": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej15"),
   "fe9674ce-82ea-42d9-a5e8-89c6ca05c044": () => import("./avanzado/AdvancedOptimization"),
   "738395f5-9495-4297-a04c-7b4dce5e1c54": () => import("./avanzado/AdvancedProbability"),
   "05994607-8168-42f0-81d6-4b046de674e3": () => import("./avanzado/AdvancedMatrixTransformations"),
@@ -85,6 +85,11 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "a38847f3-2a33-4fb1-9a9f-3440b52d9d2c": () => import("./prisma/SR01"),
 
   "5ca2ced7-1067-46fb-8d94-0d0bab7b983d": () => import("./prisma/SR02"),
+
+  /* pruebas */
+   "02519042-3d4b-489a-9f42-fbb9cd4a8885": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej20"),
+
+   /* fin pruebas */
 
 }
 

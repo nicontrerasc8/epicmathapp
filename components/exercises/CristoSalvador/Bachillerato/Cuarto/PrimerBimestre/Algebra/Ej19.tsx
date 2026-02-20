@@ -8,7 +8,7 @@ import { useExerciseSubmission } from "@/lib/exercises/useExerciseSubmission"
 import { useExerciseTimer } from "@/lib/exercises/useExerciseTimer"
 import { computeTrophyGain, WRONG_PENALTY } from "@/lib/exercises/gamification"
 
-import { Option, OptionsGrid } from "@/components/exercises/base/OptionsGrid"
+import { type Option, OptionsGrid } from "@/components/exercises/base/OptionsGrid"
 import { MathProvider, MathTex } from "@/components/exercises/base/MathBlock"
 import { ExerciseHud } from "@/components/exercises/base/ExerciseHud"
 import { SolutionBox } from "@/components/exercises/base/SolutionBox"
@@ -25,152 +25,84 @@ function randInt(min: number, max: number) {
 function choice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
-function roundTo(n: number, d: number) {
-  const p = Math.pow(10, d)
-  return Math.round(n * p) / p
-}
 
-function texNumComma(n: number, maxDecimals = 2) {
-  const s = n.toFixed(maxDecimals).replace(/\.?0+$/, "")
-  return s.replace(".", "{,}")
-}
-
-function texScientific(m: number, e: number, maxDecimals = 2) {
-  return `${texNumComma(m, maxDecimals)} \\times 10^{${e}}`
-}
-
-function normalizeScientific(m: number, e: number, decimals = 2) {
-  let mm = m
-  let ee = e
-
-  while (mm >= 10) {
-    mm /= 10
-    ee += 1
-  }
-  while (mm > 0 && mm < 1) {
-    mm *= 10
-    ee -= 1
-  }
-
-  mm = roundTo(mm, decimals)
-
-  // si el redondeo empuja a 10, renormaliza
-  if (mm >= 10) {
-    mm /= 10
-    ee += 1
-    mm = roundTo(mm, decimals)
-  }
-
-  return { m: mm, e: ee }
+function round2(n: number) {
+  return Math.round(n * 100) / 100
 }
 
 /* =========================
-   GENERADOR (tipo Pregunta 5)
-   (a×10^e1) + (b×10^e2) => notación científica
+   GENERADOR (error porcentual)
 ========================= */
 
 type Scenario = ReturnType<typeof generateScenario>
 
 function generateScenario() {
-  // elegimos exponente "principal" y una diferencia 1 o 2 para que sea estilo colegio
-  const eBig = -randInt(1, 6) // -1..-6
-  const diff = choice([1, 2]) // como -2 y -3 (diff=1)
-  const eSmall = eBig - diff
+  // Generamos valores “bonitos”
+  const real = choice([100, 120, 150, 200, 250, 300, 400])
+  const errorAbs = choice([5, 10, 12, 15, 20, 25])
 
-  const a = randInt(2, 9) // mantisa entera como la imagen
-  const b = randInt(1, 9)
+  const direction = choice([-1, 1]) // subestimación o sobreestimación
+  const estimate = real + direction * errorAbs
 
-  // sumamos llevando a exponente común (el más pequeño / más negativo)
-  const commonE = Math.min(eBig, eSmall) // eSmall
-  const d1 = eBig - commonE // diff
-  const d2 = eSmall - commonE // 0
-  const A = a * Math.pow(10, d1)
-  const B = b * Math.pow(10, d2)
-  const rawMantissa = A + B
-  const rawExponent = commonE
-
-  const norm = normalizeScientific(rawMantissa, rawExponent, 2)
-  const correct = texScientific(norm.m, norm.e, 2)
+  const errorPercent = round2((Math.abs(estimate - real) / real) * 100)
 
   return {
-    a,
-    b,
-    e1: eBig,
-    e2: eSmall,
-    diff,
-    commonE,
-    convertedA: A, // a×10^eBig => A×10^commonE
-    convertedB: B, // b×10^eSmall => B×10^commonE
-    rawMantissa,
-    rawExponent,
-    normM: norm.m,
-    normE: norm.e,
-    correct,
+    real,
+    estimate,
+    errorPercent,
+    correct: `${errorPercent} %`,
   }
 }
 
 /* =========================
-   OPCIONES (A-E estilo imagen)
-   - correcta (normalizada)
-   - error típico: convertir con un cero de más (6,02×10^-2)
-   - equivalentes pero NO normalizadas: 0,62×10^-1 y 62×10^-3
-   - error típico: sumar exponentes (8×10^-5)
+   OPCIONES (A–E)
+   Trampas típicas:
+   - dividir entre estimado
+   - usar diferencia sin valor absoluto
+   - error relativo inverso
+   - sumar en vez de dividir
 ========================= */
 
 function generateOptions(s: Scenario): Option[] {
-  const correct = s.correct
-
-  // ❌ Error: al pasar el término de exponente menor a e1, se corre un cero de más
-  // correcto sería: b×10^(e2) = (b×10^(-diff))×10^(e1)
-  // error:         (b×10^(-(diff+1)))×10^(e1)
-  const wrongShiftMantissa = roundTo(s.a + s.b * Math.pow(10, -(s.diff + 1)), 2)
-  const wrongShift = texScientific(wrongShiftMantissa, s.e1, 2)
-
-  // ❌ No científica (mantisa < 1) equivalente
-  const notSciSmall = texScientific(roundTo(s.normM / 10, 2), s.normE + 1, 2) // 0,62×10^-1
-
-  // ❌ No científica (mantisa >= 10) equivalente
-  const notSciBig = texScientific(roundTo(s.normM * 10, 2), s.normE - 1, 2) // 62×10^-3
-
-  // ❌ Error: sumar exponentes (como 8×10^-5 en la imagen)
-  const wrongAddExpNorm = normalizeScientific(s.a + s.b, s.e1 + s.e2, 2)
-  const wrongAddExponents = texScientific(wrongAddExpNorm.m, wrongAddExpNorm.e, 2)
-
-  const all: Option[] = [
-    { value: correct, correct: true },
-    { value: wrongShift, correct: false },
-    { value: notSciSmall, correct: false },
-    { value: notSciBig, correct: false },
-    { value: wrongAddExponents, correct: false },
-  ]
-
-  // evita duplicados raros
   const seen = new Set<string>()
-  const unique: Option[] = []
-  for (const o of all) {
-    if (seen.has(o.value)) continue
-    seen.add(o.value)
-    unique.push(o)
+  const options: Option[] = []
+
+  function add(val: string, correct: boolean) {
+    if (seen.has(val)) return
+    seen.add(val)
+    options.push({ value: val, correct })
   }
 
-  // relleno si quedaran < 5 por coincidencia
-  while (unique.length < 5) {
-    const w = normalizeScientific(s.normM, s.normE + randInt(-3, 3), 2)
-    const tex = texScientific(w.m, w.e, 2)
-    if (tex !== correct && !seen.has(tex)) {
-      unique.push({ value: tex, correct: false })
-      seen.add(tex)
-    }
+  add(s.correct, true)
+
+  // 1) dividir entre estimado
+  const wrong1 = round2((Math.abs(s.estimate - s.real) / s.estimate) * 100)
+  add(`${wrong1} %`, false)
+
+  // 2) diferencia directa en %
+  add(`${Math.abs(s.estimate - s.real)} %`, false)
+
+  // 3) error relativo inverso
+  const wrong3 = round2((s.real / s.estimate) * 100)
+  add(`${wrong3} %`, false)
+
+  // 4) sumar porcentajes
+  const wrong4 = round2((s.estimate / s.real) * 100)
+  add(`${wrong4} %`, false)
+
+  while (options.length < 5) {
+    const extra = `${randInt(1, 20)} %`
+    if (!seen.has(extra) && extra !== s.correct) add(extra, false)
   }
 
-  return unique.sort(() => Math.random() - 0.5)
+  return options.slice(0, 5).sort(() => Math.random() - 0.5)
 }
 
 /* ============================================================
    COMPONENTE
 ============================================================ */
 
-export default function Ej05SumaNotacionCientifica({
+export default function ErrorPorcentualGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -180,7 +112,6 @@ export default function Ej05SumaNotacionCientifica({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
-
   const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
     exerciseId,
     classroomId,
@@ -204,7 +135,6 @@ export default function Ej05SumaNotacionCientifica({
 
     const timeSeconds = (Date.now() - startedAtRef.current) / 1000
     setSelected(op.value)
-
     engine.submit(op.correct)
 
     await submitAttempt({
@@ -213,25 +143,11 @@ export default function Ej05SumaNotacionCientifica({
         selected: op.value,
         correctAnswer: scenario.correct,
         question: {
-          a: scenario.a,
-          b: scenario.b,
-          e1: scenario.e1,
-          e2: scenario.e2,
+          real: scenario.real,
+          estimate: scenario.estimate,
         },
         computed: {
-          commonExponent: scenario.commonE,
-          converted: {
-            A: scenario.convertedA,
-            B: scenario.convertedB,
-          },
-          raw: {
-            mantissa: scenario.rawMantissa,
-            exponent: scenario.rawExponent,
-          },
-          normalized: {
-            m: scenario.normM,
-            e: scenario.normE,
-          },
+          errorPercent: scenario.errorPercent,
         },
         options: scenario.options.map(o => o.value),
       },
@@ -245,13 +161,25 @@ export default function Ej05SumaNotacionCientifica({
     setNonce(n => n + 1)
   }
 
-  const exprTex = `(${scenario.a} \\times 10^{${scenario.e1}}) + (${scenario.b} \\times 10^{${scenario.e2}})`
+  const q1 = `\\text{El precio real de un producto es S/ ${scenario.real},}`
+  const q2 = `\\text{pero una estimación lo fija en S/ ${scenario.estimate}.}`
+  const q3 = `\\text{¿Cuál es el error porcentual?}`
+
+  const formulaTex = `
+\\text{Error \\%} =
+\\frac{|\\text{Estimado} - \\text{Real}|}{\\text{Real}} \\times 100
+`
+
+  const calcTex = `
+\\frac{|${scenario.estimate} - ${scenario.real}|}{${scenario.real}} \\times 100
+= ${scenario.correct}
+`
 
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ejercicio 05 – Suma en notación científica"
-        prompt="El resultado, expresado en notación científica, es:"
+        title="Cálculo de error porcentual"
+        prompt="Resuelve:"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -263,79 +191,42 @@ export default function Ej05SumaNotacionCientifica({
               title="Guía paso a paso"
               steps={[
                 {
-                  title: "Igualar exponentes",
+                  title: "Usar la fórmula del error porcentual",
                   detail: (
                     <span>
-                      Para sumar, primero llevamos ambos términos al <b>mismo exponente</b>.
-                      Usamos el más pequeño (más negativo).
+                      Se compara el valor estimado con el real.
                     </span>
                   ),
                   icon: Sigma,
                   content: (
                     <div className="space-y-3">
-                      <MathTex block tex={exprTex} />
-                      <MathTex
-                        block
-                        tex={`\\text{Exponente común} = ${scenario.commonE}`}
-                      />
-                      <MathTex
-                        block
-                        tex={`${scenario.a} \\times 10^{${scenario.e1}} = ${scenario.convertedA} \\times 10^{${scenario.commonE}}`}
-                      />
-                      <MathTex
-                        block
-                        tex={`${scenario.b} \\times 10^{${scenario.e2}} = ${scenario.convertedB} \\times 10^{${scenario.commonE}}`}
-                      />
+                      <MathTex block tex={formulaTex} />
                     </div>
                   ),
                 },
                 {
-                  title: "Sumar mantisas con el mismo exponente",
-                  detail: <span>Ahora sí se suman los números delante de la potencia de 10.</span>,
+                  title: "Sustituir valores",
+                  detail: (
+                    <span>
+                      Se usa valor absoluto para que el error sea positivo.
+                    </span>
+                  ),
                   icon: Divide,
                   content: (
                     <div className="space-y-3">
-                      <MathTex
-                        block
-                        tex={`(${scenario.convertedA} + ${scenario.convertedB}) \\times 10^{${scenario.commonE}} = ${scenario.rawMantissa} \\times 10^{${scenario.rawExponent}}`}
-                      />
+                      <MathTex block tex={calcTex} />
                     </div>
-                  ),
-                  tip: (
-                    <span>
-                      Error típico: sumar exponentes (eso se hace en multiplicación, <b>no</b> en suma).
-                    </span>
                   ),
                 },
                 {
-                  title: "Normalizar a notación científica",
-                  detail: (
-                    <span>
-                      En notación científica, la mantisa debe cumplir:{" "}
-                      <b><MathTex tex={`1 \\le m < 10`} /></b>.
-                    </span>
-                  ),
+                  title: "Resultado final",
+                  detail: <span>Ese es el error porcentual.</span>,
                   icon: ShieldCheck,
                   content: (
-                    <div className="space-y-3">
-                      <MathTex block tex={`\\text{Resultado normalizado} = ${scenario.correct}`} />
-                      <MathTex block tex={`1 \\le ${texNumComma(scenario.normM)} < 10`} />
-                    </div>
-                  ),
-                  tip: (
-                    <span>
-                      Valores como <MathTex tex={`0,62 \\times 10^{-1}`} /> o{" "}
-                      <MathTex tex={`62 \\times 10^{-3}`} /> pueden ser equivalentes,
-                      pero <b>no</b> están en notación científica.
-                    </span>
+                    <MathTex block tex={`\\text{Respuesta: } ${scenario.correct}`} />
                   ),
                 },
               ]}
-              concluding={
-                <span>
-                  Respuesta final: <b>{scenario.correct}</b>.
-                </span>
-              }
             />
           </SolutionBox>
         }
@@ -343,7 +234,9 @@ export default function Ej05SumaNotacionCientifica({
         <div className="rounded-xl border bg-card p-4 mb-4">
           <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
           <div className="rounded-lg border bg-background p-3">
-            <MathTex block tex={exprTex} />
+            <MathTex block tex={q1} />
+            <MathTex block tex={q2} />
+            <MathTex block tex={q3} />
           </div>
         </div>
 
@@ -353,6 +246,7 @@ export default function Ej05SumaNotacionCientifica({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
+          renderValue={op => <MathTex tex={`\\text{${op.value}}`} />}
         />
 
         <div className="mt-6">

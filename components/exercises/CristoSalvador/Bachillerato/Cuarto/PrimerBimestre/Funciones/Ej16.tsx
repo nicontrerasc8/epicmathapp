@@ -15,64 +15,83 @@ import { SolutionBox } from "@/components/exercises/base/SolutionBox"
 import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
-/* =========================
-   HELPERS
-========================= */
+function shuffle<T>(arr: T[]): T[] {
+  return [...arr].sort(() => Math.random() - 0.5)
+}
 
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
 
-function generateScenario() {
-  for (let i = 0; i < 200; i++) {
-    const real = randInt(50, 200)
-    const variation = randInt(2, 15)
-    const reported = real + variation
+function gcd(a: number, b: number): number {
+  let x = Math.abs(a)
+  let y = Math.abs(b)
+  while (y !== 0) {
+    const t = y
+    y = x % y
+    x = t
+  }
+  return x || 1
+}
 
-    const error = (Math.abs(reported - real) / real) * 100
-    const errorRounded = Math.round(error)
+function slopeToTex(a: number, b: number) {
+  const num = -a
+  const den = b
+  if (num % den === 0) return `${num / den}`
 
-    if (errorRounded >= 1 && errorRounded <= 20) {
-      return {
-        real,
-        reported,
-        difference: reported - real,
-        errorRounded,
-      }
-    }
+  const g = gcd(num, den)
+  let n = num / g
+  let d = den / g
+  if (d < 0) {
+    n *= -1
+    d *= -1
+  }
+  return `\\frac{${n}}{${d}}`
+}
+
+type Scenario = ReturnType<typeof buildScenario>
+
+function buildScenario() {
+  for (let i = 0; i < 250; i++) {
+    const a = randInt(-8, 8)
+    const b = randInt(-8, 8)
+    const c = randInt(-10, 10)
+    if (a === 0 || b === 0) continue
+
+    const pendiente = slopeToTex(a, b)
+
+    const wrong1 = slopeToTex(-a, b)
+    const wrong2 = slopeToTex(a, b)
+    const wrong3 = slopeToTex(b, a)
+    const wrong4 = `${Math.abs(a)}`
+
+    const options: Option[] = shuffle([
+      { value: pendiente, correct: true },
+      { value: wrong1, correct: false },
+      { value: wrong2, correct: false },
+      { value: wrong3, correct: false },
+      { value: wrong4, correct: false },
+    ])
+
+    return { a, b, c, pendiente, options }
   }
 
-  // fallback exacto como imagen
   return {
-    real: 80,
-    reported: 84,
-    difference: 4,
-    errorRounded: 5,
+    a: 5,
+    b: 2,
+    c: -6,
+    pendiente: "-\\frac{5}{2}",
+    options: shuffle([
+      { value: "-\\frac{5}{2}", correct: true },
+      { value: "\\frac{5}{2}", correct: false },
+      { value: "-\\frac{2}{5}", correct: false },
+      { value: "\\frac{2}{5}", correct: false },
+      { value: "5", correct: false },
+    ]),
   }
 }
 
-function generateOptions(correct: number): Option[] {
-  const wrongDenominator = correct + 1
-  const wrongNoAbs = correct - 1 > 0 ? correct - 1 : correct + 2
-  const wrongDouble = correct * 2
-  const wrongHalf = Math.max(1, Math.round(correct / 2))
-
-  const options = [
-    { value: `${correct}\\%`, correct: true },
-    { value: `${wrongDenominator}\\%`, correct: false },
-    { value: `${wrongNoAbs}\\%`, correct: false },
-    { value: `${wrongDouble}\\%`, correct: false },
-    { value: `${wrongHalf}\\%`, correct: false },
-  ]
-
-  return options.sort(() => Math.random() - 0.5)
-}
-
-/* ============================================================
-   COMPONENTE
-============================================================ */
-
-export default function ErrorPorcentualGame({
+export default function PendienteGeneralGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -92,25 +111,18 @@ export default function ErrorPorcentualGame({
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
-  const { elapsed, startedAtRef } = useExerciseTimer(
-    engine.canAnswer,
-    nonce
-  )
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
 
-  const scenario = useMemo(() => {
-    const s = generateScenario()
-    return {
-      ...s,
-      options: generateOptions(s.errorRounded),
-    }
-  }, [nonce])
+  const scenario = useMemo(() => buildScenario(), [nonce])
 
   const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
 
   async function pickOption(op: Option) {
     if (!engine.canAnswer) return
 
-    const timeSeconds = (Date.now() - startedAtRef.current) / 1000
+    const timeSeconds =
+      (Date.now() - startedAtRef.current) / 1000
+
     setSelected(op.value)
     engine.submit(op.correct)
 
@@ -118,10 +130,12 @@ export default function ErrorPorcentualGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: `${scenario.errorRounded}%`,
+        correctAnswer: scenario.pendiente,
         question: {
-          real: scenario.real,
-          reported: scenario.reported,
+          equation: `${scenario.a}x + ${scenario.b}y ${scenario.c >= 0 ? "+" : "-"} ${Math.abs(scenario.c)} = 0`,
+        },
+        computed: {
+          process: "Despejar y para obtener la forma y = mx + b.",
         },
         options: scenario.options.map(o => o.value),
       },
@@ -135,26 +149,19 @@ export default function ErrorPorcentualGame({
     setNonce(n => n + 1)
   }
 
-  const formulaTex = `
-\\text{Error \\%} =
-\\frac{|\\text{medido} - \\text{real}|}{\\text{real}} \\times 100
+  const questionTex = `
+\\text{?Cual es la pendiente de la recta } ${scenario.a}x + ${scenario.b}y ${scenario.c >= 0 ? "+" : "-"} ${Math.abs(scenario.c)} = 0?
 `
 
-  const substitutionTex = `
-\\frac{|${scenario.reported} - ${scenario.real}|}{${scenario.real}} \\times 100
-`
-
-  const calculationTex = `
-\\frac{${scenario.difference}}{${scenario.real}} \\times 100
-`
-
-  const resultTex = `${scenario.errorRounded}\\%`
+  const step1 = `${scenario.a}x + ${scenario.b}y ${scenario.c >= 0 ? "+" : "-"} ${Math.abs(scenario.c)} = 0`
+  const step2 = `${scenario.b}y = ${-scenario.a}x ${-scenario.c >= 0 ? "+" : "-"} ${Math.abs(-scenario.c)}`
+  const step3 = `y = ${scenario.pendiente}x ${-scenario.c / scenario.b >= 0 ? "+" : "-"} ${Math.abs(Number((-scenario.c / scenario.b).toFixed(2)))}`
 
   return (
     <MathProvider>
       <ExerciseShell
-        title="Error porcentual"
-        prompt="¿Cuál es el error porcentual?"
+        title="Pendiente de una recta en forma general"
+        prompt="Selecciona la opcion correcta:"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -163,47 +170,47 @@ export default function ErrorPorcentualGame({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Resolución paso a paso"
+              title="Guia paso a paso"
               steps={[
                 {
-                  title: "Usar la fórmula de error porcentual",
+                  title: "Partir de la forma general",
                   detail: (
                     <span>
-                      Aplicamos la fórmula con valor medido y valor real.
+                      Despejamos y para llevarla a forma <b>y = mx + b</b>.
                     </span>
                   ),
                   icon: Sigma,
-                  content: <MathTex block tex={formulaTex} />,
+                  content: <MathTex block tex={step1} />,
                 },
                 {
-                  title: "Sustituir valores",
+                  title: "Despejar y",
                   detail: (
                     <span>
-                      Reemplazamos los datos del problema y simplificamos la fracción.
+                      Pasamos el termino en x al otro lado y dividimos entre el coeficiente de y.
                     </span>
                   ),
                   icon: Divide,
                   content: (
-                    <div className="space-y-3">
-                      <MathTex block tex={substitutionTex} />
-                      <MathTex block tex={calculationTex} />
-                    </div>
+                    <>
+                      <MathTex block tex={step2} />
+                      <MathTex block tex={step3} />
+                    </>
                   ),
                 },
                 {
-                  title: "Resultado final",
+                  title: "Identificar la pendiente",
                   detail: (
                     <span>
-                      Expresamos el resultado como porcentaje.
+                      En y = mx + b, la pendiente es el coeficiente de x.
                     </span>
                   ),
                   icon: ShieldCheck,
-                  content: <MathTex block tex={resultTex} />,
+                  content: <MathTex block tex={`m = ${scenario.pendiente}`} />,
                 },
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: <b>{scenario.errorRounded}%</b>
+                  Respuesta final: <b>{scenario.pendiente}</b>.
                 </span>
               }
             />
@@ -214,13 +221,8 @@ export default function ErrorPorcentualGame({
           <div className="text-xs text-muted-foreground mb-2">
             Pregunta
           </div>
-
-          <div className="rounded-lg border bg-background p-3 space-y-2">
-            <div className="text-sm">
-              El valor exacto de una masa es{" "}
-              <b>{scenario.real} g</b> y se reporta como{" "}
-              <b>{scenario.reported} g</b>.
-            </div>
+          <div className="rounded-lg border bg-background p-3">
+            <MathTex block tex={questionTex} />
           </div>
         </div>
 
@@ -230,7 +232,7 @@ export default function ErrorPorcentualGame({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={op => <MathTex tex={op.value} />}
         />
 
         <div className="mt-6">

@@ -16,53 +16,51 @@ import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
 /* =========================
-   HELPERS
+   GENERADOR
 ========================= */
 
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
 
+type Scenario = ReturnType<typeof generateScenario>
+
 function generateScenario() {
   for (let i = 0; i < 200; i++) {
-    const real = randInt(50, 200)
-    const variation = randInt(2, 15)
-    const reported = real + variation
+    const a = randInt(-5, 5)
+    if (a === 0) continue
 
-    const error = (Math.abs(reported - real) / real) * 100
-    const errorRounded = Math.round(error)
+    const m = a // pendiente original
+    const b = randInt(-5, 5)
 
-    if (errorRounded >= 1 && errorRounded <= 20) {
-      return {
-        real,
-        reported,
-        difference: reported - real,
-        errorRounded,
-      }
-    }
+    return { a: m, b }
   }
 
   // fallback exacto como imagen
-  return {
-    real: 80,
-    reported: 84,
-    difference: 4,
-    errorRounded: 5,
-  }
+  return { a: 3, b: 5 }
 }
 
-function generateOptions(correct: number): Option[] {
-  const wrongDenominator = correct + 1
-  const wrongNoAbs = correct - 1 > 0 ? correct - 1 : correct + 2
-  const wrongDouble = correct * 2
-  const wrongHalf = Math.max(1, Math.round(correct / 2))
+/* =========================
+   OPCIONES
+========================= */
+
+function generateOptions(s: Scenario): Option[] {
+  const originalSlope = s.a
+  const perpendicularSlope = -1 / originalSlope
+
+  const correct = `y = ${perpendicularSlope}x + 2`
+
+  const wrongSame = `y = ${originalSlope}x - 2`
+  const wrongNegativeOnly = `y = ${-originalSlope}x + 4`
+  const wrongInverseOnly = `y = ${1 / originalSlope}x + 1`
+  const wrongRandom = `y = 2x + 1`
 
   const options = [
-    { value: `${correct}\\%`, correct: true },
-    { value: `${wrongDenominator}\\%`, correct: false },
-    { value: `${wrongNoAbs}\\%`, correct: false },
-    { value: `${wrongDouble}\\%`, correct: false },
-    { value: `${wrongHalf}\\%`, correct: false },
+    { value: correct, correct: true },
+    { value: wrongSame, correct: false },
+    { value: wrongNegativeOnly, correct: false },
+    { value: wrongInverseOnly, correct: false },
+    { value: wrongRandom, correct: false },
   ]
 
   return options.sort(() => Math.random() - 0.5)
@@ -72,7 +70,7 @@ function generateOptions(correct: number): Option[] {
    COMPONENTE
 ============================================================ */
 
-export default function ErrorPorcentualGame({
+export default function RectaPerpendicularGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -101,7 +99,7 @@ export default function ErrorPorcentualGame({
     const s = generateScenario()
     return {
       ...s,
-      options: generateOptions(s.errorRounded),
+      options: generateOptions(s),
     }
   }, [nonce])
 
@@ -118,12 +116,7 @@ export default function ErrorPorcentualGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: `${scenario.errorRounded}%`,
-        question: {
-          real: scenario.real,
-          reported: scenario.reported,
-        },
-        options: scenario.options.map(o => o.value),
+        correctAnswer: `y = ${-1 / scenario.a}x + 2`,
       },
       timeSeconds,
     })
@@ -135,26 +128,22 @@ export default function ErrorPorcentualGame({
     setNonce(n => n + 1)
   }
 
-  const formulaTex = `
-\\text{Error \\%} =
-\\frac{|\\text{medido} - \\text{real}|}{\\text{real}} \\times 100
+  const givenTex = `${scenario.a}x - y + ${scenario.b} = 0`
+
+  const slopeTex = `
+${scenario.a}x - y + ${scenario.b} = 0
+\\Rightarrow y = ${scenario.a}x + ${scenario.b}
 `
 
-  const substitutionTex = `
-\\frac{|${scenario.reported} - ${scenario.real}|}{${scenario.real}} \\times 100
+  const perpTex = `
+m_{\\perp} = -\\frac{1}{${scenario.a}} = ${-1 / scenario.a}
 `
-
-  const calculationTex = `
-\\frac{${scenario.difference}}{${scenario.real}} \\times 100
-`
-
-  const resultTex = `${scenario.errorRounded}\\%`
 
   return (
     <MathProvider>
       <ExerciseShell
-        title="Error porcentual"
-        prompt="¿Cuál es el error porcentual?"
+        title="Rectas perpendiculares"
+        prompt="¿Cuál podría ser la ecuación de la otra calle?"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -166,44 +155,32 @@ export default function ErrorPorcentualGame({
               title="Resolución paso a paso"
               steps={[
                 {
-                  title: "Usar la fórmula de error porcentual",
-                  detail: (
-                    <span>
-                      Aplicamos la fórmula con valor medido y valor real.
-                    </span>
-                  ),
+                  title: "Hallamos la pendiente original",
+                  detail: <span>Despejamos la ecuación para verla en forma pendiente-intersección.</span>,
                   icon: Sigma,
-                  content: <MathTex block tex={formulaTex} />,
+                  content: <MathTex block tex={slopeTex} />,
                 },
                 {
-                  title: "Sustituir valores",
-                  detail: (
-                    <span>
-                      Reemplazamos los datos del problema y simplificamos la fracción.
-                    </span>
-                  ),
+                  title: "Pendiente perpendicular",
+                  detail: <span>La pendiente perpendicular se obtiene con la regla m_perp = -1/m.</span>,
                   icon: Divide,
-                  content: (
-                    <div className="space-y-3">
-                      <MathTex block tex={substitutionTex} />
-                      <MathTex block tex={calculationTex} />
-                    </div>
-                  ),
+                  content: <MathTex block tex={perpTex} />,
                 },
                 {
-                  title: "Resultado final",
-                  detail: (
-                    <span>
-                      Expresamos el resultado como porcentaje.
-                    </span>
-                  ),
+                  title: "Conclusión",
+                  detail: <span>Cualquier recta con esa pendiente será perpendicular a la original.</span>,
                   icon: ShieldCheck,
-                  content: <MathTex block tex={resultTex} />,
+                  content: (
+                    <p>
+                      Una recta perpendicular tiene pendiente
+                      <b> −1/m </b>.
+                    </p>
+                  ),
                 },
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: <b>{scenario.errorRounded}%</b>
+                  Respuesta correcta: pendiente { -1 / scenario.a }.
                 </span>
               }
             />
@@ -215,12 +192,9 @@ export default function ErrorPorcentualGame({
             Pregunta
           </div>
 
-          <div className="rounded-lg border bg-background p-3 space-y-2">
-            <div className="text-sm">
-              El valor exacto de una masa es{" "}
-              <b>{scenario.real} g</b> y se reporta como{" "}
-              <b>{scenario.reported} g</b>.
-            </div>
+          <div className="rounded-lg border bg-background p-3">
+            Dos calles son perpendiculares. Una está modelada por{" "}
+            <MathTex tex={givenTex} />.
           </div>
         </div>
 
@@ -230,7 +204,7 @@ export default function ErrorPorcentualGame({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={(op) => <span>{op.value}</span>}
         />
 
         <div className="mt-6">
