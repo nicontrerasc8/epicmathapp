@@ -33,6 +33,12 @@ interface ExerciseOption {
   description: string | null
 }
 
+type ImportMappingItem = {
+  id: string
+  description: string
+  importPath: string
+}
+
 type Message = {
   type: "success" | "error"
   text: string
@@ -51,6 +57,9 @@ const columns: ColumnDef<ClassroomExercise>[] = [
       <div>
         <div className="font-medium">
           {row.exercise?.description || row.exercise?.id || "Sin descripción"}
+        </div>
+        <div className="text-xs font-mono text-muted-foreground select-all">
+          ID: {row.exercise?.id || "Sin ID"}
         </div>
         <div className="text-xs text-muted-foreground">
           {row.exercise?.exercise_type || "Sin tipo"}
@@ -85,17 +94,20 @@ export default function ClassroomExercisesPage() {
 
   /* ---------- form state ---------- */
   const [form, setForm] = useState({
-    exercise_id: "",
     active: true,
   })
+  const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([])
+  const [selectedExerciseType, setSelectedExerciseType] = useState("")
 
   const [createMode, setCreateMode] = useState(false)
   const [assignToGrade, setAssignToGrade] = useState(false)
 
   const [newExercise, setNewExercise] = useState({
-    description: "",
     exercise_type: "",
+    custom_type: "",
+    descriptionsText: "",
   })
+  const [importMappings, setImportMappings] = useState<ImportMappingItem[]>([])
 
   /* =========================
      Data loading
@@ -184,6 +196,78 @@ export default function ClassroomExercisesPage() {
     }
   }
 
+  const exerciseTypeOptions = useMemo(() => {
+    const set = new Set(
+      exerciseOptions
+        .map((e) => e.exercise_type?.trim())
+        .filter((t): t is string => Boolean(t))
+    )
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [exerciseOptions])
+
+  const filteredExerciseOptions = useMemo(() => {
+    if (!selectedExerciseType) return exerciseOptions
+    return exerciseOptions.filter((e) => e.exercise_type === selectedExerciseType)
+  }, [exerciseOptions, selectedExerciseType])
+
+  const mappingText = useMemo(() => {
+    if (importMappings.length === 0) return ""
+    const oneLine = (s?: string) => (s || "Sin descripción").replace(/\s+/g, " ").trim()
+    return importMappings
+      .map(
+        (m) =>
+          `"${m.id}": () => import("${m.importPath || "./ruta/Componente"}"), // ${oneLine(m.description)}`
+      )
+      .join("\n")
+  }, [importMappings])
+
+  const downloadTextFile = (filename: string, content: string) => {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const toDefaultImportPath = (exerciseType: string) => {
+    const slug = exerciseType
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "")
+      .replace(/[^a-z0-9/_-]/g, "")
+    return `./${slug || "carpeta"}/Componente`
+  }
+
+  const tableMappings = useMemo<ImportMappingItem[]>(() => {
+    const map = new Map<string, ImportMappingItem>()
+    for (const row of exercises) {
+      const ex = row.exercise
+      if (!ex?.id) continue
+      if (map.has(ex.id)) continue
+      map.set(ex.id, {
+        id: ex.id,
+        description: ex.description || ex.id,
+        importPath: toDefaultImportPath(ex.exercise_type || "carpeta"),
+      })
+    }
+    return Array.from(map.values())
+  }, [exercises])
+
+  const tableMappingText = useMemo(() => {
+    if (tableMappings.length === 0) return ""
+    const oneLine = (s?: string) => (s || "Sin descripción").replace(/\s+/g, " ").trim()
+    return tableMappings
+      .map(
+        (m) =>
+          `"${m.id}": () => import("${m.importPath}"), // ${oneLine(m.description)}`
+      )
+      .join("\n")
+  }, [tableMappings])
+
   /* =========================
      Filtering & paging
   ========================= */
@@ -218,62 +302,107 @@ export default function ClassroomExercisesPage() {
     setMessage(null)
 
     const supabase = createClient()
-    let exerciseId = form.exercise_id
+    let exerciseIds: string[] = []
 
-    /* ---- create exercise ---- */
+    /* ---- create many exercises ---- */
     if (createMode) {
-      if (!newExercise.description || !newExercise.exercise_type) {
+      const typeToUse =
+        newExercise.exercise_type === "__custom__"
+          ? newExercise.custom_type.trim()
+          : newExercise.exercise_type
+
+      const descriptions = newExercise.descriptionsText
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean)
+
+      if (!typeToUse || descriptions.length === 0) {
         setMessage({
           type: "error",
-          text: "Completa la descripción y el tipo del ejercicio.",
+          text: "Define un tipo (existente o nuevo) y al menos una descripción (una por línea).",
         })
         return
       }
 
-      const generatedId = crypto.randomUUID()
+      const payload = descriptions.map((description) => ({
+        id: crypto.randomUUID(),
+        description,
+        exercise_type: typeToUse,
+        institution_id: institutionId,
+        active: true,
+      }))
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("edu_exercises")
-        .insert({
-          id: generatedId,
-          description: newExercise.description,
-          exercise_type: newExercise.exercise_type,
-          institution_id: institutionId,
-          active: true,
-        })
-        .select("id")
-        .single()
+        .insert(payload)
 
-      if (error || !data) {
-        setMessage({ type: "error", text: "No se pudo crear el ejercicio." })
+      if (error) {
+        setMessage({ type: "error", text: "No se pudieron crear los ejercicios." })
         return
       }
 
-      exerciseId = data.id
+      // Conserva exactamente el orden de creación (mismo orden de líneas ingresadas).
+      exerciseIds = payload.map((p) => p.id)
     } else {
-      if (!exerciseId) {
-        setMessage({ type: "error", text: "Selecciona un ejercicio." })
+      if (selectedExerciseIds.length === 0) {
+        setMessage({ type: "error", text: "Selecciona al menos un ejercicio." })
         return
       }
+      exerciseIds = selectedExerciseIds
     }
 
-    /* ---- RPC ---- */
-   const { error } = await supabase.rpc("assign_exercise_to_classrooms", {
-  p_exercise_id: exerciseId,
-  p_classroom_ids: [classroomId], // 👈 array
-})
-
-
-    if (error) {
-      setMessage({ type: "error", text: error.message })
-      return
+    /* ---- RPC (for each exercise) ---- */
+    for (const exerciseId of exerciseIds) {
+      const { error } = await supabase.rpc("assign_exercise_to_classrooms", {
+        p_exercise_id: exerciseId,
+        p_classroom_ids: [classroomId],
+      })
+      if (error) {
+        setMessage({ type: "error", text: error.message })
+        return
+      }
     }
 
     await refreshExercises()
+    if (createMode) {
+      const { data } = await supabase
+        .from("edu_exercises")
+        .select("id, exercise_type, description")
+        .eq("active", true)
+        .eq("institution_id", institutionId)
+        .order("created_at", { ascending: false })
+      if (data) setExerciseOptions(data)
+    }
 
-    setMessage({ type: "success", text: "Ejercicio asignado correctamente." })
-    setForm({ exercise_id: "", active: true })
-    setNewExercise({ description: "", exercise_type: "" })
+    const typeForMappings =
+      createMode
+        ? (newExercise.exercise_type === "__custom__"
+            ? newExercise.custom_type.trim()
+            : newExercise.exercise_type)
+        : selectedExerciseType
+
+    const createdMappingItems: ImportMappingItem[] = exerciseIds.map((id) => ({
+      id,
+      description: createMode ? "Nuevo ejercicio" : (exerciseOptions.find((e) => e.id === id)?.description || "Ejercicio"),
+      importPath: toDefaultImportPath(typeForMappings || "carpeta"),
+    }))
+
+    setImportMappings(createdMappingItems)
+
+    if (createMode && createdMappingItems.length > 0) {
+      const autoText = createdMappingItems
+        .map((m) => `"${m.id}": () => import("${m.importPath}"),`)
+        .join("\n")
+      downloadTextFile(`exercise-imports-${new Date().toISOString().slice(0, 10)}.txt`, autoText)
+    }
+
+    setMessage({
+      type: "success",
+      text: `Se asignaron ${exerciseIds.length} ejercicio(s) correctamente.`,
+    })
+    setForm({ active: true })
+    setSelectedExerciseIds([])
+    setNewExercise({ exercise_type: "", custom_type: "", descriptionsText: "" })
     setAssignToGrade(false)
     setCreateMode(false)
   }
@@ -370,38 +499,149 @@ export default function ClassroomExercisesPage() {
             </Button>
           </div>
 
+          <div className="rounded-md border p-3 space-y-2">
+            <div className="text-xs text-muted-foreground">
+              Exportar mapeo para <code>components/exercises/index.tsx</code>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!mappingText}
+                onClick={async () => {
+                  if (!mappingText) return
+                  await navigator.clipboard.writeText(mappingText)
+                  setMessage({ type: "success", text: "Mapeo copiado al portapapeles." })
+                }}
+              >
+                Copiar mapeo
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!mappingText}
+                onClick={() => {
+                  if (!mappingText) return
+                  downloadTextFile(
+                    `exercise-imports-${new Date().toISOString().slice(0, 10)}.txt`,
+                    mappingText
+                  )
+                }}
+              >
+                Descargar TXT
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!tableMappingText}
+                onClick={async () => {
+                  if (!tableMappingText) return
+                  await navigator.clipboard.writeText(tableMappingText)
+                  setMessage({ type: "success", text: "Mapeo desde tabla copiado al portapapeles." })
+                }}
+              >
+                Copiar desde tabla
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!tableMappingText}
+                onClick={() => {
+                  if (!tableMappingText) return
+                  downloadTextFile(
+                    `exercise-imports-table-${new Date().toISOString().slice(0, 10)}.txt`,
+                    tableMappingText
+                  )
+                }}
+              >
+                Descargar TXT (tabla)
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!tableMappings.length}
+                onClick={() => setImportMappings(tableMappings)}
+              >
+                Cargar tabla abajo
+              </Button>
+            </div>
+          </div>
+
           {createMode ? (
             <>
-              <Input
-                placeholder="Descripción"
-                value={newExercise.description}
-                onChange={(e) =>
-                  setNewExercise((s) => ({ ...s, description: e.target.value }))
-                }
-              />
-              <Input
-                placeholder="Tipo (aritmética, álgebra, etc.)"
+              <select
                 value={newExercise.exercise_type}
                 onChange={(e) =>
-                  setNewExercise((s) => ({ ...s, exercise_type: e.target.value }))
+                  setNewExercise((s) => ({
+                    ...s,
+                    exercise_type: e.target.value,
+                    custom_type: e.target.value === "__custom__" ? s.custom_type : "",
+                  }))
                 }
+                className="h-10 rounded-md border px-3 text-sm bg-white"
+              >
+                <option value="">Selecciona un tipo</option>
+                {exerciseTypeOptions.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+                <option value="__custom__">+ Crear tipo nuevo</option>
+              </select>
+              {newExercise.exercise_type === "__custom__" && (
+                <Input
+                  placeholder="Nuevo tipo (ej: Funciones avanzadas)"
+                  value={newExercise.custom_type}
+                  onChange={(e) =>
+                    setNewExercise((s) => ({ ...s, custom_type: e.target.value }))
+                  }
+                />
+              )}
+              <textarea
+                placeholder={"Nuevas descripciones (una por línea)\nEjercicio 1...\nEjercicio 2..."}
+                value={newExercise.descriptionsText}
+                onChange={(e) =>
+                  setNewExercise((s) => ({ ...s, descriptionsText: e.target.value }))
+                }
+                className="min-h-[120px] rounded-md border px-3 py-2 text-sm bg-white"
               />
             </>
           ) : (
-            <select
-              value={form.exercise_id}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, exercise_id: e.target.value }))
-              }
-              className="h-10 rounded-md border px-3 text-sm bg-white"
-            >
-              <option value="">Selecciona un ejercicio</option>
-              {exerciseOptions.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {(e.description || e.id) + " — " + e.exercise_type}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-2">
+              <select
+                value={selectedExerciseType}
+                onChange={(e) => setSelectedExerciseType(e.target.value)}
+                className="h-10 rounded-md border px-3 text-sm bg-white"
+              >
+                <option value="">Todos los tipos</option>
+                {exerciseTypeOptions.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <div className="max-h-56 overflow-auto rounded-md border p-2 space-y-2">
+                {filteredExerciseOptions.map((e) => (
+                  <label key={e.id} className="flex items-start gap-2 text-sm">
+                    <Checkbox
+                      checked={selectedExerciseIds.includes(e.id)}
+                      onCheckedChange={(v) => {
+                        const checked = Boolean(v)
+                        setSelectedExerciseIds((prev) =>
+                          checked ? [...prev, e.id] : prev.filter((id) => id !== e.id)
+                        )
+                      }}
+                    />
+                    <span>
+                      {(e.description || e.id) + " — " + e.exercise_type}
+                    </span>
+                  </label>
+                ))}
+                {filteredExerciseOptions.length === 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    No hay ejercicios para este tipo.
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           <label className="flex items-center gap-2 text-sm">
@@ -431,6 +671,37 @@ export default function ClassroomExercisesPage() {
               }`}
             >
               {message.text}
+            </div>
+          )}
+
+          {importMappings.length > 0 && (
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="text-sm font-medium">
+                Mapeo para <code>components/exercises/index.tsx</code>
+              </div>
+              <div className="max-h-48 overflow-auto space-y-2">
+                {importMappings.map((m) => (
+                  <div key={m.id} className="grid gap-2">
+                    <div className="text-xs text-muted-foreground font-mono select-all">
+                      {m.id}
+                    </div>
+                    <Input
+                      value={m.importPath}
+                      onChange={(e) =>
+                        setImportMappings((prev) =>
+                          prev.map((x) => (x.id === m.id ? { ...x, importPath: e.target.value } : x))
+                        )
+                      }
+                      placeholder="./carpeta/Componente"
+                    />
+                  </div>
+                ))}
+              </div>
+              <textarea
+                readOnly
+                value={mappingText}
+                className="min-h-[120px] w-full rounded-md border bg-muted/20 p-2 text-xs font-mono"
+              />
             </div>
           )}
 

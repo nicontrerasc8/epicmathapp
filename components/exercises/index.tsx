@@ -86,6 +86,51 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
 
   "5ca2ced7-1067-46fb-8d94-0d0bab7b983d": () => import("./prisma/SR02"),
 
+  /* aritmetica y algebra */
+  "ef57274e-6799-4975-8c78-2debc014d0df": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej01"), // Operaciones con a×10^k
+  "479facd0-99ba-4059-afad-e0d9e2073264": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej02"), // Operaciones con a×10^k (3)
+  "e17f2181-2616-48c7-a1e1-f19764f2d528": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej03"), // Notacion cientifica a decimal
+  "4bef33be-7190-4885-8033-af59b925a224": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej04"), // Leyes de exponentes
+  "b1a6764b-6931-4303-b892-3b25c44a2a8d": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej05"), // Ecuaciones logaritmicas
+  "0d6a5c44-5ba4-4c55-a764-0e3d8a81bdb3": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej06"), // Modelo exponencial de poblacion
+  "8eaacf0d-6dcf-425e-9045-19c1fd00e5d5": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej07"), // Ecuacion exponencial (variante)
+  "4cd0c48d-0dde-4846-b2d3-79875bf13f95": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej08"), // Decaimiento radiactivo
+  "61b83455-4a51-4c0d-931d-1b27b6f3ff9d": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej09"), // Aproximacion a la decena
+  "c3da9424-fba9-49f4-8401-dd17c2a2d017": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej10"), // Redondeo de dinero
+  "01cae164-d32e-4a1d-b224-56b2050030bd": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej11"), // Error porcentual (1)
+  "7c21b9cd-7751-45e2-94c9-4fa8740bfc51": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej12"), // Error porcentual (2)
+  "2538d020-3f73-4c0a-bf8a-89ce438b5537": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej13"), // Error porcentual (opcion)
+  "4e4fa256-b253-41cf-a686-a021fd2570d5": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej14"), // Operaciones con a×10^k (2)
+  "124093d4-20fc-44a9-aa70-ce667512f315": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej15"), // Suma en notacion cientifica
+  "2d7f82e7-99e2-44f0-9a22-3b3c8225c509": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej16"), // Ecuacion exponencial
+  "cbac1c7d-6cd1-41f3-9868-1e5694e069e5": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej17"), // Logaritmos y sismos
+  "75802e91-cbfc-4b8a-a7fe-ccc3de821b25": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej18"), // Redondeo y precision
+  "442e2637-8d3b-44d3-97a6-3f534c835da9": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej19"), // Redondeo a entero
+  "2fd615c4-a8df-4116-bf8e-b040d2fcf1a8": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej20"), // Calculo de error porcentual
+
+  /* funciones */
+  "cbc55d68-69f0-47dc-9605-47e91e8ab928": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej01"), // Pendiente de una recta
+  "7802e60c-7a1a-48a3-9198-4d0d20f67411": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej02"), // Ecuacion de la recta
+  "3a7ea954-dcfc-4603-910a-7aa2e440b8fe": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej03"), // Pendiente de una recta
+  "91d81eb9-02fc-4f5e-8b2a-895105bbc0b5": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej04"), // Interseccion con el eje Y
+  "dcd95e31-5aaf-46e3-98d9-52ca83a82ebb": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej05"), // Recta paralela
+  "74143968-cdf1-41b4-a84a-da9c8bc418ec": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej06"), // Pendiente de recta perpendicular
+  "187279a8-b4fc-453e-b4cb-e3aa1ecb4d13": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej07"), // Ecuaciones con logaritmos (propiedades)
+  "cf33c4f2-76bb-42d0-bf9c-53b680a4e8d7": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej08"), // Formas de la ecuacion de la recta
+  "23e601a5-d2fd-44e2-92c7-9654a76bdcd3": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej09"), // Interpretacion de pendiente
+  "f478c9a4-839e-4ef1-9820-8f6e1a002ddf": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej10"), // Interseccion con el eje X
+  "36c461b1-0fb4-48a8-9dc4-ed5e6f1d4660": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej11"), // Modelo lineal a partir de dos puntos
+  "5005bb38-2ca9-4592-ad3c-20b2b87a74f2": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej12"), // Rectas paralelas
+  "615c15aa-a4da-451c-907a-aa0dea5782ff": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej13"), // Rectas perpendiculares
+  "b425e4b7-3f1b-408d-963d-0f1e0e47af36": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej14"), // Igualacion de funciones lineales
+  "dc2ad02b-92a2-4280-b827-113a850141f2": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej15"), // Momento en que el tanque se vacia
+  "e41d1e94-de81-4279-b07a-943debd6c838": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej16"), // Pendiente de una recta en forma general
+  "0523dbad-ca29-4db7-8480-596b7d963418": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej17"), // Modelo lineal
+  "14c93ef5-b9ae-4881-88ed-72b9be981cd8": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej18"), // Propiedades de rectas
+  "c3239bad-d0aa-4a7e-b4f1-b3737eeff1aa": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej19"), // Interseccion de dos rectas
+  "6c08b154-a2fb-459c-b1e8-018cb0a9b892": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej20"), // Interpretacion de la pendiente
+
+  
   /* pruebas */
    "02519042-3d4b-489a-9f42-fbb9cd4a8885": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej20"),
 
