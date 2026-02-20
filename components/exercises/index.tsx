@@ -129,6 +129,28 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "c3239bad-d0aa-4a7e-b4f1-b3737eeff1aa": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej19"), // Interseccion de dos rectas
   "6c08b154-a2fb-459c-b1e8-018cb0a9b892": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej20"), // Interpretacion de la pendiente
 
+  /* estadistica y probabilidad */
+  "4deca9e3-2964-41be-b918-da867dd77c1e": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej01"), // Poblacion y muestra
+  "4e760351-e0d9-4adb-91c5-c1786de39a86": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej02"), // Tipo de variable
+  "4dc17143-a9eb-4b93-98f8-5e28d1a7f976": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej03"), // Frecuencia absoluta
+  "775ca6b4-d809-4ac3-9298-c7ca42d7770e": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej04"), // Frecuencia relativa (%)
+  "7d721e9f-bc1c-49ff-90a5-73a90a56fa24": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej05"), // Media (promedio)
+  "63ace96b-1655-4995-8505-eac1ac8971a7": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej06"), // Mediana
+  "bcef4ed2-1249-4b22-a00e-6ee5c515b080": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej07"), // Moda
+  "2ce7a6cf-2ae1-466f-9c96-2f534d580b52": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej08"), // Rango
+  "deee0932-d4df-429d-a739-2f8272a9ff92": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej09"), // Probabilidad simple
+  "150d8794-8675-4b0a-aeda-3c6ec507f8b4": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej10"), // Principio multiplicativo
+  "935dd924-b0ea-4d2b-a505-2e0d83127045": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej11"), // Frecuencia (al menos) y tabla acumulada
+  "bc01c3c5-58b5-40be-bc95-2ba34d8270bb": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej12"), // Hallar x con frecuencias y media
+  "09a722b8-1d02-4ddb-b909-554b5a42f796": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej13"), // Mediana de un conjunto de datos
+  "c2930fe2-689f-43df-9ecb-76be53ae4806": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej14"), // Media con datos agrupados
+  "166a3019-b891-47fa-ad00-ace36edc9dc3": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej15"), // Probabilidad (urna)
+  "827414fe-3927-43f0-931e-d3676cdf2192": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej16"), // Mediana (datos no agrupados)
+  "e0d80c06-d61e-4df2-9162-3b4c957c0ce3": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej17"), // Media aritmetica
+  "7b6162a7-19ab-4fb1-8dd0-d073f7f5d4e4": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej18"), // Media ponderada
+  "797f4cd6-610f-445d-9e87-9d9155d2e3c8": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej19"), // Conteo (combinaciones)
+  "c509eb5d-0383-4d68-808e-7bae085f3acb": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej20"), // Probabilidad con 2 dados
+
   
   /* pruebas */
    /* fin pruebas */
