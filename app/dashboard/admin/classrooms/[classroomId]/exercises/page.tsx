@@ -422,9 +422,9 @@ export default function ClassroomExercisesPage() {
         ]}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+      <div className="grid gap-6">
         {/* TABLE */}
-        <div className="space-y-3">
+        <div className="order-2 space-y-3">
           <div className="flex gap-3 items-center">
             <Input
               placeholder="Buscar ejercicio..."
@@ -486,7 +486,7 @@ export default function ClassroomExercisesPage() {
         </div>
 
         {/* FORM */}
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border bg-card p-4">
+        <form onSubmit={handleSubmit} className="order-1 space-y-4 rounded-xl border bg-card p-4">
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium">Asignar ejercicio</div>
             <Button
