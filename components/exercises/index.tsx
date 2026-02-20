@@ -87,8 +87,6 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "5ca2ced7-1067-46fb-8d94-0d0bab7b983d": () => import("./prisma/SR02"),
 
   /* pruebas */
-   "02519042-3d4b-489a-9f42-fbb9cd4a8885": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Funciones/Ej20"),
-
    /* fin pruebas */
 
 }
