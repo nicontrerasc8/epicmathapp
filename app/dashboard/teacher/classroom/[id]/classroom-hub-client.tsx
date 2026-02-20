@@ -6,6 +6,7 @@ import {
     Users,
     ArrowRight,
     TrendingUp,
+    FileQuestion,
 } from "lucide-react"
 import {
     PageHeader,
@@ -107,7 +108,7 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
 
             <section>
                 <h2 className="text-lg font-semibold mb-4">Gestion y Rendimiento</h2>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <QuickActionCard
                         icon={TrendingUp}
                         title="Rendimiento Academico"
@@ -119,6 +120,12 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
                         title="Estudiantes"
                         description="Lista de estudiantes y perfiles"
                         href={`/dashboard/teacher/classroom/${classroom.id}/students`}
+                    />
+                    <QuickActionCard
+                        icon={FileQuestion}
+                        title="Ejercicios"
+                        description="Activar o desactivar ejercicios disponibles"
+                        href={`/dashboard/teacher/classroom/${classroom.id}/exercises`}
                     />
                 </div>
             </section>
