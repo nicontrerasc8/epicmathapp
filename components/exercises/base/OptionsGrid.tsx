@@ -24,6 +24,8 @@ export function OptionsGrid({
   onSelect: (option: Option) => void
   renderValue?: (option: Option) => React.ReactNode
 }) {
+  const hasCustomValue = Boolean(renderValue)
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {options.map((op) => {
@@ -63,7 +65,13 @@ export function OptionsGrid({
                 ) : null}
               </div>
 
-              <div className="mt-2 font-mono text-2xl font-semibold tracking-wide">
+              <div
+                className={
+                  hasCustomValue
+                    ? "mt-2 overflow-hidden text-xl font-semibold leading-tight"
+                    : "mt-2 font-mono text-2xl font-semibold tracking-wide"
+                }
+              >
                 {renderValue ? renderValue(op) : op.value}
               </div>
             </div>

@@ -32,7 +32,7 @@ export function MathTex({
   block?: boolean
   className?: string
 }) {
-  const wrapped = block ? `\\[${tex}\\]` : `\\(${tex}\\)`
+  const wrapped = block ? `\\[${tex}\\]` : `\\(\\displaystyle ${tex}\\)`
   return (
     <span className={className}>
       <MathJax dynamic inline={!block}>

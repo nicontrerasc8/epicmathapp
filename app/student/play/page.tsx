@@ -7,7 +7,7 @@ import type { StudentSessionData } from '@/lib/student-session-client'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { useInstitution } from '@/components/institution-provider'
-import { Rocket, Star, Sparkles, Trophy, Zap, Target, BookOpen, Brain } from 'lucide-react'
+import { Rocket, Star, Sparkles, Trophy, Zap, Target, BookOpen, Brain, ArrowLeft } from 'lucide-react'
 
 type AssignmentRow = {
   id: string
@@ -53,6 +53,7 @@ export default function StudentDashboardPage() {
 
   const [loading, setLoading] = useState(true)
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -107,6 +108,22 @@ export default function StudentDashboardPage() {
       return labelA.localeCompare(labelB)
     })
   }, [assignments])
+
+  const exerciseTypes = useMemo(() => {
+    const uniqueTypes = new Set(
+      assignments
+        .map((a) => a.edu_exercises?.exercise_type)
+        .filter((t): t is string => Boolean(t))
+    )
+    return Array.from(uniqueTypes).sort((a, b) => a.localeCompare(b))
+  }, [assignments])
+
+  const topicAssignments = useMemo(() => {
+    if (!selectedTopic) return []
+    return sortedAssignments.filter(
+      (assignment) => assignment.edu_exercises?.exercise_type === selectedTopic
+    )
+  }, [sortedAssignments, selectedTopic])
 
   if (loading) {
     return (
@@ -256,12 +273,67 @@ export default function StudentDashboardPage() {
                 </p>
                 {/* CAMBIO 17: text-slate-400 -> text-slate-600 */}
                 <p className="text-slate-600">
-                  Tu profesor pronto agregará ejercicios increíbles
+                  Tu docente pronto agregará ejercicios increíbles
                 </p>
               </motion.div>
-            ) : (
+            ) : !selectedTopic ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {sortedAssignments.map((assignment, index) => {
+                {exerciseTypes.map((topic, index) => {
+                  const topicCount = sortedAssignments.filter(
+                    (assignment) => assignment.edu_exercises?.exercise_type === topic
+                  ).length
+                  const Icon = icons[index % icons.length]
+
+                  return (
+                    <motion.button
+                      key={topic}
+                      type="button"
+                      onClick={() => setSelectedTopic(topic)}
+                      initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{
+                        delay: index * 0.08,
+                        type: 'spring',
+                        stiffness: 100,
+                        damping: 15,
+                      }}
+                      whileHover={{ scale: 1.03, y: -5 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="relative bg-white rounded-2xl p-6 border-2 border-blue-200 hover:border-blue-400 transition-all overflow-hidden shadow-xl text-left"
+                    >
+                      <div className="relative z-10 space-y-4">
+                        <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-100 to-green-100 rounded-xl flex items-center justify-center border-2 border-blue-300">
+                          <Icon className="w-10 h-10 text-blue-600" />
+                        </div>
+                        <h3 className="font-bold text-lg text-center text-slate-900 line-clamp-2 min-h-[3.5rem]">
+                          {topic}
+                        </h3>
+                        <p className="text-center text-sm text-slate-600">
+                          {topicCount} ejercicio{topicCount === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                    </motion.button>
+                  )
+                })}
+              </div>
+            ) : (
+              <>
+                <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border-2 border-blue-200 bg-white/90 px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTopic(null)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Volver a temas
+                  </button>
+                  <p className="text-sm font-semibold text-slate-700">
+                    Tema: <span className="text-blue-700">{selectedTopic}</span>
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {topicAssignments.map((assignment, index) => {
                   const exercise = assignment.edu_exercises
                   const label =
                     exercise.description ||
@@ -324,16 +396,6 @@ export default function StudentDashboardPage() {
                               {label}
                             </h3>
 
-                            {/* Badge tipo */}
-                            <div className="flex items-center justify-center gap-2 py-2">
-                              {/* CAMBIO 25: bg-primary -> bg-blue-600 */}
-                              <div className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse" />
-                              {/* CAMBIO 26: text-slate-400 -> text-slate-600 */}
-                              <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                                {exercise.exercise_type || 'Ejercicio'}
-                              </span>
-                            </div>
-
                             {/* Botón */}
                             {/* CAMBIO 27: bg-primary/10 hover:bg-primary text-slate-300 hover:text-white border-primary/30 -> bg-blue-100 hover:bg-blue-600 text-blue-700 hover:text-white border-blue-300 */}
                             <motion.div
@@ -378,8 +440,9 @@ export default function StudentDashboardPage() {
                       </Link>
                     </motion.div>
                   )
-                })}
-              </div>
+                  })}
+                </div>
+              </>
             )}
           </motion.section>
 
@@ -400,7 +463,7 @@ export default function StudentDashboardPage() {
               <Trophy className="w-6 h-6 text-blue-600" />
               {/* CAMBIO 32: text-white -> text-slate-900 */}
               <p className="text-xl font-black text-slate-900">
-                ¡Sigue así, campeón!
+                Sigue asi, vas muy bien!
               </p>
               {/* CAMBIO 33: text-primary -> text-green-500 */}
               <Sparkles className="w-6 h-6 text-green-500" />
