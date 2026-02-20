@@ -86,6 +86,10 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
 
   "5ca2ced7-1067-46fb-8d94-0d0bab7b983d": () => import("./prisma/SR02"),
 
+  "d9f45238-c33a-46a5-8b54-1a84d0c3ba31": () => import("./prisma/SR03"),
+  
+  "f35d403f-4ee9-4674-982c-5c339b6c01fb": () => import("./prisma/SR04"),
+
 }
 
 const formatFeedbackDate = (value?: string) => {
