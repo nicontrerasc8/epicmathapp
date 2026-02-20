@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Sigma } from "lucide-react"
+import { ShieldCheck, Sigma, Divide } from "lucide-react"
 
 import { useExerciseEngine } from "@/lib/exercises/useExerciseEngine"
 import { useExerciseSubmission } from "@/lib/exercises/useExerciseSubmission"
@@ -22,57 +22,134 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
+function choice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+function shuffle<T>(arr: T[]) {
+  return [...arr].sort(() => Math.random() - 0.5)
+}
 
-function toDecimalString(m: number, e: number) {
-  return (m * Math.pow(10, e)).toLocaleString("es-PE", {
-    minimumFractionDigits: Math.abs(e),
+function fmtComma(n: number, decimals: number) {
+  // formato con coma decimal (es-PE) sin separador de miles
+  return n.toLocaleString("es-PE", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
     useGrouping: false,
   })
 }
 
-function generateScenario() {
-  const mantissas = [2.3, 3.7, 4.5, 5.2, 6.8, 7.1, 8.4]
-  const m = mantissas[randInt(0, mantissas.length - 1)]
-  const e = -randInt(3, 9)
+function toTexDecimal(s: string) {
+  return s.replace(",", "{,}")
+}
 
-  const correctDecimal = (m * Math.pow(10, e)).toFixed(Math.abs(e) + 1)
+function roundTo(n: number, decimals: number) {
+  const p = 10 ** decimals
+  return Math.round(n * p) / p
+}
+
+function floorTo(n: number, decimals: number) {
+  const p = 10 ** decimals
+  return Math.floor(n * p) / p
+}
+
+/* =========================
+   GENERADOR (tema: redondeo a 2 decimales)
+========================= */
+
+type Scenario = ReturnType<typeof generateScenario>
+
+function generateScenario() {
+  // Genera valores tipo 12,486 g (3 decimales)
+  const integerPart = randInt(5, 90)
+  const d1 = randInt(0, 9)
+  const d2 = randInt(0, 9)
+  const d3 = randInt(0, 9)
+
+  const value3 = Number(`${integerPart}.${d1}${d2}${d3}`)
+  const rounded2 = roundTo(value3, 2)
+
+  // Forzamos caso interesante (a veces d3 < 5 no cambia, pero igual vale)
+  // Igual lo dejamos: es buen ejercicio para ambos.
+  const questionTex = `\\text{Un laboratorio registra la masa de una sustancia como } ${fmtComma(
+    value3,
+    3
+  ).replace(",", "{,")}\\,\\text{g}.\\\\
+\\text{Si el instrumento mide con precisión de dos decimales, ¿qué valor debe reportarse?}`
+
+  const correct = `${toTexDecimal(fmtComma(rounded2, 2))}\\,\\text{g}`
 
   return {
-    m,
-    e,
-    correctDecimal,
+    value3,
+    rounded2,
+    questionTex,
+    correct,
+    d1,
+    d2,
+    d3,
   }
 }
 
-function generateOptions(correct: string): Option[] {
-  const options = [
+/* =========================
+   OPCIONES (A–E tipo imagen)
+========================= */
+
+function generateOptions(s: Scenario): Option[] {
+  const correct = s.correct
+
+  // Trampas típicas:
+  // 1) truncar (no redondear)
+  const trunc2 = floorTo(s.value3, 2)
+  const wrongTrunc = `${toTexDecimal(fmtComma(trunc2, 2))}\\,\\text{g}`
+
+  // 2) redondear a 1 decimal
+  const round1 = roundTo(s.value3, 1)
+  const wrong1dec = `${toTexDecimal(fmtComma(round1, 1))}\\,\\text{g}`
+
+  // 3) redondeo mal por mirar la centésima en vez de la milésima
+  //    (si d2 >= 5 "subo", sino "bajo") => incorrecto
+  const fakeUp =
+    s.d2 >= 5
+      ? `${toTexDecimal(fmtComma(roundTo(Number(`${Math.floor(s.value3)}.${s.d1}${s.d2}0`), 2), 2))}\\,\\text{g}`
+      : `${toTexDecimal(fmtComma(floorTo(s.value3, 2), 2))}\\,\\text{g}`
+
+  // 4) inventar 2 decimales distintos (±0.01)
+  const plus01 = `${toTexDecimal(fmtComma(s.rounded2 + 0.01, 2))}\\,\\text{g}`
+  const minus01 = `${toTexDecimal(fmtComma(s.rounded2 - 0.01, 2))}\\,\\text{g}`
+
+  const candidates: Option[] = [
     { value: correct, correct: true },
-    {
-      value: correct.replace("0.", "0.0"), // error típico: un cero extra
-      correct: false,
-    },
-    {
-      value: correct.slice(1), // error típico: quitar un 0
-      correct: false,
-    },
-    {
-      value: correct.replace(".", ""), // quitar punto
-      correct: false,
-    },
-    {
-      value: Number(correct).toLocaleString("es-PE"), // formato miles incorrecto
-      correct: false,
-    },
+    { value: wrongTrunc, correct: false },
+    { value: wrong1dec, correct: false },
+    { value: fakeUp, correct: false },
+    { value: choice([plus01, minus01]), correct: false },
   ]
 
-  return options.sort(() => Math.random() - 0.5)
+  // Unique + shuffle
+  const seen = new Set<string>()
+  const unique: Option[] = []
+  for (const o of candidates) {
+    if (seen.has(o.value)) continue
+    seen.add(o.value)
+    unique.push(o)
+  }
+
+  // Relleno si faltara alguna (raro)
+  while (unique.length < 5) {
+    const extra = `${toTexDecimal(fmtComma(s.rounded2 + choice([-0.02, 0.02, 0.03, -0.03]), 2))}\\,\\text{g}`
+    if (!seen.has(extra) && extra !== correct) {
+      unique.push({ value: extra, correct: false })
+      seen.add(extra)
+    }
+  }
+
+  return shuffle(unique).slice(0, 5)
 }
 
 /* ============================================================
    COMPONENTE
 ============================================================ */
 
-export default function Ej04MasaDecimal({
+export default function RedondeoPrecisionInstrumentoGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -82,41 +159,28 @@ export default function Ej04MasaDecimal({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
-
-  const { studentId, gami, gamiLoading, submitAttempt } =
-    useExerciseSubmission({
-      exerciseId,
-      classroomId,
-      sessionId,
-    })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
 
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
-  const { elapsed, startedAtRef } = useExerciseTimer(
-    engine.canAnswer,
-    nonce
-  )
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
 
   const scenario = useMemo(() => {
     const s = generateScenario()
-    return {
-      ...s,
-      options: generateOptions(s.correctDecimal),
-    }
+    return { ...s, options: generateOptions(s) }
   }, [nonce])
-  const shiftPlaces = Math.abs(scenario.e)
 
-  const trophyPreview = useMemo(
-    () => computeTrophyGain(elapsed),
-    [elapsed]
-  )
+  const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
 
   async function pickOption(op: Option) {
     if (!engine.canAnswer) return
 
     const timeSeconds = (Date.now() - startedAtRef.current) / 1000
-
     setSelected(op.value)
     engine.submit(op.correct)
 
@@ -124,11 +188,17 @@ export default function Ej04MasaDecimal({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: scenario.correctDecimal,
+        correctAnswer: scenario.correct,
         question: {
-          m: scenario.m,
-          e: scenario.e,
+          valueReported: fmtComma(scenario.value3, 3),
+          precisionDecimals: 2,
+          unit: "g",
         },
+        computed: {
+          rule: "Mirar la milésima (3er decimal). Si es ≥ 5, subir la centésima; si es < 5, se queda.",
+          rounded: fmtComma(scenario.rounded2, 2),
+        },
+        options: scenario.options.map(o => o.value),
       },
       timeSeconds,
     })
@@ -140,11 +210,17 @@ export default function Ej04MasaDecimal({
     setNonce(n => n + 1)
   }
 
+  const valueTex = toTexDecimal(fmtComma(scenario.value3, 3))
+  const intPart = Math.floor(scenario.value3).toString()
+  const d1 = scenario.d1
+  const d2 = scenario.d2
+  const d3 = scenario.d3
+
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ejercicio 04 – Notación científica"
-        prompt="¿Cuál es su masa en forma decimal?"
+        title="Redondeo y precisión del instrumento"
+        prompt="Resuelve:"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -153,44 +229,78 @@ export default function Ej04MasaDecimal({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Conversión paso a paso"
+              title="Guía paso a paso"
               steps={[
                 {
-                  title: "Recordar qué significa el exponente negativo",
-                  icon: Sigma,
-                  content: (
-                    <MathTex
-                      block
-                      tex={`${scenario.m} \\times 10^{${scenario.e}}`}
-                    />
-                  ),
+                  title: "Entender qué significa “precisión de 2 decimales”",
                   detail: (
                     <span>
-                      Como el exponente es {scenario.e}, equivale a dividir entre{" "}
-                      <MathTex tex={`10^{${shiftPlaces}}`} />.
+                      Se debe reportar el número con <b>dos cifras decimales</b> (centésimas).
+                    </span>
+                  ),
+                  icon: Sigma,
+                  content: (
+                    <div className="space-y-3">
+                      <MathTex block tex={`\\text{Medición: } ${valueTex}\\,\\text{g}`} />
+                      <MathTex block tex={`\\text{Reportar con 2 decimales: } \\_\\_ , \\_\\_\\,\\text{g}`} />
+                    </div>
+                  ),
+                },
+                {
+                  title: "Mirar el 3er decimal (milésima)",
+                  detail: (
+                    <span>
+                      Para redondear a 2 decimales, se mira el <b>tercer decimal</b>: si es{" "}
+                      <MathTex tex={`\\ge 5`} />, sube la centésima; si es <MathTex tex={`<5`} />, se queda igual.
+                    </span>
+                  ),
+                  icon: Divide,
+                  content: (
+                    <div className="space-y-3">
+                      <MathTex
+                        block
+                        tex={`${intPart}{,}${d1}${d2}${d3}\\,\\text{g}`}
+                      />
+                      <MathTex
+                        block
+                        tex={`\\text{Como la milésima es } ${d3},\\ \\text{entonces } ${d3} ${d3 >= 5 ? "\\ge" : "<"} 5.`}
+                      />
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-lg border bg-background p-2">
+                          <div className="text-xs text-muted-foreground">Décima</div>
+                          <div className="text-lg font-semibold">{d1}</div>
+                        </div>
+                        <div className="rounded-lg border bg-background p-2">
+                          <div className="text-xs text-muted-foreground">Centésima</div>
+                          <div className="text-lg font-semibold">{d2}</div>
+                        </div>
+                        <div className="rounded-lg border bg-background p-2">
+                          <div className="text-xs text-muted-foreground">Milésima</div>
+                          <div className="text-lg font-semibold">{d3}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                  tip: (
+                    <span>
+                      Ojo: <b>no</b> es “cortar” (truncar). Es <b>redondear</b>.
                     </span>
                   ),
                 },
                 {
-                  title: "Mover el punto decimal",
+                  title: "Escribir el valor reportado con 2 decimales",
+                  detail: <span>Aplicamos la regla y dejamos exactamente 2 decimales.</span>,
+                  icon: ShieldCheck,
                   content: (
-                    <MathTex
-                      block
-                      tex={`= ${scenario.correctDecimal}`}
-                    />
-                  ),
-                  detail: (
-                    <span>
-                      Ahora movemos el punto decimal de {scenario.m} <b>{shiftPlaces}</b>{" "}
-                      lugares hacia la izquierda.
-                    </span>
+                    <div className="space-y-3">
+                      <MathTex block tex={`\\text{Valor reportado} = ${scenario.correct}`} />
+                    </div>
                   ),
                 },
               ]}
               concluding={
                 <span>
-                  Respuesta correcta:{" "}
-                  <b>{scenario.correctDecimal}</b>
+                  Respuesta final: <b>{scenario.correct}</b>.
                 </span>
               }
             />
@@ -198,14 +308,13 @@ export default function Ej04MasaDecimal({
         }
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
-          <div className="text-xs text-muted-foreground mb-2">
-            Pregunta
-          </div>
-          <div className="rounded-lg border bg-background p-3">
-            <MathTex
-              block
-              tex={`${scenario.m} \\times 10^{${scenario.e}}`}
-            />
+          <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
+          <div className="rounded-lg border bg-background p-3 space-y-2">
+            <div className="text-sm">Un laboratorio registra la masa de una sustancia como:</div>
+            <MathTex block tex={`${valueTex}\\,\\text{g}`} />
+            <div className="text-sm">
+              Si el instrumento mide con precisión de dos decimales, ¿qué valor debe reportarse?
+            </div>
           </div>
         </div>
 
@@ -215,6 +324,7 @@ export default function Ej04MasaDecimal({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
+          renderValue={(op) => <MathTex tex={op.value} />}
         />
 
         <div className="mt-6">
