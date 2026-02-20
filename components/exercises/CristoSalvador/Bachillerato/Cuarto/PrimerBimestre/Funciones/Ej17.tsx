@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ShieldCheck, Sigma, Divide } from "lucide-react"
+import { ShieldCheck, Sigma } from "lucide-react"
 
 import { useExerciseEngine } from "@/lib/exercises/useExerciseEngine"
 import { useExerciseSubmission } from "@/lib/exercises/useExerciseSubmission"
@@ -16,53 +16,53 @@ import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
 /* =========================
-   HELPERS
+   GENERADOR
 ========================= */
 
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
 
+type Scenario = ReturnType<typeof generateScenario>
+
 function generateScenario() {
   for (let i = 0; i < 200; i++) {
-    const real = randInt(50, 200)
-    const variation = randInt(2, 15)
-    const reported = real + variation
+    const initial = randInt(2000, 8000)
+    const decrease = randInt(50, 300)
 
-    const error = (Math.abs(reported - real) / real) * 100
-    const errorRounded = Math.round(error)
-
-    if (errorRounded >= 1 && errorRounded <= 20) {
-      return {
-        real,
-        reported,
-        difference: reported - real,
-        errorRounded,
-      }
+    return {
+      initial,
+      decrease,
+      slope: -decrease,
     }
   }
 
   // fallback exacto como imagen
   return {
-    real: 80,
-    reported: 84,
-    difference: 4,
-    errorRounded: 5,
+    initial: 5000,
+    decrease: 150,
+    slope: -150,
   }
 }
 
-function generateOptions(correct: number): Option[] {
-  const wrongDenominator = correct + 1
-  const wrongNoAbs = correct - 1 > 0 ? correct - 1 : correct + 2
-  const wrongDouble = correct * 2
-  const wrongHalf = Math.max(1, Math.round(correct / 2))
+/* =========================
+   OPCIONES
+========================= */
+
+function generateOptions(s: Scenario): Option[] {
+  const correct = `C = ${s.slope}x + ${s.initial}`
+
+  const wrongPositive = `C = ${s.decrease}x + ${s.initial}`
+  const wrongSwap = `C = ${s.initial}x - ${s.decrease}`
+  const wrongIntercept = `C = ${s.slope}x - ${s.initial}`
+  const wrongMixed = `C = ${s.decrease}x - ${s.initial}`
 
   const options = [
-    { value: `${correct}\\%`, correct: true },
-    { value: `${wrongDenominator}\\%`, correct: false },
-    { value: `${wrongNoAbs}\\%`, correct: false },
-    { value: `${wrongDouble}\\%`, correct: false },
-    { value: `${wrongHalf}\\%`, correct: false },
+    { value: correct, correct: true },
+    { value: wrongPositive, correct: false },
+    { value: wrongSwap, correct: false },
+    { value: wrongIntercept, correct: false },
+    { value: wrongMixed, correct: false },
   ]
 
   return options.sort(() => Math.random() - 0.5)
@@ -72,7 +72,7 @@ function generateOptions(correct: number): Option[] {
    COMPONENTE
 ============================================================ */
 
-export default function ErrorPorcentualGame({
+export default function ModeloLinealDisminucionGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -91,17 +91,13 @@ export default function ErrorPorcentualGame({
 
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
-
-  const { elapsed, startedAtRef } = useExerciseTimer(
-    engine.canAnswer,
-    nonce
-  )
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
 
   const scenario = useMemo(() => {
     const s = generateScenario()
     return {
       ...s,
-      options: generateOptions(s.errorRounded),
+      options: generateOptions(s),
     }
   }, [nonce])
 
@@ -118,12 +114,11 @@ export default function ErrorPorcentualGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: `${scenario.errorRounded}%`,
+        correctAnswer: `C = ${scenario.slope}x + ${scenario.initial}`,
         question: {
-          real: scenario.real,
-          reported: scenario.reported,
+          initial: scenario.initial,
+          decrease: scenario.decrease,
         },
-        options: scenario.options.map(o => o.value),
       },
       timeSeconds,
     })
@@ -135,26 +130,19 @@ export default function ErrorPorcentualGame({
     setNonce(n => n + 1)
   }
 
-  const formulaTex = `
-\\text{Error \\%} =
-\\frac{|\\text{medido} - \\text{real}|}{\\text{real}} \\times 100
+  const explanationTex = `
+C(x) = mx + b
 `
 
   const substitutionTex = `
-\\frac{|${scenario.reported} - ${scenario.real}|}{${scenario.real}} \\times 100
+m = -${scenario.decrease}, \\quad b = ${scenario.initial}
 `
-
-  const calculationTex = `
-\\frac{${scenario.difference}}{${scenario.real}} \\times 100
-`
-
-  const resultTex = `${scenario.errorRounded}\\%`
 
   return (
     <MathProvider>
       <ExerciseShell
-        title="Error porcentual"
-        prompt="¿Cuál es el error porcentual?"
+        title="Modelo lineal"
+        prompt="¿Cuál modelo representa la situación?"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -166,44 +154,31 @@ export default function ErrorPorcentualGame({
               title="Resolución paso a paso"
               steps={[
                 {
-                  title: "Usar la fórmula de error porcentual",
-                  detail: (
-                    <span>
-                      Aplicamos la fórmula con valor medido y valor real.
-                    </span>
-                  ),
+                  title: "Identificar pendiente",
+                  detail: <span>Si los clientes disminuyen cada mes, la pendiente debe ser negativa.</span>,
                   icon: Sigma,
-                  content: <MathTex block tex={formulaTex} />,
+                  content: (
+                    <p>
+                      Disminuye {scenario.decrease} clientes por mes → pendiente negativa.
+                    </p>
+                  ),
                 },
                 {
-                  title: "Sustituir valores",
-                  detail: (
-                    <span>
-                      Reemplazamos los datos del problema y simplificamos la fracción.
-                    </span>
-                  ),
-                  icon: Divide,
+                  title: "Modelo general",
+                  detail: <span>Usamos la forma lineal C(x)=mx+b con m y b según el enunciado.</span>,
+                  icon: ShieldCheck,
                   content: (
                     <div className="space-y-3">
+                      <MathTex block tex={explanationTex} />
                       <MathTex block tex={substitutionTex} />
-                      <MathTex block tex={calculationTex} />
                     </div>
                   ),
-                },
-                {
-                  title: "Resultado final",
-                  detail: (
-                    <span>
-                      Expresamos el resultado como porcentaje.
-                    </span>
-                  ),
-                  icon: ShieldCheck,
-                  content: <MathTex block tex={resultTex} />,
                 },
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: <b>{scenario.errorRounded}%</b>
+                  Respuesta correcta:{" "}
+                  <b>C = {scenario.slope}x + {scenario.initial}</b>
                 </span>
               }
             />
@@ -217,9 +192,8 @@ export default function ErrorPorcentualGame({
 
           <div className="rounded-lg border bg-background p-3 space-y-2">
             <div className="text-sm">
-              El valor exacto de una masa es{" "}
-              <b>{scenario.real} g</b> y se reporta como{" "}
-              <b>{scenario.reported} g</b>.
+              Una empresa disminuye {scenario.decrease} clientes por mes.
+              Actualmente tiene {scenario.initial} clientes.
             </div>
           </div>
         </div>
@@ -230,7 +204,7 @@ export default function ErrorPorcentualGame({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={(op) => <span>{op.value}</span>}
         />
 
         <div className="mt-6">

@@ -331,7 +331,7 @@ export default function NotacionCientificaGame({
                   ),
                   tip: (
                     <span>
-                      Cuando multiplicas por \(10^a\) y por \(10^b\), los exponentes se <b>suman</b>. Si divides entre \(10^c\),
+                      Cuando multiplicas por <MathTex tex={`10^a`} /> y por <MathTex tex={`10^b`} />, los exponentes se <b>suman</b>. Si divides entre <MathTex tex={`10^c`} />,
                       ese exponente se <b>resta</b>.
                     </span>
                   ),
@@ -340,7 +340,7 @@ export default function NotacionCientificaGame({
                   title: "Normalizar a notación científica",
                   detail: (
                     <span>
-                      En notación científica, la mantisa debe cumplir: <b>\(1 \le m &lt; 10\)</b>.
+                      En notación científica, la mantisa debe cumplir: <b><MathTex tex={`1 \\le m < 10`} /></b>.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -355,7 +355,7 @@ export default function NotacionCientificaGame({
                   ),
                   tip: (
                     <span>
-                      Si te queda \(0.6 \\times 10^1\) o \(60 \\times 10^{-1}\), el valor puede ser el mismo, pero <b>no</b> está
+                      Si te queda <MathTex tex={`0.6 \\times 10^1`} /> o <MathTex tex={`60 \\times 10^{-1}`} />, el valor puede ser el mismo, pero <b>no</b> está
                       en notación científica porque la mantisa no está entre 1 y 10.
                     </span>
                   ),

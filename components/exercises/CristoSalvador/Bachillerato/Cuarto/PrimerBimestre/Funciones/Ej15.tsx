@@ -19,75 +19,75 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
    HELPERS
 ========================= */
 
-function randInt(min: number, max: number) {
-  return min + Math.floor(Math.random() * (max - min + 1))
-}
-function shuffle<T>(arr: T[]): T[] {
-  return [...arr].sort(() => Math.random() - 0.5)
+function choice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
 }
 
 /* =========================
    GENERADOR
-   Error porcentual
-   Fórmula: |real - esperado| / esperado × 100%
+   y = mx + b
+   Momento en que se vacía → y = 0
 ========================= */
 
 type Scenario = ReturnType<typeof generateScenario>
 
 function generateScenario() {
-  // generamos valores razonables
-  const esperado = randInt(200, 800)
-  const errorAbs = randInt(5, 40)
-  const recibe = esperado - errorAbs
+  const m = choice([-2, -3, -4, -5, -6]) // pendiente negativa
+  const b = choice([6, 8, 10, 12, 15])
 
-  const error = Math.abs(esperado - recibe)
-  const porcentaje = Math.round((error / esperado) * 100)
+  const xZero = -b / m // cuando y = 0
 
-  // distractores típicos
-  const wrong1 = Math.round((error / recibe) * 100) // dividir mal
-  const wrong2 = Math.round((recibe / esperado) * 100) // porcentaje directo
-  const wrong3 = error // confundir con mg
-  const wrong4 = porcentaje + 1
+  const correct = `${xZero} \\text{ min}`
 
   return {
-    esperado,
-    recibe,
-    error,
-    porcentaje,
-    candidates: [porcentaje, wrong1, wrong2, wrong3, wrong4],
+    m,
+    b,
+    xZero,
+    correct,
   }
 }
 
+/* =========================
+   OPCIONES
+========================= */
+
 function generateOptions(s: Scenario): Option[] {
-  const seen = new Set<number>()
-  const unique: number[] = []
+  const seen = new Set<string>()
+  const opts: Option[] = []
 
-  for (const n of s.candidates) {
-    if (!seen.has(n) && n >= 0 && n <= 100) {
-      seen.add(n)
-      unique.push(n)
-    }
+  function add(val: string, correct: boolean) {
+    if (seen.has(val)) return
+    seen.add(val)
+    opts.push({ value: val, correct })
   }
 
-  while (unique.length < 5) {
-    const extra = randInt(1, 10)
-    if (!seen.has(extra)) {
-      seen.add(extra)
-      unique.push(extra)
-    }
+  add(s.correct, true)
+
+  // error 1: usar b directamente
+  add(`${s.b} \\text{ min}`, false)
+
+  // error 2: usar pendiente como tiempo
+  add(`${Math.abs(s.m)} \\text{ min}`, false)
+
+  // error 3: dividir mal (b/m sin signo)
+  add(`${Math.abs(s.b / s.m)} \\text{ min}`, false)
+
+  // error 4: sumar en vez de dividir
+  add(`${Math.abs(s.b + s.m)} \\text{ min}`, false)
+
+  while (opts.length < 5) {
+    const extra = `${Math.floor(Math.random() * 10) + 1} \\text{ min}`
+    if (!seen.has(extra)) add(extra, false)
   }
 
-  return shuffle(unique).slice(0, 5).map(n => ({
-    value: `${n}\\%`,
-    correct: n === s.porcentaje,
-  }))
+  return opts.slice(0, 5).sort(() => Math.random() - 0.5)
 }
 
 /* ============================================================
    COMPONENTE
 ============================================================ */
 
-export default function ErrorPorcentualGame({
+export default function TanqueVacioGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -126,16 +126,10 @@ export default function ErrorPorcentualGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: `${scenario.porcentaje}%`,
+        correctAnswer: scenario.correct,
         question: {
-          esperado: scenario.esperado,
-          recibe: scenario.recibe,
+          equation: `y = ${scenario.m}x + ${scenario.b}`,
         },
-        computed: {
-          error: scenario.error,
-          formula: "|real - esperado| / esperado × 100%",
-        },
-        options: scenario.options.map(o => o.value),
       },
       timeSeconds,
     })
@@ -147,18 +141,35 @@ export default function ErrorPorcentualGame({
     setNonce(n => n + 1)
   }
 
-  const questionTex1 = `\\text{Un paciente debe recibir } ${scenario.esperado}\\,\\text{mg de un medicamento,}`
-  const questionTex2 = `\\text{pero recibe } ${scenario.recibe}\\,\\text{mg.}`
-  const questionTex3 = `\\text{¿Cuál es el error porcentual?}`
+  const qTex = `
+\\text{La recta } y = ${scenario.m}x + ${scenario.b} 
+\\text{ representa la cantidad de agua (litros).}
+`
+  const qTex2 = `
+\\text{¿En qué momento el tanque se vacía?}
+`
 
-  const step1 = `\\text{Error absoluto} = |${scenario.esperado}-${scenario.recibe}| = ${scenario.error}`
-  const step2 = `\\frac{${scenario.error}}{${scenario.esperado}} \\times 100 = ${scenario.porcentaje}\\%`
+  const step1 = `
+\\text{El tanque se vacía cuando } y = 0.
+`
+
+  const step2 = `
+0 = ${scenario.m}x + ${scenario.b}
+`
+
+  const step3 = `
+${scenario.m}x = -${scenario.b}
+`
+
+  const step4 = `
+x = \\frac{-${scenario.b}}{${scenario.m}} = ${scenario.xZero}
+`
 
   return (
     <MathProvider>
       <ExerciseShell
-        title="Error porcentual"
-        prompt="Selecciona la opción correcta:"
+        title="Momento en que el tanque se vacía"
+        prompt="Resuelve:"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -170,45 +181,35 @@ export default function ErrorPorcentualGame({
               title="Guía paso a paso"
               steps={[
                 {
-                  title: "Calcular el error absoluto",
-                  detail: <span>Restamos el valor real y el esperado.</span>,
+                  title: "Igualar la función a cero",
+                  detail: <span>El tanque está vacío cuando la cantidad de agua es \(y = 0\).</span>,
                   icon: Sigma,
-                  content: (
-                    <div className="space-y-3">
-                      <MathTex block tex={step1} />
-                    </div>
-                  ),
+                  content: <MathTex block tex={step1} />,
                 },
                 {
-                  title: "Aplicar la fórmula de error porcentual",
-                  detail: (
-                    <span>
-                      Fórmula: <MathTex tex={`|real-esperado|/esperado\\times100\\%`} />.
-                    </span>
-                  ),
+                  title: "Resolver la ecuación",
+                  detail: <span>Despejamos \(x\) para hallar el tiempo en minutos.</span>,
                   icon: Divide,
                   content: (
-                    <div className="space-y-3">
+                    <>
                       <MathTex block tex={step2} />
-                    </div>
+                      <MathTex block tex={step3} />
+                      <MathTex block tex={step4} />
+                    </>
                   ),
                 },
                 {
                   title: "Resultado final",
-                  detail: <span>Ese es el porcentaje de error.</span>,
+                  detail: <span>Expresamos el valor obtenido como tiempo de vaciado.</span>,
                   icon: ShieldCheck,
                   content: (
-                    <div className="space-y-3">
-                      <MathTex block tex={`\\text{Respuesta: } ${scenario.porcentaje}\\%`} />
-                    </div>
+                    <MathTex
+                      block
+                      tex={`\\text{El tanque se vacía en } ${scenario.correct}`}
+                    />
                   ),
                 },
               ]}
-              concluding={
-                <span>
-                  Respuesta final: <b>{scenario.porcentaje}%</b>.
-                </span>
-              }
             />
           </SolutionBox>
         }
@@ -216,9 +217,8 @@ export default function ErrorPorcentualGame({
         <div className="rounded-xl border bg-card p-4 mb-4">
           <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
           <div className="rounded-lg border bg-background p-3 space-y-2">
-            <MathTex block tex={questionTex1} />
-            <MathTex block tex={questionTex2} />
-            <MathTex block tex={questionTex3} />
+            <MathTex block tex={qTex} />
+            <MathTex block tex={qTex2} />
           </div>
         </div>
 

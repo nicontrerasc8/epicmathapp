@@ -22,72 +22,95 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
-function shuffle<T>(arr: T[]): T[] {
-  return [...arr].sort(() => Math.random() - 0.5)
+function choice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+function fracTex(n: number, d: number) {
+  if (d === 1) return `${n}`
+  if (d === -1) return `${-n}`
+  return `\\frac{${n}}{${d}}`
 }
 
 /* =========================
-   GENERADOR
-   Error porcentual
-   Fórmula: |real - esperado| / esperado × 100%
+   GENERADOR (pendiente)
+   Forma: ax + by + c = 0
+   Pendiente m = -a/b
 ========================= */
 
 type Scenario = ReturnType<typeof generateScenario>
 
 function generateScenario() {
-  // generamos valores razonables
-  const esperado = randInt(200, 800)
-  const errorAbs = randInt(5, 40)
-  const recibe = esperado - errorAbs
+  let a = 0
+  let b = 0
 
-  const error = Math.abs(esperado - recibe)
-  const porcentaje = Math.round((error / esperado) * 100)
+  // Evitamos b=0 (sería recta vertical)
+  while (b === 0) {
+    a = choice([-4, -3, -2, -1, 1, 2, 3, 4])
+    b = choice([-4, -3, -2, -1, 1, 2, 3, 4])
+  }
 
-  // distractores típicos
-  const wrong1 = Math.round((error / recibe) * 100) // dividir mal
-  const wrong2 = Math.round((recibe / esperado) * 100) // porcentaje directo
-  const wrong3 = error // confundir con mg
-  const wrong4 = porcentaje + 1
+  const c = randInt(-10, 10)
+
+  const slopeNum = -a
+  const slopeDen = b
 
   return {
-    esperado,
-    recibe,
-    error,
-    porcentaje,
-    candidates: [porcentaje, wrong1, wrong2, wrong3, wrong4],
+    a,
+    b,
+    c,
+    slopeNum,
+    slopeDen,
+    correct: fracTex(slopeNum, slopeDen),
   }
 }
 
+/* =========================
+   OPCIONES (A–E)
+   Trampas típicas:
+   - a/b
+   - -b/a
+   - b/a
+   - solo a o b
+========================= */
+
 function generateOptions(s: Scenario): Option[] {
-  const seen = new Set<number>()
-  const unique: number[] = []
+  const seen = new Set<string>()
+  const opts: Option[] = []
 
-  for (const n of s.candidates) {
-    if (!seen.has(n) && n >= 0 && n <= 100) {
-      seen.add(n)
-      unique.push(n)
-    }
+  function add(val: string, correct: boolean) {
+    if (seen.has(val)) return
+    seen.add(val)
+    opts.push({ value: val, correct })
   }
 
-  while (unique.length < 5) {
-    const extra = randInt(1, 10)
-    if (!seen.has(extra)) {
-      seen.add(extra)
-      unique.push(extra)
-    }
+  add(s.correct, true)
+
+  // Error 1: a/b
+  add(fracTex(s.a, s.b), false)
+
+  // Error 2: -b/a
+  add(fracTex(-s.b, s.a), false)
+
+  // Error 3: b/a
+  add(fracTex(s.b, s.a), false)
+
+  // Error 4: solo a
+  add(`${s.a}`, false)
+
+  while (opts.length < 5) {
+    const extra = `${randInt(-5, 5)}`
+    if (!seen.has(extra)) add(extra, false)
   }
 
-  return shuffle(unique).slice(0, 5).map(n => ({
-    value: `${n}\\%`,
-    correct: n === s.porcentaje,
-  }))
+  return opts.slice(0, 5).sort(() => Math.random() - 0.5)
 }
 
 /* ============================================================
    COMPONENTE
 ============================================================ */
 
-export default function ErrorPorcentualGame({
+export default function PendienteRectaGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -126,14 +149,14 @@ export default function ErrorPorcentualGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: `${scenario.porcentaje}%`,
+        correctAnswer: scenario.correct,
         question: {
-          esperado: scenario.esperado,
-          recibe: scenario.recibe,
+          a: scenario.a,
+          b: scenario.b,
+          c: scenario.c,
         },
         computed: {
-          error: scenario.error,
-          formula: "|real - esperado| / esperado × 100%",
+          slope: scenario.correct,
         },
         options: scenario.options.map(o => o.value),
       },
@@ -147,18 +170,26 @@ export default function ErrorPorcentualGame({
     setNonce(n => n + 1)
   }
 
-  const questionTex1 = `\\text{Un paciente debe recibir } ${scenario.esperado}\\,\\text{mg de un medicamento,}`
-  const questionTex2 = `\\text{pero recibe } ${scenario.recibe}\\,\\text{mg.}`
-  const questionTex3 = `\\text{¿Cuál es el error porcentual?}`
+  const eqTex = `${scenario.a}x ${scenario.b >= 0 ? "+" : "-"} ${Math.abs(
+    scenario.b
+  )}y ${scenario.c >= 0 ? "+" : "-"} ${Math.abs(scenario.c)} = 0`
 
-  const step1 = `\\text{Error absoluto} = |${scenario.esperado}-${scenario.recibe}| = ${scenario.error}`
-  const step2 = `\\frac{${scenario.error}}{${scenario.esperado}} \\times 100 = ${scenario.porcentaje}\\%`
+  const step1 = `\\text{Forma general: } ax + by + c = 0`
+  const step2 = `\\text{Despejamos } y:`
+  const despejeTex = `
+${scenario.a}x ${scenario.b >= 0 ? "+" : "-"} ${Math.abs(
+    scenario.b
+  )}y ${scenario.c >= 0 ? "+" : "-"} ${Math.abs(scenario.c)} = 0
+`
+  const slopeTex = `
+m = -\\frac{a}{b} = -\\frac{${scenario.a}}{${scenario.b}} = ${scenario.correct}
+`
 
   return (
     <MathProvider>
       <ExerciseShell
-        title="Error porcentual"
-        prompt="Selecciona la opción correcta:"
+        title="Pendiente de una recta"
+        prompt="Resuelve:"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -170,55 +201,50 @@ export default function ErrorPorcentualGame({
               title="Guía paso a paso"
               steps={[
                 {
-                  title: "Calcular el error absoluto",
-                  detail: <span>Restamos el valor real y el esperado.</span>,
-                  icon: Sigma,
-                  content: (
-                    <div className="space-y-3">
-                      <MathTex block tex={step1} />
-                    </div>
-                  ),
-                },
-                {
-                  title: "Aplicar la fórmula de error porcentual",
+                  title: "Usar la fórmula de la pendiente",
                   detail: (
                     <span>
-                      Fórmula: <MathTex tex={`|real-esperado|/esperado\\times100\\%`} />.
+                      Para una recta en forma general <b>ax + by + c = 0</b>.
+                    </span>
+                  ),
+                  icon: Sigma,
+                  content: <MathTex block tex={step1} />,
+                },
+                {
+                  title: "Aplicar la fórmula",
+                  detail: (
+                    <span>
+                      La pendiente es <b>m = -a/b</b>.
                     </span>
                   ),
                   icon: Divide,
                   content: (
                     <div className="space-y-3">
-                      <MathTex block tex={step2} />
+                      <MathTex block tex={despejeTex} />
+                      <MathTex block tex={slopeTex} />
                     </div>
                   ),
                 },
                 {
                   title: "Resultado final",
-                  detail: <span>Ese es el porcentaje de error.</span>,
+                  detail: <span>Esa es la pendiente.</span>,
                   icon: ShieldCheck,
                   content: (
-                    <div className="space-y-3">
-                      <MathTex block tex={`\\text{Respuesta: } ${scenario.porcentaje}\\%`} />
-                    </div>
+                    <MathTex
+                      block
+                      tex={`\\text{Pendiente: } ${scenario.correct}`}
+                    />
                   ),
                 },
               ]}
-              concluding={
-                <span>
-                  Respuesta final: <b>{scenario.porcentaje}%</b>.
-                </span>
-              }
             />
           </SolutionBox>
         }
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
           <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
-          <div className="rounded-lg border bg-background p-3 space-y-2">
-            <MathTex block tex={questionTex1} />
-            <MathTex block tex={questionTex2} />
-            <MathTex block tex={questionTex3} />
+          <div className="rounded-lg border bg-background p-3">
+            <MathTex block tex={`\\text{La recta } ${eqTex} \\text{ tiene pendiente:}`} />
           </div>
         </div>
 

@@ -19,54 +19,64 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
    HELPERS
 ========================= */
 
-function randInt(min: number, max: number) {
-  return min + Math.floor(Math.random() * (max - min + 1))
-}
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
-function fmtPercent(n: number) {
-  return `${n}\\%`
+function choice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
 }
 
 /* =========================
-   GENERADOR (Error porcentual)
+   ESCENARIO FIJO (como imagen)
 ========================= */
 
-type Scenario = ReturnType<typeof generateScenario>
-
-function generateScenario() {
-  // Generamos exactos tipo 0.25, 0.40, 0.60, etc.
-  const exact = randInt(10, 90) / 100
-  const delta = choiceDelta(exact)
-
-  const approx = Number((exact - delta).toFixed(2))
-
-  const errorAbs = Math.abs(exact - approx)
-  const errorPercent = Math.round((errorAbs / exact) * 100)
-
-  const questionTex = `
-\\text{Un valor exacto es } ${exact.toFixed(2)} 
-\\text{ y se aproxima como } ${approx.toFixed(2)}.\\\\
-\\text{¿Cuál es el error porcentual?}
-`
-
-  const correct = fmtPercent(errorPercent)
-
-  return {
-    exact,
-    approx,
-    errorAbs,
-    errorPercent,
-    questionTex,
-    correct,
-  }
+type Scenario = {
+  m: number
+  x0: number
+  y0: number
+  b: number
+  xCut: number
+  correct: string
+  questionTex: string
 }
 
-function choiceDelta(exact: number) {
-  // Genera diferencia pequeña coherente
-  const options = [0.01, 0.02, 0.03, 0.04]
-  return options[Math.floor(Math.random() * options.length)]
+function generateScenario(): Scenario {
+  for (let i = 0; i < 200; i++) {
+    const m = choice([-4, -3, -2, -1, 1, 2, 3, 4])
+    const xCut = choice([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
+    const x0 = choice([-4, -3, -2, -1, 0, 1, 2, 3, 4, 5])
+    if (x0 === xCut) continue
+
+    // y = m(x - xCut) => pasa por (xCut, 0)
+    const y0 = m * (x0 - xCut)
+    const b = -m * xCut
+
+    if (Math.abs(y0) > 20 || y0 === 0) continue
+
+    const correct = `(${xCut},0)`
+    const questionTex = `
+\\text{La recta que pasa por } (${x0},${y0}) 
+\\text{ y tiene pendiente } ${m} 
+\\text{ corta al eje X en:}
+`
+
+    return { m, x0, y0, b, xCut, correct, questionTex }
+  }
+
+  // fallback estable
+  return {
+    m: -1,
+    x0: 3,
+    y0: 2,
+    b: 5,
+    xCut: 5,
+    correct: "(5,0)",
+    questionTex: `
+\\text{La recta que pasa por } (3,2) 
+\\text{ y tiene pendiente } -1 
+\\text{ corta al eje X en:}
+`,
+  }
 }
 
 /* =========================
@@ -74,33 +84,34 @@ function choiceDelta(exact: number) {
 ========================= */
 
 function generateOptions(s: Scenario): Option[] {
-  const correct = s.correct
+  const seen = new Set<string>()
+  const options: Option[] = []
 
-  const wrong1 = fmtPercent(s.errorPercent + 2)
-  const wrong2 = fmtPercent(s.errorPercent - 2)
-  const wrong3 = fmtPercent(Math.round((s.errorAbs / s.approx) * 100)) // error relativo mal calculado
-  const wrong4 = fmtPercent(Math.round(s.errorAbs * 100)) // olvidar dividir por exacto
+  function add(value: string, correct: boolean) {
+    if (seen.has(value)) return
+    seen.add(value)
+    options.push({ value, correct })
+  }
 
-  const all: Option[] = [
-    { value: correct, correct: true },
-    { value: wrong1, correct: false },
-    { value: wrong2, correct: false },
-    { value: wrong3, correct: false },
-    { value: wrong4, correct: false },
-  ]
+  add(s.correct, true)
+  add(`(${s.xCut + 1},0)`, false)
+  add(`(${s.xCut - 1},0)`, false)
+  add(`(0,${s.xCut})`, false)
+  add(`(0,${-s.xCut})`, false)
 
-  const unique = Array.from(
-    new Map(all.map(o => [o.value, o])).values()
-  )
+  while (options.length < 5) {
+    const extra = `(${choice([-6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6])},0)`
+    if (extra !== s.correct) add(extra, false)
+  }
 
-  return shuffle(unique).slice(0, 5)
+  return shuffle(options)
 }
 
 /* ============================================================
    COMPONENTE
 ============================================================ */
 
-export default function ErrorPorcentualGame({
+export default function CorteEjeXGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -149,12 +160,9 @@ export default function ErrorPorcentualGame({
       answer: {
         selected: op.value,
         correctAnswer: scenario.correct,
-        exact: scenario.exact,
-        approx: scenario.approx,
-        computed: {
-          errorAbs: scenario.errorAbs,
-          errorPercent: scenario.errorPercent,
-        },
+        m: scenario.m,
+        point: [scenario.x0, scenario.y0],
+        b: scenario.b,
         options: scenario.options.map(o => o.value),
       },
       timeSeconds,
@@ -170,7 +178,7 @@ export default function ErrorPorcentualGame({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Error porcentual"
+        title="Intersección con el eje X"
         prompt="Resolver:"
         status={engine.status}
         attempts={engine.attempts}
@@ -183,55 +191,35 @@ export default function ErrorPorcentualGame({
               title="Guía paso a paso"
               steps={[
                 {
-                  title: "Calcular el error absoluto",
-                  detail: (
-                    <span>
-                      Restamos valor aproximado y exacto, y tomamos valor absoluto.
-                    </span>
-                  ),
+                  title: "Encontrar la ecuación de la recta",
+                  detail: <span>Usamos la forma pendiente-intersección y luego hallamos el valor de b.</span>,
                   icon: Sigma,
                   content: (
                     <MathTex
                       block
-                      tex={`|${scenario.exact.toFixed(
-                        2
-                      )}-${scenario.approx.toFixed(
-                        2
-                      )}|=${scenario.errorAbs.toFixed(2)}`}
+                      tex={`y = ${scenario.m}x + b`}
                     />
                   ),
                 },
                 {
-                  title: "Dividir entre el valor exacto",
-                  detail: (
-                    <span>
-                      Convertimos el error absoluto en error relativo respecto al valor exacto.
-                    </span>
-                  ),
+                  title: `Sustituir el punto (${scenario.x0},${scenario.y0})`,
+                  detail: <span>Reemplazamos las coordenadas del punto para despejar b.</span>,
                   icon: Divide,
                   content: (
                     <MathTex
                       block
-                      tex={`\\frac{${scenario.errorAbs.toFixed(
-                        2
-                      )}}{${scenario.exact.toFixed(
-                        2
-                      )}}`}
+                      tex={`${scenario.y0} = ${scenario.m}(${scenario.x0}) + b \\Rightarrow b = ${scenario.b}`}
                     />
                   ),
                 },
                 {
-                  title: "Multiplicar por 100%",
-                  detail: (
-                    <span>
-                      Expresamos el resultado final como porcentaje.
-                    </span>
-                  ),
+                  title: "Buscar el corte con el eje X",
+                  detail: <span>En el eje X se cumple y = 0, por eso resolvemos para x.</span>,
                   icon: ShieldCheck,
                   content: (
                     <MathTex
                       block
-                      tex={`${scenario.correct}`}
+                      tex={`0 = ${scenario.m}x + ${scenario.b} \\Rightarrow x = ${scenario.xCut}`}
                     />
                   ),
                 },
@@ -260,7 +248,7 @@ export default function ErrorPorcentualGame({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={op => <MathTex tex={op.value} />}
+          renderValue={op => <span>{op.value}</span>}
         />
 
         <div className="mt-6">
@@ -278,3 +266,4 @@ export default function ErrorPorcentualGame({
     </MathProvider>
   )
 }
+

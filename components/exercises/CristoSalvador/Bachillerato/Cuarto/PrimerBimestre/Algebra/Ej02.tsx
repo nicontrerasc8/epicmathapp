@@ -225,9 +225,8 @@ export default function NotacionCientificaPregunta2Game({
                   title: "Verificar notación científica",
                   detail: (
                     <span>
-                      En notación científica la mantisa cumple <b>\(1 \\le m &lt; 10\)</b>. Aquí \(m={fmtComma(
-                        scenario.rawMantissa
-                      )}\) ya está en el rango.
+                      En notación científica la mantisa cumple <b><MathTex tex={`1 \\le m < 10`} /></b>. Aquí{" "}
+                      <MathTex tex={`m=${fmtComma(scenario.rawMantissa)}`} /> ya está en el rango.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -239,7 +238,7 @@ export default function NotacionCientificaPregunta2Game({
                   ),
                   tip: (
                     <span>
-                      \(24\\times10^{-1}\) y \(0,24\\times10^{1}\) valen lo mismo, pero <b>no</b> están normalizadas
+                      <MathTex tex={`24\\times10^{-1}`} /> y <MathTex tex={`0,24\\times10^{1}`} /> valen lo mismo, pero <b>no</b> están normalizadas
                       (mantisa 24 &ge; 10 o 0,24 &lt; 1).
                     </span>
                   ),

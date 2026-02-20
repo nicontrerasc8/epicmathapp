@@ -1,14 +1,14 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ShieldCheck, Sigma } from "lucide-react"
+import { ShieldCheck, Sigma, Divide } from "lucide-react"
 
 import { useExerciseEngine } from "@/lib/exercises/useExerciseEngine"
 import { useExerciseSubmission } from "@/lib/exercises/useExerciseSubmission"
 import { useExerciseTimer } from "@/lib/exercises/useExerciseTimer"
 import { computeTrophyGain, WRONG_PENALTY } from "@/lib/exercises/gamification"
 
-import { Option, OptionsGrid } from "@/components/exercises/base/OptionsGrid"
+import { type Option, OptionsGrid } from "@/components/exercises/base/OptionsGrid"
 import { MathProvider, MathTex } from "@/components/exercises/base/MathBlock"
 import { ExerciseHud } from "@/components/exercises/base/ExerciseHud"
 import { SolutionBox } from "@/components/exercises/base/SolutionBox"
@@ -16,48 +16,60 @@ import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
 /* =========================
-   ESCENARIO (Pregunta 3)
-   (3×10^4)(2×10^-6)
+   HELPERS
 ========================= */
-function scenarioP3() {
-  const a1 = 3
-  const k1 = 4
-  const a2 = 2
-  const k2 = -6
 
-  const mantissa = a1 * a2 // 6
-  const exponent = k1 + k2 // -2
+function randInt(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1))
+}
 
-  const correct = `${mantissa} \\times 10^{${exponent}}` // 6×10^-2
+function shuffle<T>(arr: T[]): T[] {
+  return [...arr].sort(() => Math.random() - 0.5)
+}
 
-  const exprTex = `(${a1} \\times 10^{${k1}})(${a2} \\times 10^{${k2}})`
+/* =========================
+   GENERADOR
+   Intersección con eje Y
+   y = mx + b  →  intersección: (0, b)
+========================= */
 
-  // Opciones A–E como la imagen (incluye equivalentes NO normalizados)
-  const options: Option[] = [
-    { value: `6 \\times 10^{-2}`, correct: true }, // A
-    { value: `6 \\times 10^{2}`, correct: false }, // B
-    { value: `6 \\times 10^{-10}`, correct: false }, // C
-    { value: `0{,}6 \\times 10^{-1}`, correct: false }, // D (equivalente, no normalizado)
-    { value: `60 \\times 10^{-3}`, correct: false }, // E (equivalente, no normalizado)
+type Scenario = ReturnType<typeof generateScenario>
+
+function generateScenario() {
+  const m = randInt(-5, 5) || 2 // evita 0
+  const b = randInt(-10, 10)
+
+  const correct = `(0, ${b})`
+
+  const distractors = [
+    `(${b}, 0)`,         // confundir con eje X
+    `(0, ${m})`,         // usar pendiente
+    `(${m}, ${b})`,      // punto cualquiera
+    `(${b}, ${m})`,      // invertido
   ]
 
   return {
-    a1,
-    k1,
-    a2,
-    k2,
-    mantissa,
-    exponent,
+    m,
+    b,
     correct,
-    exprTex,
-    options,
+    distractors,
   }
+}
+
+function generateOptions(s: Scenario): Option[] {
+  const all: Option[] = [
+    { value: s.correct, correct: true },
+    ...s.distractors.map(d => ({ value: d, correct: false })),
+  ]
+
+  return shuffle(all)
 }
 
 /* ============================================================
    COMPONENTE
 ============================================================ */
-export default function NotacionCientificaPregunta3Game({
+
+export default function InterseccionEjeYGame({
   exerciseId,
   classroomId,
   sessionId,
@@ -78,7 +90,11 @@ export default function NotacionCientificaPregunta3Game({
 
   const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
 
-  const scenario = useMemo(() => scenarioP3(), [nonce])
+  const scenario = useMemo(() => {
+    const s = generateScenario()
+    return { ...s, options: generateOptions(s) }
+  }, [nonce])
+
   const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
 
   async function pickOption(op: Option) {
@@ -94,18 +110,13 @@ export default function NotacionCientificaPregunta3Game({
         selected: op.value,
         correctAnswer: scenario.correct,
         question: {
-          type: "notacion_cientifica_p3",
-          expr_tex: scenario.exprTex,
+          m: scenario.m,
+          b: scenario.b,
         },
         computed: {
-          mantissa: scenario.mantissa,
-          exponent: scenario.exponent,
+          rule: "La intersección con el eje Y se obtiene cuando x = 0.",
         },
         options: scenario.options.map(o => o.value),
-        extra: {
-          time_seconds: Math.floor(timeSeconds),
-          trophy_preview: computeTrophyGain(timeSeconds),
-        },
       },
       timeSeconds,
     })
@@ -117,11 +128,13 @@ export default function NotacionCientificaPregunta3Game({
     setNonce(n => n + 1)
   }
 
+  const questionTex = `\\text{¿Cuál es la intersección con el eje } y \\text{ de la recta } y=${scenario.m}x ${scenario.b >= 0 ? "+" : ""}${scenario.b}?`
+
   return (
     <MathProvider>
       <ExerciseShell
-        title="Operaciones con números de la forma a×10^k — Pregunta 3"
-        prompt="Calcular y expresar en notación científica:"
+        title="Intersección con el eje Y"
+        prompt="Selecciona la opción correcta:"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -130,47 +143,51 @@ export default function NotacionCientificaPregunta3Game({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Resolución paso a paso"
+              title="Guía paso a paso"
               steps={[
                 {
-                  title: "Multiplicar las mantisas",
+                  title: "Recordar la forma y = mx + b",
                   detail: (
                     <span>
-                      Multiplicamos los números que están antes del <MathTex tex={`10^k`} />.
+                      En la ecuación de la recta, el término independiente <b>b</b> es la intersección con el eje Y.
                     </span>
                   ),
                   icon: Sigma,
-                  content: <MathTex block tex={`${scenario.a1} \\cdot ${scenario.a2} = ${scenario.mantissa}`} />,
+                  content: (
+                    <div className="space-y-3">
+                      <MathTex block tex={`y = mx + b`} />
+                    </div>
+                  ),
                 },
                 {
-                  title: "Sumar los exponentes",
+                  title: "Evaluar en x = 0",
                   detail: (
                     <span>
-                      En multiplicación, los exponentes de 10 <b>se suman</b>.
+                      Para hallar la intersección con el eje Y, reemplazamos <b>x = 0</b>.
                     </span>
                   ),
-                  icon: Sigma,
-                  content: <MathTex block tex={`${scenario.k1} + (${scenario.k2}) = ${scenario.exponent}`} />,
+                  icon: Divide,
+                  content: (
+                    <div className="space-y-3">
+                      <MathTex block tex={`y = ${scenario.m}(0) + ${scenario.b}`} />
+                      <MathTex block tex={`y = ${scenario.b}`} />
+                    </div>
+                  ),
                 },
                 {
-                  title: "Escribir en notación científica",
-                  detail: (
-                    <span>
-                      La mantisa debe cumplir <MathTex tex={`1 \\le m < 10`} />. Aquí <MathTex tex={`m=6`} /> sí cumple.
-                    </span>
-                  ),
+                  title: "Escribir el punto",
+                  detail: <span>El punto es (0, b).</span>,
                   icon: ShieldCheck,
-                  content: <MathTex block tex={scenario.correct} />,
-                  tip: (
-                    <span>
-                      <MathTex tex={`6 \\times 10^{-1}`} /> y <MathTex tex={`60 \\times 10^{-3}`} /> valen lo mismo, pero no están normalizadas.
-                    </span>
+                  content: (
+                    <div className="space-y-3">
+                      <MathTex block tex={`(0, ${scenario.b})`} />
+                    </div>
                   ),
                 },
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: <b>{scenario.correct}</b> (opción A).
+                  Respuesta final: <b>(0, {scenario.b})</b>.
                 </span>
               }
             />
@@ -178,19 +195,19 @@ export default function NotacionCientificaPregunta3Game({
         }
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
-          <div className="text-xs text-muted-foreground mb-2">Expresión</div>
+          <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
           <div className="rounded-lg border bg-background p-3">
-            <MathTex block tex={scenario.exprTex} />
+            <MathTex block tex={questionTex} />
           </div>
         </div>
 
         <OptionsGrid
-          options={scenario.options} // orden A–E como la imagen
+          options={scenario.options}
           selectedValue={selected}
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={op => <MathTex tex={`\\text{${op.value}}`} />}
         />
 
         <div className="mt-6">
