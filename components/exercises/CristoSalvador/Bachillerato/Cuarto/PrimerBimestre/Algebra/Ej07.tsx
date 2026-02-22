@@ -311,7 +311,7 @@ export default function LogaritmosEcuacionGame({
               ]}
               concluding={
                 <span>
-                  Respuesta final: <b>{scenario.correct}</b>.
+                  Respuesta final: <MathTex tex={`x=${scenario.correct}`} />.
                 </span>
               }
             />

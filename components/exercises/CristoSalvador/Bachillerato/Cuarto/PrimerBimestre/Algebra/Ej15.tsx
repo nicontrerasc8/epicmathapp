@@ -33,6 +33,9 @@ function fmtMoneyComma(n: number, decimals = 2) {
   // Siempre con coma decimal, como en las imágenes: 3,46
   return n.toFixed(decimals).replace(".", ",")
 }
+function texMoneyFromShown(shown: string) {
+  return `\\text{S/ }${shown.replace(",", "{,}")}`
+}
 
 function truncateTo2(n: number) {
   return Math.trunc(n * 100) / 100
@@ -204,13 +207,13 @@ export default function RedondeoDineroGame({
     setNonce(n => n + 1)
   }
 
-  const q1 = `\\text{El interés generado en una cuenta bancaria es } ${scenario.shown} \\text{ soles.}`
+  const q1 = `\\text{El interés generado en una cuenta bancaria es } ${scenario.shown.replace(",", "{,}")} \\text{ soles.}`
   const q2 = `\\text{Si el banco paga hasta dos decimales, ¿cuánto recibirá el cliente?}`
 
   const step1 = `\\text{Queremos 2 decimales (centavos). Miramos el 3er decimal.}`
-  const step2 = `\\text{Número: } ${scenario.shown}`
+  const step2 = `\\text{Número: } ${scenario.shown.replace(",", "{,}")}`
   const step3 = `\\text{3er decimal } = ${scenario.thirdDecimal}. \\;\\; \\text{Si es } \\ge 5 \\text{, sube el 2do decimal.}`
-  const step4 = `\\text{Resultado pagado: } ${scenario.answerShown}`
+  const step4 = `\\text{Resultado pagado: } ${texMoneyFromShown(fmtMoneyComma(scenario.rounded, 2))}`
 
   return (
     <MathProvider>
@@ -276,7 +279,7 @@ export default function RedondeoDineroGame({
               ]}
               concluding={
                 <span>
-                  Respuesta final: <b>{scenario.answerShown}</b>.
+                  Respuesta final: <MathTex tex={texMoneyFromShown(fmtMoneyComma(scenario.rounded, 2))} />.
                 </span>
               }
             />

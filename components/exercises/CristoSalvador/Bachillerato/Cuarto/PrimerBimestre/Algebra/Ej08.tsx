@@ -202,7 +202,7 @@ export default function EcuacionExponencialCuadraticaGame({
                   detail: (
                     <span>
                       Como aparece <MathTex tex={`e^{2x}`} /> y <MathTex tex={`e^{x}`} />, conviene poner{" "}
-                      <MathTex tex={`u=e^x`} />. Nota: <MathTex tex={`u=e^x>0`} />.
+                      <MathTex tex={`u=e^x`} />. Nota: <MathTex tex={`u=e^x\\,>\\,0`} />.
                     </span>
                   ),
                   icon: Sigma,
@@ -273,7 +273,7 @@ export default function EcuacionExponencialCuadraticaGame({
               ]}
               concluding={
                 <span>
-                  Respuesta final: <b>{scenario.correct}</b>.
+                  Respuesta final: <MathTex tex={scenario.correct} />.
                 </span>
               }
             />

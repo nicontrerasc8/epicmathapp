@@ -133,13 +133,6 @@ export default function RectaParalelaGame({
     setNonce(n => n + 1)
   }
 
-  const questionTex1 = `
-\\text{Una recta tiene interseccion en } y=${scenario.bNueva}
-\\text{ y es paralela a la recta que pasa por } (${scenario.x1},${scenario.y1}) \\text{ y } (${scenario.x2},${scenario.y2}).
-`
-
-  const questionTex2 = `\\text{?Cual es su ecuacion?}`
-
   const step1 = `
 m = \\frac{${scenario.y2}-${scenario.y1}}{${scenario.x2}-${scenario.x1}}
 = ${scenario.pendiente}
@@ -158,7 +151,7 @@ m = \\frac{${scenario.y2}-${scenario.y1}}{${scenario.x2}-${scenario.x1}}
     <MathProvider>
       <ExerciseShell
         title="Rectas paralelas"
-        prompt="Selecciona la opcion correcta:"
+        prompt="Selecciona la opción correcta:"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -167,13 +160,13 @@ m = \\frac{${scenario.y2}-${scenario.y1}}{${scenario.x2}-${scenario.x1}}
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Guia paso a paso"
+              title="Guía paso a paso"
               steps={[
                 {
                   title: "Calcular la pendiente de la recta dada",
                   detail: (
                     <span>
-                      Usamos la formula de la pendiente:
+                      Usamos la fórmula de la pendiente:
                       <b> (y2 - y1)/(x2 - x1)</b>.
                     </span>
                   ),
@@ -191,10 +184,10 @@ m = \\frac{${scenario.y2}-${scenario.y1}}{${scenario.x2}-${scenario.x1}}
                   content: <MathTex block tex={step2} />,
                 },
                 {
-                  title: "Formar la ecuacion",
+                  title: "Formar la ecuación",
                   detail: (
                     <span>
-                      Forma pendiente-interseccion: <b>y = mx + b</b>.
+                      Forma pendiente-intersección: <b>y = mx + b</b>.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -215,8 +208,11 @@ m = \\frac{${scenario.y2}-${scenario.y1}}{${scenario.x2}-${scenario.x1}}
             Pregunta
           </div>
           <div className="rounded-lg border bg-background p-3 space-y-2">
-            <MathTex block tex={questionTex1} />
-            <MathTex block tex={questionTex2} />
+            <p className="text-sm leading-relaxed break-words">
+              Una recta tiene intersección en <b>y = {scenario.bNueva}</b> y es paralela a la recta que pasa por{" "}
+              <b>({scenario.x1}, {scenario.y1})</b> y <b>({scenario.x2}, {scenario.y2})</b>.{" "}
+              ¿Cuál es su ecuación?
+            </p>
           </div>
         </div>
 

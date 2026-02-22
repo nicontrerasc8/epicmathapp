@@ -22,8 +22,11 @@ function fmtComma(n: number, decimals = 1) {
   const s = n.toFixed(decimals).replace(/\.0$/, "")
   return s.replace(".", ",")
 }
+function texDec(n: number, decimals = 1) {
+  return fmtComma(n, decimals).replace(",", "{,}")
+}
 function sciTexComma(m: number, e: number) {
-  return `${fmtComma(m, 1)} \\times 10^{${e}}`
+  return `${texDec(m, 1)} \\times 10^{${e}}`
 }
 
 /* =========================
@@ -174,8 +177,9 @@ export default function NotacionCientificaPregunta2Game({
                       <MathTex block tex={scenario.exprTex} />
                       <MathTex
                         block
-                        tex={`\\text{Mantisa: } ${fmtComma(scenario.a1)}\\cdot ${fmtComma(scenario.a2)} = ${fmtComma(
-                          scenario.numMantissa
+                        tex={`\\text{Mantisa: } ${texDec(scenario.a1)}\\cdot ${texDec(scenario.a2)} = ${texDec(
+                          scenario.numMantissa,
+                          1
                         )}`}
                       />
                       <MathTex
@@ -184,7 +188,7 @@ export default function NotacionCientificaPregunta2Game({
                       />
                       <MathTex
                         block
-                        tex={`${fmtComma(scenario.numMantissa)} \\times 10^{${scenario.numExp}}`}
+                        tex={`${texDec(scenario.numMantissa, 1)} \\times 10^{${scenario.numExp}}`}
                       />
                     </div>
                   ),
@@ -202,16 +206,17 @@ export default function NotacionCientificaPregunta2Game({
                     <div className="space-y-3">
                       <MathTex
                         block
-                        tex={`\\frac{${fmtComma(scenario.numMantissa)} \\times 10^{${scenario.numExp}}}{${fmtComma(
+                        tex={`\\frac{${texDec(scenario.numMantissa, 1)} \\times 10^{${scenario.numExp}}}{${texDec(
                           scenario.a3,
                           0
                         )} \\times 10^{${scenario.k3}}}
-= \\left(\\frac{${fmtComma(scenario.numMantissa)}}{${fmtComma(scenario.a3, 0)}}\\right) \\times 10^{${scenario.numExp} - ${scenario.k3}}`}
+= \\left(\\frac{${texDec(scenario.numMantissa, 1)}}{${texDec(scenario.a3, 0)}}\\right) \\times 10^{${scenario.numExp} - ${scenario.k3}}`}
                       />
                       <MathTex
                         block
-                        tex={`\\frac{${fmtComma(scenario.numMantissa)}}{${fmtComma(scenario.a3, 0)}} = ${fmtComma(
-                          scenario.rawMantissa
+                        tex={`\\frac{${texDec(scenario.numMantissa, 1)}}{${texDec(scenario.a3, 0)}} = ${texDec(
+                          scenario.rawMantissa,
+                          1
                         )}`}
                       />
                       <MathTex
@@ -226,27 +231,27 @@ export default function NotacionCientificaPregunta2Game({
                   detail: (
                     <span>
                       En notación científica la mantisa cumple <b><MathTex tex={`1 \\le m < 10`} /></b>. Aquí{" "}
-                      <MathTex tex={`m=${fmtComma(scenario.rawMantissa)}`} /> ya está en el rango.
+                      <MathTex tex={`m=${texDec(scenario.rawMantissa, 1)}`} /> ya está en el rango.
                     </span>
                   ),
                   icon: ShieldCheck,
                   content: (
                     <div className="space-y-3">
                       <MathTex block tex={`\\text{Respuesta: } ${scenario.correct}`} />
-                      <MathTex block tex={`1 \\le ${fmtComma(scenario.rawMantissa)} < 10`} />
+                      <MathTex block tex={`1 \\le ${texDec(scenario.rawMantissa, 1)} < 10`} />
                     </div>
                   ),
                   tip: (
                     <span>
-                      <MathTex tex={`24\\times10^{-1}`} /> y <MathTex tex={`0,24\\times10^{1}`} /> valen lo mismo, pero <b>no</b> están normalizadas
-                      (mantisa 24 &ge; 10 o 0,24 &lt; 1).
+                      <MathTex tex={`24\\times10^{-1}`} /> y <MathTex tex={`0{,}24\\times10^{1}`} /> valen lo mismo, pero <b>no</b> están normalizadas
+                      (mantisa <MathTex tex={`24 \\ge 10`} /> o <MathTex tex={`0{,}24 < 1`} />).
                     </span>
                   ),
                 },
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: <b>{scenario.correct}</b> (opción A).
+                  Respuesta correcta: <MathTex tex={scenario.correct} /> (opción A).
                 </span>
               }
             />

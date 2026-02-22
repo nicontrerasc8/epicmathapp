@@ -203,7 +203,7 @@ export default function ErrorPorcentualGame({
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: <b>{scenario.errorRounded}%</b>
+                  Respuesta correcta: <MathTex tex={`${scenario.errorRounded}\\%`} />
                 </span>
               }
             />

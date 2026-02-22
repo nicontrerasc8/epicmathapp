@@ -32,8 +32,11 @@ function fmtMantissa(n: number) {
   const x = Number(n.toFixed(1))
   return almostInt(x) ? String(Math.round(x)) : String(x)
 }
+function texDecimal(n: number) {
+  return fmtMantissa(n).replace(".", "{,}")
+}
 function texScientific(m: number, e: number) {
-  return `${fmtMantissa(m)} \\times 10^{${e}}`
+  return `${texDecimal(m)} \\times 10^{${e}}`
 }
 
 function normalizeScientific(m: number, e: number, decimals = 1) {
@@ -350,12 +353,12 @@ export default function NotacionCientificaGame({
                         block
                         tex={`\\text{Resultado (normalizado)} = ${scenario.correct}`}
                       />
-                      <MathTex block tex={`1 \\le ${fmtMantissa(scenario.normM)} < 10`} />
+                      <MathTex block tex={`1 \\le ${texDecimal(scenario.normM)} < 10`} />
                     </div>
                   ),
                   tip: (
                     <span>
-                      Si te queda <MathTex tex={`0.6 \\times 10^1`} /> o <MathTex tex={`60 \\times 10^{-1}`} />, el valor puede ser el mismo, pero <b>no</b> está
+                      Si te queda <MathTex tex={`0{,}6 \\times 10^1`} /> o <MathTex tex={`60 \\times 10^{-1}`} />, el valor puede ser el mismo, pero <b>no</b> está
                       en notación científica porque la mantisa no está entre 1 y 10.
                     </span>
                   ),
@@ -363,7 +366,7 @@ export default function NotacionCientificaGame({
               ]}
               concluding={
                 <span>
-                  Respuesta final: <b>{scenario.correct}</b>.
+                  Respuesta final: <MathTex tex={scenario.correct} />.
                 </span>
               }
             />

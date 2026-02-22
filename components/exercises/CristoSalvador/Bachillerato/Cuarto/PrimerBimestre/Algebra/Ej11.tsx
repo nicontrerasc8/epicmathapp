@@ -215,7 +215,8 @@ export default function MagnitudSismoLog10Game({
                   title: "Interpretar el resultado como “veces”",
                   detail: (
                     <span>
-                      <MathTex tex={`\\frac{I}{I_0}`} /> ya significa “cuántas veces mayor es <MathTex tex={`I`} /> respecto a <MathTex tex={`I_0`} />”.
+                      <MathTex tex={`\\frac{I}{I_0}`} /> ya significa “cuántas veces mayor es”
+                      <MathTex tex={`\\ I`} /> respecto a <MathTex tex={`I_0`} />.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -229,7 +230,7 @@ export default function MagnitudSismoLog10Game({
               ]}
               concluding={
                 <span>
-                  Respuesta final: <b>{scenario.correct}</b>.
+                  Respuesta final: <MathTex tex={scenario.correct} />.
                 </span>
               }
             />

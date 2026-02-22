@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import { ArrowLeft, Gamepad2, MessageCircle, Trophy } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { createClient } from '@/utils/supabase/client'
@@ -81,9 +82,10 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "c6d80a78-128c-464f-917c-d75fd9a0f1c5": () => import("./primaria/RestasLaPontificia"),
   "02823510-6da2-478c-8600-958f4cd37fe4": () => import("./primaria/MultiplicacionesLaPontificia"),
 
-  "a38847f3-2a33-4fb1-9a9f-3440b52d9d2c": () => import("./prisma/SR01"),
-
-  "5ca2ced7-1067-46fb-8d94-0d0bab7b983d": () => import("./prisma/SR02"),
+  "78cc38ad-8596-4c26-93a3-6181539d2b4e": () => import("./prisma/SR01"),
+  "1ae38f6b-452f-4631-9ebd-f2d2797d6ad5": () => import("./prisma/SR03"),
+  "43f3d552-d94d-4dd7-a4cf-41dbad6b5797": () => import("./prisma/SR02"),
+  "590e6dba-c16c-4157-95d9-3aac94f341ed": () => import("./prisma/SR04"),
 
   /* aritmetica y algebra */
   "ef57274e-6799-4975-8c78-2debc014d0df": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/Algebra/Ej01"), // Operaciones con a×10^k
@@ -179,6 +181,8 @@ export const ExerciseRegistry = ({
   studentId,
   sessionId,
 }: ExerciseComponentProps) => {
+  const router = useRouter()
+
   const ExerciseComponent = useMemo(() => {
     const loader = EXERCISE_LOADERS[exerciseId]
     if (!loader) return null
@@ -340,19 +344,28 @@ export const ExerciseRegistry = ({
     )
   }
 
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      router.back()
+      return
+    }
+    router.push('/student/play')
+  }
+
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-background to-muted">
 
       {/* ðŸ”™ Sticky Header */}
       <div className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link
-            href="/student/play"
+          <button
+            type="button"
+            onClick={handleGoBack}
             className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted transition"
           >
             <ArrowLeft className="h-4 w-4" />
             Volver
-          </Link>
+          </button>
 
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
         

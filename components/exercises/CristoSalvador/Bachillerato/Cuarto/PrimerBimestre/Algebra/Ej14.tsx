@@ -300,7 +300,7 @@ export default function RedondeoPrecisionInstrumentoGame({
               ]}
               concluding={
                 <span>
-                  Respuesta final: <b>{scenario.correct}</b>.
+                  Respuesta final: <MathTex tex={scenario.correct} />.
                 </span>
               }
             />

@@ -143,7 +143,7 @@ export default function Ej04MasaDecimal({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ejercicio 04 – Notación científica"
+        title="Notación científica"
         prompt="¿Cuál es su masa en forma decimal?"
         status={engine.status}
         attempts={engine.attempts}

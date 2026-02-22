@@ -237,8 +237,7 @@ export default function DecaimientoRadioactivoGame({
               ]}
               concluding={
                 <span>
-                  Respuesta final:{" "}
-                  <b><MathTex tex={fracTex(`\\ln(${scenario.ratio})`, scenario.kTex)} /></b>
+                  Respuesta final: <MathTex tex={fracTex(`\\ln(${scenario.ratio})`, scenario.kTex)} />
                 </span>
               }
             />
@@ -256,7 +255,7 @@ export default function DecaimientoRadioactivoGame({
             </div>
             <MathTex block tex={modelTex} />
             <div className="text-sm">
-              ¿Cuándo se reducirá a <b>{scenario.Mt}</b> unidades?
+              ¿Cuándo se reducirá a <MathTex tex={`${scenario.Mt}`} /> unidades?
             </div>
           </div>
         </div>

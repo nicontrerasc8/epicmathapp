@@ -163,14 +163,14 @@ export default function NotacionCientificaPregunta3Game({
                   content: <MathTex block tex={scenario.correct} />,
                   tip: (
                     <span>
-                      <MathTex tex={`6 \\times 10^{-1}`} /> y <MathTex tex={`60 \\times 10^{-3}`} /> valen lo mismo, pero no están normalizadas.
+                      <MathTex tex={`0{,}6 \\times 10^{-1}`} /> y <MathTex tex={`60 \\times 10^{-3}`} /> valen lo mismo, pero no están normalizadas.
                     </span>
                   ),
                 },
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: <b>{scenario.correct}</b> (opción A).
+                  Respuesta correcta: <MathTex tex={scenario.correct} /> (opción A).
                 </span>
               }
             />

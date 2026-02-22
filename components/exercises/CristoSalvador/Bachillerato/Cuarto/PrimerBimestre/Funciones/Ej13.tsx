@@ -23,6 +23,35 @@ function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
 
+function gcd(a: number, b: number): number {
+  a = Math.abs(a)
+  b = Math.abs(b)
+  while (b !== 0) {
+    const t = a % b
+    a = b
+    b = t
+  }
+  return a
+}
+
+function simplifyFraction(n: number, d: number) {
+  const g = gcd(n, d)
+  const nn = n / g
+  const dd = d / g
+  if (dd < 0) return { n: -nn, d: -dd }
+  return { n: nn, d: dd }
+}
+
+function fractionInline(n: number, d: number): string {
+  const f = simplifyFraction(n, d)
+  if (f.d === 1) return `${f.n}`
+  return `${f.n}/${f.d}`
+}
+
+function formatLinear(a: number, b: number): string {
+  return `${a}x - y ${b >= 0 ? "+" : "-"} ${Math.abs(b)} = 0`
+}
+
 type Scenario = ReturnType<typeof generateScenario>
 
 function generateScenario() {
@@ -46,13 +75,14 @@ function generateScenario() {
 
 function generateOptions(s: Scenario): Option[] {
   const originalSlope = s.a
-  const perpendicularSlope = -1 / originalSlope
+  const perpendicularSlope = fractionInline(-1, originalSlope)
+  const inverseOnlySlope = fractionInline(1, originalSlope)
 
   const correct = `y = ${perpendicularSlope}x + 2`
 
   const wrongSame = `y = ${originalSlope}x - 2`
   const wrongNegativeOnly = `y = ${-originalSlope}x + 4`
-  const wrongInverseOnly = `y = ${1 / originalSlope}x + 1`
+  const wrongInverseOnly = `y = ${inverseOnlySlope}x + 1`
   const wrongRandom = `y = 2x + 1`
 
   const options = [
@@ -116,7 +146,7 @@ export default function RectaPerpendicularGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: `y = ${-1 / scenario.a}x + 2`,
+        correctAnswer: `y = ${fractionInline(-1, scenario.a)}x + 2`,
       },
       timeSeconds,
     })
@@ -128,7 +158,7 @@ export default function RectaPerpendicularGame({
     setNonce(n => n + 1)
   }
 
-  const givenTex = `${scenario.a}x - y + ${scenario.b} = 0`
+  const givenTex = formatLinear(scenario.a, scenario.b)
 
   const slopeTex = `
 ${scenario.a}x - y + ${scenario.b} = 0
@@ -136,7 +166,7 @@ ${scenario.a}x - y + ${scenario.b} = 0
 `
 
   const perpTex = `
-m_{\\perp} = -\\frac{1}{${scenario.a}} = ${-1 / scenario.a}
+m_{\\perp} = -\\frac{1}{${scenario.a}} = ${fractionInline(-1, scenario.a)}
 `
 
   return (
@@ -180,7 +210,7 @@ m_{\\perp} = -\\frac{1}{${scenario.a}} = ${-1 / scenario.a}
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: pendiente { -1 / scenario.a }.
+                  Respuesta correcta: pendiente {fractionInline(-1, scenario.a)}.
                 </span>
               }
             />

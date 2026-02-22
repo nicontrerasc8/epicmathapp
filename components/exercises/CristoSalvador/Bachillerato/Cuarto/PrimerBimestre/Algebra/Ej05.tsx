@@ -250,7 +250,7 @@ export default function Ej05SumaNotacionCientifica({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ejercicio 05 – Suma en notación científica"
+        title="Suma en notación científica"
         prompt="El resultado, expresado en notación científica, es:"
         status={engine.status}
         attempts={engine.attempts}
@@ -333,7 +333,7 @@ export default function Ej05SumaNotacionCientifica({
               ]}
               concluding={
                 <span>
-                  Respuesta final: <b>{scenario.correct}</b>.
+                  Respuesta final: <MathTex tex={scenario.correct} />.
                 </span>
               }
             />
