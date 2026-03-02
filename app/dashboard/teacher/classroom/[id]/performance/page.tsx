@@ -375,7 +375,7 @@ export default function PerformancePage() {
         .from("edu_student_exercises")
         .select("student_id, exercise_id, correct, time_seconds, created_at")
         .eq("classroom_id", classroomId)
-        .gte("created_at", since30)
+       
 
       const adnQuery = supabase
         .from("edu_student_learning_adn_view")
