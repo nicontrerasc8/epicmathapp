@@ -15,22 +15,25 @@ type AssignmentRow = {
     id: string
     exercise_type: string
     description: string | null
+    created_at: string | null
   }
 }
 
 type AssignmentRowFromQuery = {
   id: string
   exercise_id: string
-  edu_exercises:
+      edu_exercises:
     | {
         id: string
         exercise_type: string
         description: string | null
+        created_at: string | null
       }
     | Array<{
         id: string
         exercise_type: string
         description: string | null
+        created_at: string | null
       }>
     | null
 }
@@ -70,7 +73,8 @@ export default function TopicExercisesPage() {
           edu_exercises!inner (
             id,
             exercise_type,
-            description
+            description,
+            created_at
           )
         `)
         .eq('classroom_id', idClassroom)
@@ -117,8 +121,17 @@ export default function TopicExercisesPage() {
 
   const sortedAssignments = useMemo(() => {
     return [...assignments].sort((a, b) => {
-      const labelA = a.edu_exercises?.description || a.edu_exercises?.id || a.exercise_id
-      const labelB = b.edu_exercises?.description || b.edu_exercises?.id || b.exercise_id
+      const timeA = a.edu_exercises.created_at
+        ? new Date(a.edu_exercises.created_at).getTime()
+        : Number.NEGATIVE_INFINITY
+      const timeB = b.edu_exercises.created_at
+        ? new Date(b.edu_exercises.created_at).getTime()
+        : Number.NEGATIVE_INFINITY
+
+      if (timeA !== timeB) return timeB - timeA
+
+      const labelA = a.edu_exercises.description || a.edu_exercises.id || a.exercise_id
+      const labelB = b.edu_exercises.description || b.edu_exercises.id || b.exercise_id
       return labelA.localeCompare(labelB)
     })
   }, [assignments])

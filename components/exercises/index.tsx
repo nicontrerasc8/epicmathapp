@@ -153,9 +153,26 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
   "797f4cd6-610f-445d-9e87-9d9155d2e3c8": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej19"), // Conteo (combinaciones)
   "c509eb5d-0383-4d68-808e-7bae085f3acb": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/EstadisticayProb/Ej20"), // Probabilidad con 2 dados
 
-  
-  /* pruebas */
-   /* fin pruebas */
+  "9820135c-963f-49d0-a720-2a5f6071761d": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej01"), // Nuevo ejercicio
+  "da191aee-cca2-4573-9915-83d6c75badbd": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej02"), // Nuevo ejercicio
+  "f91b790b-6fcf-4332-a92a-7f5c8897cf61": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej03"), // Nuevo ejercicio
+  "976901c2-f1ad-45ea-bd42-802bd1a4742b": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej04"), // Nuevo ejercicio
+  "2435c6da-08df-41d0-b1b7-b553df7ea72f": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej05"),
+  "e77c1c6e-552c-4728-b447-a098f04a25d2": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej06"),
+  "6276997c-1cc1-45d7-9da5-d262566bebd0": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej07"),
+  "7b46e18c-2745-4568-92fc-9c295c42b113": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej08"),
+  "d520e714-942d-4981-8aca-b950ad1ef831": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej09"), // Nuevo ejercicio
+"69b5de51-98a1-4e93-a7a3-edda2fd2370e": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej10"), // Nuevo ejercicio
+"d709d266-0982-45b5-b6ce-2f326f573ddf": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej11"), // Nuevo ejercicio
+"d4896ab4-55eb-4a5b-bd2b-a1047f3b0a3a": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej12"), // Nuevo ejercicio
+"7b24fd65-112f-4133-bf3c-44f232b565c0": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej13"), // Nuevo ejercicio
+"e85d5cda-9e80-4535-84b5-1426d608858e": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej14"), // Nuevo ejercicio
+"c8ac0054-5fac-4b59-9f64-af4b7141808b": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej15"), // Nuevo ejercicio
+"e52700eb-81ec-4e2f-9393-41f507dee242": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej16"), // Nuevo ejercicio
+"8b10f3a4-a8e9-41e2-a88c-464beff9014b":() => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej17"), // Nuevo ejercicio
+"20250ba1-ee83-4913-8d4e-8977e81700d2": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej18"), // Nuevo ejercicio
+"be4b47c5-3bc0-45da-a8ba-635cfda18e88":() => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej19"), // Nuevo ejercicio
+"6cb2804c-8eaf-4967-9939-12c94d3fb877": () => import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/GeometriaYTrigonometria/Ej20"), // Nuevo ejercicio
 
 }
 
