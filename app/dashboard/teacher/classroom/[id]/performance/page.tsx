@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
 import { PageHeader, ChartCard, BarChart, DoughnutChart, chartColors } from "@/components/dashboard/core"
@@ -433,7 +433,6 @@ export default function PerformancePage() {
   const router = useRouter()
 
   const [loading, setLoading] = useState(true)
-  const hasLoadedOnceRef = useRef(false)
 
   // Raw aggregates (respecting filters below)
   const [students, setStudents] = useState<StudentRow[]>([])
@@ -463,7 +462,7 @@ export default function PerformancePage() {
     if (!classroomId) return
 
     const load = async () => {
-      if (!hasLoadedOnceRef.current) setLoading(true)
+      setLoading(true)
 
       // ---------------------------
       // 1) Members (students)
@@ -596,7 +595,6 @@ export default function PerformancePage() {
         setStudents([])
         setExercises([])
         setLoading(false)
-        hasLoadedOnceRef.current = true
         return
       }
 
@@ -815,7 +813,6 @@ export default function PerformancePage() {
       setStudents(studentsList)
       setExercises(exercisesList)
       setLoading(false)
-      hasLoadedOnceRef.current = true
     }
 
     load()
@@ -1273,7 +1270,10 @@ export default function PerformancePage() {
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Filtro de tiempo</div>
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => setTimeFilter("all")}
+                  onClick={() => {
+                    setLoading(true)
+                    setTimeFilter("all")
+                  }}
                   className={[
                     "rounded-xl border px-3 py-2 text-sm font-semibold",
                     timeFilter === "all" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
@@ -1282,7 +1282,10 @@ export default function PerformancePage() {
                   Todo
                 </button>
                 <button
-                  onClick={() => setTimeFilter("7d")}
+                  onClick={() => {
+                    setLoading(true)
+                    setTimeFilter("7d")
+                  }}
                   className={[
                     "rounded-xl border px-3 py-2 text-sm font-semibold",
                     timeFilter === "7d" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
@@ -1291,7 +1294,10 @@ export default function PerformancePage() {
                   7 días
                 </button>
                 <button
-                  onClick={() => setTimeFilter("30d")}
+                  onClick={() => {
+                    setLoading(true)
+                    setTimeFilter("30d")
+                  }}
                   className={[
                     "rounded-xl border px-3 py-2 text-sm font-semibold",
                     timeFilter === "30d" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
@@ -1300,7 +1306,10 @@ export default function PerformancePage() {
                   30 días
                 </button>
                 <button
-                  onClick={() => setTimeFilter("custom")}
+                  onClick={() => {
+                    setLoading(true)
+                    setTimeFilter("custom")
+                  }}
                   className={[
                     "rounded-xl border px-3 py-2 text-sm font-semibold",
                     timeFilter === "custom" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
@@ -1317,7 +1326,10 @@ export default function PerformancePage() {
                     <input
                       type="date"
                       value={customFrom}
-                      onChange={(e) => setCustomFrom(e.target.value)}
+                      onChange={(e) => {
+                        setLoading(true)
+                        setCustomFrom(e.target.value)
+                      }}
                       className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
                     />
                   </div>
@@ -1326,7 +1338,10 @@ export default function PerformancePage() {
                     <input
                       type="date"
                       value={customTo}
-                      onChange={(e) => setCustomTo(e.target.value)}
+                      onChange={(e) => {
+                        setLoading(true)
+                        setCustomTo(e.target.value)
+                      }}
                       className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
                     />
                   </div>
@@ -1339,7 +1354,10 @@ export default function PerformancePage() {
               label="Categoría"
               options={exerciseTypeOptions}
               value={selectedExerciseTypes}
-              onChange={setSelectedExerciseTypes}
+              onChange={(value) => {
+                setLoading(true)
+                setSelectedExerciseTypes(value)
+              }}
             />
 
             {/* Assignment status filter */}
@@ -1348,7 +1366,10 @@ export default function PerformancePage() {
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setAssignmentStatusFilter("active")}
+                  onClick={() => {
+                    setLoading(true)
+                    setAssignmentStatusFilter("active")
+                  }}
                   className={[
                     "rounded-xl border px-3 py-2 text-sm font-semibold",
                     assignmentStatusFilter === "active"
@@ -1360,7 +1381,10 @@ export default function PerformancePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAssignmentStatusFilter("inactive")}
+                  onClick={() => {
+                    setLoading(true)
+                    setAssignmentStatusFilter("inactive")
+                  }}
                   className={[
                     "rounded-xl border px-3 py-2 text-sm font-semibold",
                     assignmentStatusFilter === "inactive"
@@ -1422,40 +1446,7 @@ export default function PerformancePage() {
         </ChartCard>
       </div>
 
-      <ChartCard
-        title="Perfiles de ADN en el aula"
-        subtitle="Resumen visual del tipo de perfil que tiene cada estudiante (según filtros)"
-        className="shadow-2xl"
-      >
-        <div className="grid gap-6 lg:grid-cols-[1fr,minmax(200px,0.45fr)] items-center">
-          <div>
-            <DoughnutChart
-              data={adnDistributionData}
-              height={320}
-              showLegend={false}
-              colors={adnProfileDistribution.entries.map((entry) => ADN_PROFILE_COLOR_MAP[entry.key])}
-            />
-          </div>
-          <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Leyenda de perfiles</p>
-            {adnProfileDistribution.entries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hay perfiles definidos aún.</p>
-            ) : (
-              <div className="space-y-2">
-                {adnProfileDistribution.entries.map((entry) => (
-                  <div key={entry.key} className="flex items-center justify-between rounded-2xl border px-4 py-2 text-sm">
-                    <div className="flex items-center gap-3">
-                      <span className="h-3.5 w-3.5 rounded-full" style={{ background: ADN_PROFILE_COLOR_MAP[entry.key] }} />
-                      <span className="font-semibold">{entry.label}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{entry.value} estudiantes</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </ChartCard>
+   
 
       {/* Controls */}
       <div className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-lg md:flex-row md:items-center md:justify-between">
