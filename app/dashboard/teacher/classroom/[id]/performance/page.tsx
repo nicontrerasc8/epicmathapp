@@ -21,7 +21,6 @@ import {
   ChevronRight,
   FileSpreadsheet,
   Brain,
-  Filter,
   X as XIcon,
 } from "lucide-react"
 
@@ -434,7 +433,6 @@ export default function PerformancePage() {
   const router = useRouter()
 
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const hasLoadedOnceRef = useRef(false)
 
   // Raw aggregates (respecting filters below)
@@ -465,8 +463,7 @@ export default function PerformancePage() {
     if (!classroomId) return
 
     const load = async () => {
-      if (hasLoadedOnceRef.current) setRefreshing(true)
-      else setLoading(true)
+      if (!hasLoadedOnceRef.current) setLoading(true)
 
       // ---------------------------
       // 1) Members (students)
@@ -562,7 +559,13 @@ export default function PerformancePage() {
       setExerciseTypeOptions(typeOpts)
 
       // If previously selected types are now invalid (because active/inactive changed), prune them
-      setSelectedExerciseTypes((prev) => prev.filter((t) => typeSet.has(t)))
+      setSelectedExerciseTypes((prev) => {
+        const next = prev.filter((t) => typeSet.has(t))
+        if (next.length === prev.length && next.every((value, index) => value === prev[index])) {
+          return prev
+        }
+        return next
+      })
 
       // ---------------------------
       // 6) Attempts query with dynamic filters
@@ -593,7 +596,6 @@ export default function PerformancePage() {
         setStudents([])
         setExercises([])
         setLoading(false)
-        setRefreshing(false)
         hasLoadedOnceRef.current = true
         return
       }
@@ -813,7 +815,6 @@ export default function PerformancePage() {
       setStudents(studentsList)
       setExercises(exercisesList)
       setLoading(false)
-      setRefreshing(false)
       hasLoadedOnceRef.current = true
     }
 
@@ -1198,15 +1199,6 @@ export default function PerformancePage() {
     }
   }
 
-  const timeLabelUI =
-    timeFilter === "all"
-      ? "Todo"
-      : timeFilter === "7d"
-      ? "7 días"
-      : timeFilter === "30d"
-      ? "30 días"
-      : `${customFrom} → ${customTo}`
-
   return (
     <div className="space-y-8">
       <PageHeader
@@ -1219,31 +1211,10 @@ export default function PerformancePage() {
         ]}
       />
 
-      {/* Filters Summary chip */}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card px-4 py-3 shadow-sm">
-        <span className="inline-flex items-center gap-2 text-sm font-semibold">
-          <Filter className="h-4 w-4" />
-          Filtros activos:
-        </span>
-        {refreshing ? (
-          <span className="rounded-full border bg-background px-3 py-1 text-xs font-semibold">
-            Actualizando...
-          </span>
-        ) : null}
-        <span className="rounded-full border bg-background px-3 py-1 text-xs font-semibold">
-          Tiempo: {timeLabelUI}
-        </span>
-        <span className="rounded-full border bg-background px-3 py-1 text-xs font-semibold">
-          Categoría: {selectedExerciseTypes.length ? selectedExerciseTypes.join(", ") : "Todos"}
-        </span>
-        <span className="rounded-full border bg-background px-3 py-1 text-xs font-semibold">
-          Asignaciones: {assignmentStatusFilter === "active" ? "Activos" : "Inactivos"}
-        </span>
-      </div>
-
       {/* Hero KPI */}
-      <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-background via-muted/30 to-background p-8 shadow-2xl">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.1),transparent_50%)]" />
+      <div className="lg:sticky lg:top-3 lg:z-30">
+        <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-background via-muted/30 to-background p-8 shadow-2xl lg:max-h-[84vh] lg:overflow-y-auto lg:backdrop-blur">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.1),transparent_50%)]" />
         <div className="relative">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
@@ -1403,6 +1374,7 @@ export default function PerformancePage() {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Chart Carousel */}
