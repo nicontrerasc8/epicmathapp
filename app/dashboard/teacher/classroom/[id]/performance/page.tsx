@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
 import { PageHeader, ChartCard, BarChart, DoughnutChart, chartColors } from "@/components/dashboard/core"
@@ -434,6 +434,8 @@ export default function PerformancePage() {
   const router = useRouter()
 
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const hasLoadedOnceRef = useRef(false)
 
   // Raw aggregates (respecting filters below)
   const [students, setStudents] = useState<StudentRow[]>([])
@@ -463,7 +465,8 @@ export default function PerformancePage() {
     if (!classroomId) return
 
     const load = async () => {
-      setLoading(true)
+      if (hasLoadedOnceRef.current) setRefreshing(true)
+      else setLoading(true)
 
       // ---------------------------
       // 1) Members (students)
@@ -590,6 +593,8 @@ export default function PerformancePage() {
         setStudents([])
         setExercises([])
         setLoading(false)
+        setRefreshing(false)
+        hasLoadedOnceRef.current = true
         return
       }
 
@@ -808,6 +813,8 @@ export default function PerformancePage() {
       setStudents(studentsList)
       setExercises(exercisesList)
       setLoading(false)
+      setRefreshing(false)
+      hasLoadedOnceRef.current = true
     }
 
     load()
@@ -1218,6 +1225,11 @@ export default function PerformancePage() {
           <Filter className="h-4 w-4" />
           Filtros activos:
         </span>
+        {refreshing ? (
+          <span className="rounded-full border bg-background px-3 py-1 text-xs font-semibold">
+            Actualizando...
+          </span>
+        ) : null}
         <span className="rounded-full border bg-background px-3 py-1 text-xs font-semibold">
           Tiempo: {timeLabelUI}
         </span>
