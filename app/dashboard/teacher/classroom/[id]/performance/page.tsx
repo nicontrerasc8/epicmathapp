@@ -21,7 +21,13 @@ import {
   ChevronRight,
   FileSpreadsheet,
   Brain,
+  Filter,
+  X as XIcon,
 } from "lucide-react"
+
+/* =========================
+   TYPES
+========================= */
 
 type AttemptRow = {
   student_id: string
@@ -123,6 +129,12 @@ type SortKeyExercises =
   | "streak"
   | "last"
 
+type TimeFilter = "all" | "7d" | "30d" | "custom"
+
+/* =========================
+   HELPERS
+========================= */
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n))
 }
@@ -196,6 +208,10 @@ function Segmented({
     </div>
   )
 }
+
+/* =========================
+   ADN BADGES
+========================= */
 
 function styleBadge(estilo: string) {
   const s = (estilo || "").toLowerCase()
@@ -285,11 +301,7 @@ const ADN_PROFILE_COLOR_MAP: Record<AdnProfileKey, string> = {
   en_observacion: chartColors.muted,
 }
 
-function AdnPill({
-  adn,
-}: {
-  adn?: StudentRow["adn"] | null
-}) {
+function AdnPill({ adn }: { adn?: StudentRow["adn"] | null }) {
   if (!adn) {
     return (
       <span className="inline-flex items-center gap-2 rounded-full bg-slate-700 text-white px-4 py-1.5 text-sm font-black shadow-md ring-2 ring-slate-500/50">
@@ -301,10 +313,7 @@ function AdnPill({
 
   return (
     <span
-      className={[
-        "inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-black shadow-md",
-        styleBadge(adn.estilo),
-      ].join(" ")}
+      className={["inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-black shadow-md", styleBadge(adn.estilo)].join(" ")}
       title={[
         labelTrait("ritmo", adn.ritmo),
         labelTrait("persistencia", adn.persistencia),
@@ -319,6 +328,104 @@ function AdnPill({
   )
 }
 
+/* =========================
+   MULTISELECT (simple)
+========================= */
+
+function MultiSelect({
+  label,
+  options,
+  value,
+  onChange,
+  placeholder = "Seleccionar...",
+}: {
+  label: string
+  options: { value: string; label: string }[]
+  value: string[]
+  onChange: (v: string[]) => void
+  placeholder?: string
+}) {
+  const selected = useMemo(() => new Set(value), [value])
+
+  const toggle = (v: string) => {
+    const next = new Set(selected)
+    if (next.has(v)) next.delete(v)
+    else next.add(v)
+    onChange(Array.from(next))
+  }
+
+  const clear = () => onChange([])
+
+  return (
+    <div className="rounded-2xl border bg-background p-3 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+        {value.length > 0 ? (
+          <button
+            onClick={clear}
+            className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40"
+          >
+            <XIcon className="h-3.5 w-3.5" />
+            Limpiar
+          </button>
+        ) : null}
+      </div>
+
+      {options.length === 0 ? (
+        <div className="mt-2 text-sm text-muted-foreground">Sin opciones</div>
+      ) : (
+        <div className="mt-2 max-h-44 overflow-auto pr-1 space-y-1">
+          {options.map((o) => {
+            const active = selected.has(o.value)
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => toggle(o.value)}
+                className={[
+                  "w-full text-left rounded-xl px-3 py-2 text-sm transition-all border",
+                  active
+                    ? "bg-foreground text-background border-foreground shadow-sm"
+                    : "bg-background text-foreground border-border hover:bg-muted/40",
+                ].join(" ")}
+                title={o.label}
+              >
+                <span className="font-semibold">{active ? "✓ " : ""}</span>
+                {o.label || placeholder}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="mt-2 text-xs text-muted-foreground">
+        {value.length === 0 ? "Sin filtros" : `${value.length} seleccionado(s)`}
+      </div>
+    </div>
+  )
+}
+
+function toISODateOnly(d: Date) {
+  // YYYY-MM-DD (para inputs type="date")
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function startOfDayISO(dateStr: string) {
+  // dateStr: YYYY-MM-DD
+  return new Date(`${dateStr}T00:00:00.000Z`).toISOString()
+}
+function endOfDayISO(dateStr: string) {
+  // dateStr: YYYY-MM-DD
+  return new Date(`${dateStr}T23:59:59.999Z`).toISOString()
+}
+
+/* =========================
+   PAGE
+========================= */
+
 export default function PerformancePage() {
   const params = useParams() as { id?: string }
   const classroomId = params?.id
@@ -327,6 +434,8 @@ export default function PerformancePage() {
   const router = useRouter()
 
   const [loading, setLoading] = useState(true)
+
+  // Raw aggregates (respecting filters below)
   const [students, setStudents] = useState<StudentRow[]>([])
   const [exercises, setExercises] = useState<ExerciseRow[]>([])
   const [exporting, setExporting] = useState(false)
@@ -337,7 +446,18 @@ export default function PerformancePage() {
   const [sortExercises, setSortExercises] = useState<SortKeyExercises>("attempts")
   const [descending, setDescending] = useState(true)
   const [currentChartIndex, setCurrentChartIndex] = useState(0)
+
+  // ✅ Assignment (activo/inactivo)
   const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<"active" | "inactive">("active")
+
+  // ✅ NEW: time + exercise_type + exercise filters (apply to charts & tables)
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all")
+  const [customFrom, setCustomFrom] = useState<string>(() => toISODateOnly(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)))
+  const [customTo, setCustomTo] = useState<string>(() => toISODateOnly(new Date()))
+  const [selectedExerciseTypes, setSelectedExerciseTypes] = useState<string[]>([])
+
+  // Options for filters
+  const [exerciseTypeOptions, setExerciseTypeOptions] = useState<{ value: string; label: string }[]>([])
 
   useEffect(() => {
     if (!classroomId) return
@@ -345,8 +465,9 @@ export default function PerformancePage() {
     const load = async () => {
       setLoading(true)
 
-      const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-
+      // ---------------------------
+      // 1) Members (students)
+      // ---------------------------
       let membersQuery = supabase
         .from("edu_classroom_members")
         .select(`
@@ -362,21 +483,19 @@ export default function PerformancePage() {
         .eq("edu_institution_members.role", "student")
         .eq("edu_institution_members.active", true)
 
-      if (institution?.id) {
-        membersQuery = membersQuery.eq("edu_institution_members.institution_id", institution.id)
-      }
+      if (institution?.id) membersQuery = membersQuery.eq("edu_institution_members.institution_id", institution.id)
 
+      // ---------------------------
+      // 2) Assignments (to know exercise list)
+      // ---------------------------
       const assignmentsQuery = supabase
         .from("edu_exercise_assignments")
-        .select("exercise:edu_exercises ( id, description, exercise_type )")
+        .select("active, exercise:edu_exercises ( id, description, exercise_type )")
         .eq("classroom_id", classroomId)
 
-      const attemptsQuery = supabase
-        .from("edu_student_exercises")
-        .select("student_id, exercise_id, correct, time_seconds, created_at")
-        .eq("classroom_id", classroomId)
-       
-
+      // ---------------------------
+      // 3) ADN view
+      // ---------------------------
       const adnQuery = supabase
         .from("edu_student_learning_adn_view")
         .select(
@@ -387,33 +506,37 @@ export default function PerformancePage() {
       const [
         { data: members, error: membersErr },
         { data: assignments, error: assErr },
-        { data: attempts, error: attErr },
         { data: adnRows, error: adnErr },
-      ] = await Promise.all([membersQuery, assignmentsQuery, attemptsQuery, adnQuery])
+      ] = await Promise.all([membersQuery, assignmentsQuery, adnQuery])
 
-      if (membersErr || assErr || attErr || adnErr) {
-        console.error({ membersErr, assErr, attErr, adnErr })
-      }
-
-      const adnByStudent = new Map<string, AdnRow>()
-      ;(adnRows || []).forEach((r: any) => {
-        if (r?.student_id) adnByStudent.set(r.student_id, r as AdnRow)
-      })
+      if (membersErr || assErr || adnErr) console.error({ membersErr, assErr, adnErr })
 
       const studentIds = new Set<string>()
+      const studentNameMap = new Map<string, string>()
+
       ;(members || []).forEach((row: any) => {
         const member = Array.isArray(row.edu_institution_members) ? row.edu_institution_members[0] : row.edu_institution_members
-        if (member?.profile_id) studentIds.add(member.profile_id)
+        const profile = Array.isArray(member?.edu_profiles) ? member?.edu_profiles[0] : member?.edu_profiles
+        if (member?.profile_id) {
+          studentIds.add(member.profile_id)
+          const fullName = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim()
+          studentNameMap.set(member.profile_id, fullName || member.profile_id)
+        }
       })
 
+      // ---------------------------
+      // 4) Build exercise sets from assignments + active/inactive filter
+      // ---------------------------
       const statusTarget = assignmentStatusFilter === "active"
       const exerciseIds = new Set<string>()
       const exerciseInfo = new Map<string, { label: string; type: string }>()
+
       ;(assignments || []).forEach((row: any) => {
         const ex = Array.isArray(row.exercise) ? row.exercise[0] : row.exercise
         if (!ex?.id) return
         const isActive = row.active ?? true
         if (isActive !== statusTarget) return
+
         exerciseIds.add(ex.id)
         exerciseInfo.set(ex.id, {
           label: ex.description || ex.id,
@@ -421,31 +544,100 @@ export default function PerformancePage() {
         })
       })
 
+      // ---------------------------
+      // 5) Prepare filter options (types & exercises)
+      //    (based on assignments list)
+      // ---------------------------
+      const typeSet = new Set<string>()
+      exerciseInfo.forEach((info, id) => {
+        typeSet.add(info.type || "sin_tipo")
+      })
+      const typeOpts = Array.from(typeSet)
+        .sort((a, b) => a.localeCompare(b))
+        .map((t) => ({ value: t, label: t }))
+
+      setExerciseTypeOptions(typeOpts)
+
+      // If previously selected types are now invalid (because active/inactive changed), prune them
+      setSelectedExerciseTypes((prev) => prev.filter((t) => typeSet.has(t)))
+
+      // ---------------------------
+      // 6) Attempts query with dynamic filters
+      // ---------------------------
+      let attemptsQuery = supabase
+        .from("edu_student_exercises")
+        .select("student_id, exercise_id, correct, time_seconds, created_at")
+        .eq("classroom_id", classroomId)
+
+      // time range
+      if (timeFilter === "7d") {
+        const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        attemptsQuery = attemptsQuery.gte("created_at", since)
+      } else if (timeFilter === "30d") {
+        const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        attemptsQuery = attemptsQuery.gte("created_at", since)
+      } else if (timeFilter === "custom" && customFrom && customTo) {
+        attemptsQuery = attemptsQuery
+          .gte("created_at", startOfDayISO(customFrom))
+          .lte("created_at", endOfDayISO(customTo))
+      }
+
+      // Important: we ALWAYS restrict to assigned exercises (active/inactive toggle already decided above)
+      if (exerciseIds.size > 0) {
+        attemptsQuery = attemptsQuery.in("exercise_id", Array.from(exerciseIds))
+      } else {
+        // No exercises assigned for this filter; set empty quickly
+        setStudents([])
+        setExercises([])
+        setLoading(false)
+        return
+      }
+
+      // If exercise_type filter selected -> convert to exercise IDs subset
+      let exerciseIdsAfterType = new Set<string>(exerciseIds)
+      if (selectedExerciseTypes.length > 0) {
+        const allowed = new Set<string>()
+        exerciseInfo.forEach((info, id) => {
+          if (selectedExerciseTypes.includes(info.type)) allowed.add(id)
+        })
+        exerciseIdsAfterType = allowed
+        attemptsQuery = attemptsQuery.in("exercise_id", Array.from(allowed))
+      }
+
+      const { data: attempts, error: attErr } = await attemptsQuery
+      if (attErr) console.error(attErr)
+
+      // ---------------------------
+      // 7) Gamification rows (match filtered exercise set + students)
+      // ---------------------------
+      let finalExerciseIdsForGam = Array.from(exerciseIdsAfterType)
+
       let gamRows: GamRow[] = []
-      if (studentIds.size > 0 && exerciseIds.size > 0) {
+      if (studentIds.size > 0 && finalExerciseIdsForGam.length > 0) {
         const { data: gam, error: gamErr } = await supabase
           .from("edu_student_gamification")
           .select("student_id, exercise_id, attempts, correct_attempts, wrong_attempts, trophies, streak, last_played_at, updated_at")
           .in("student_id", Array.from(studentIds))
-          .in("exercise_id", Array.from(exerciseIds))
+          .in("exercise_id", finalExerciseIdsForGam)
 
         if (gamErr) console.error(gamErr)
         gamRows = (gam || []) as GamRow[]
       }
 
-      const studentNameMap = new Map<string, string>()
-      ;(members || []).forEach((row: any) => {
-        const member = Array.isArray(row.edu_institution_members) ? row.edu_institution_members[0] : row.edu_institution_members
-        const profile = Array.isArray(member?.edu_profiles) ? member?.edu_profiles[0] : member?.edu_profiles
-        const fullName = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim()
-        if (member?.profile_id) studentNameMap.set(member.profile_id, fullName || member.profile_id)
+      // ---------------------------
+      // 8) ADN map
+      // ---------------------------
+      const adnByStudent = new Map<string, AdnRow>()
+      ;(adnRows || []).forEach((r: any) => {
+        if (r?.student_id) adnByStudent.set(r.student_id, r as AdnRow)
       })
 
+      // ---------------------------
+      // 9) Initialize student objects
+      // ---------------------------
       const byStudent = new Map<string, StudentRow>()
       studentNameMap.forEach((name, studentId) => {
         const adn = adnByStudent.get(studentId)
-
-        // ✅ gating: si no tiene suficientes intentos totales, lo marcamos "observación"
         const totalAttemptsAll = adn?.total_attempts ?? 0
         const hasAdn = totalAttemptsAll >= 5
 
@@ -475,6 +667,9 @@ export default function PerformancePage() {
         })
       })
 
+      // ---------------------------
+      // 10) Aggregate attempts -> students + exercises
+      // ---------------------------
       const byExercise = new Map<string, ExerciseRow>()
       const attemptsArr = ((attempts || []) as AttemptRow[]).filter(
         (row) => studentIds.has(row.student_id) && exerciseIds.has(row.exercise_id),
@@ -527,10 +722,14 @@ export default function PerformancePage() {
 
         if (row.time_seconds != null) {
           s.avg_time_s_30d =
-            s.avg_time_s_30d == null ? row.time_seconds : (s.avg_time_s_30d * (s.attempts_30d - 1) + row.time_seconds) / s.attempts_30d
+            s.avg_time_s_30d == null
+              ? row.time_seconds
+              : (s.avg_time_s_30d * (s.attempts_30d - 1) + row.time_seconds) / s.attempts_30d
 
           e.avg_time_s_30d =
-            e.avg_time_s_30d == null ? row.time_seconds : (e.avg_time_s_30d * (e.attempts_30d - 1) + row.time_seconds) / e.attempts_30d
+            e.avg_time_s_30d == null
+              ? row.time_seconds
+              : (e.avg_time_s_30d * (e.attempts_30d - 1) + row.time_seconds) / e.attempts_30d
         }
 
         if (!s.last_attempt_30d || new Date(row.created_at) > new Date(s.last_attempt_30d)) {
@@ -541,6 +740,7 @@ export default function PerformancePage() {
         byExercise.set(row.exercise_id, e)
       }
 
+      // unique students per exercise
       const studentsPerExercise = new Map<string, Set<string>>()
       for (const row of attemptsArr) {
         const set = studentsPerExercise.get(row.exercise_id) || new Set<string>()
@@ -555,6 +755,9 @@ export default function PerformancePage() {
         }
       })
 
+      // ---------------------------
+      // 11) Gamification aggregates
+      // ---------------------------
       const gamByStudent = new Map<string, { trophies: number; best_streak: number; last: string | null }>()
       const gamByExercise = new Map<string, { trophies: number; best_streak: number; last: string | null }>()
       for (const g of gamRows) {
@@ -575,6 +778,9 @@ export default function PerformancePage() {
         gamByExercise.set(g.exercise_id, eAgg)
       }
 
+      // ---------------------------
+      // 12) Final lists
+      // ---------------------------
       const studentsList = Array.from(byStudent.values()).map((s) => {
         const acc = s.attempts_30d ? Math.round((s.correct_30d / s.attempts_30d) * 100) : 0
         const g = gamByStudent.get(s.student_id)
@@ -605,7 +811,21 @@ export default function PerformancePage() {
     }
 
     load()
-  }, [classroomId, supabase, institution?.id, assignmentStatusFilter])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    classroomId,
+    supabase,
+    institution?.id,
+    assignmentStatusFilter,
+    timeFilter,
+    customFrom,
+    customTo,
+    selectedExerciseTypes,
+  ])
+
+  /* =========================
+     ADN distribution
+  ========================= */
 
   const adnProfileDistribution = useMemo(() => {
     const counts = ADN_PROFILE_ORDER.reduce((acc, key) => {
@@ -632,6 +852,10 @@ export default function PerformancePage() {
     }
   }, [students])
 
+  /* =========================
+     Totals (respect filters)
+  ========================= */
+
   const totals = useMemo(() => {
     const totalAttempts = students.reduce((a, s) => a + s.attempts_30d, 0)
     const totalCorrect = students.reduce((a, s) => a + s.correct_30d, 0)
@@ -647,7 +871,6 @@ export default function PerformancePage() {
 
     const totalTrophies = students.reduce((a, s) => a + s.trophies, 0)
     const bestStreak = students.reduce((a, s) => Math.max(a, s.best_streak), 0)
-
     const adnCounts = { ...adnProfileDistribution.counts }
 
     return {
@@ -663,6 +886,10 @@ export default function PerformancePage() {
       adnCounts,
     }
   }, [students, exercises, adnProfileDistribution])
+
+  /* =========================
+     Search + sorting
+  ========================= */
 
   const filteredStudents = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -741,6 +968,10 @@ export default function PerformancePage() {
     })
   }, [exercises, query, sortExercises, descending])
 
+  /* =========================
+     Charts (respect filters)
+  ========================= */
+
   const studentsByAccuracy = useMemo(() => [...students].sort((a, b) => b.accuracy_30d - a.accuracy_30d), [students])
 
   const studentAccuracyChart = useMemo(
@@ -753,7 +984,6 @@ export default function PerformancePage() {
   )
 
   const exercisesByAttempts = useMemo(() => [...exercises].sort((a, b) => b.attempts_30d - a.attempts_30d), [exercises])
-
   const exercisesByAccuracy = useMemo(() => [...exercises].sort((a, b) => b.accuracy_30d - a.accuracy_30d), [exercises])
 
   const exerciseAttemptsChart = useMemo(
@@ -800,14 +1030,14 @@ export default function PerformancePage() {
     {
       id: "student-accuracy",
       title: "Estudiantes por Precisión",
-      subtitle: `Todos los estudiantes del aula (${students.length} total)`,
+      subtitle: `Vista filtrada (${students.length} estudiantes)`,
       component: <BarChart data={studentAccuracyChart} height={520} color="accent" />,
       hasData: studentAccuracyChart.values.length > 0,
     },
     {
       id: "accuracy-distribution",
       title: "Distribución de Rendimiento",
-      subtitle: "Clasificación del aula por nivel de precisión",
+      subtitle: "Clasificación por nivel de precisión (según filtros)",
       component: (
         <div className="space-y-6">
           <DoughnutChart
@@ -834,11 +1064,10 @@ export default function PerformancePage() {
       ),
       hasData: accuracyDistributionData.values.reduce((a, v) => a + v, 0) > 0,
     },
-    // ✅ NUEVO: ADN
     {
       id: "adn-distribution",
       title: "ADN de Aprendizaje del Aula",
-      subtitle: "Cómo aprenden los estudiantes según su comportamiento",
+      subtitle: "Distribución de perfiles (según filtros)",
       component: (
         <div className="space-y-6">
           <DoughnutChart data={adnDistributionData} height={420} showLegend />
@@ -852,14 +1081,14 @@ export default function PerformancePage() {
     {
       id: "exercise-attempts",
       title: "Ejercicios Más Practicados",
-      subtitle: `Todos los ejercicios del aula (${exercises.length} total)`,
+      subtitle: `Vista filtrada (${exercises.length} ejercicios)`,
       component: <BarChart data={exerciseAttemptsChart} height={520} color="secondary" />,
       hasData: exerciseAttemptsChart.values.length > 0,
     },
     {
       id: "exercise-accuracy",
       title: "Ejercicios por Precisión",
-      subtitle: "Todos los ejercicios ordenados por nivel de dominio",
+      subtitle: "Ordenados por nivel de dominio (según filtros)",
       component: <BarChart data={exerciseAccuracyChart} height={520} color="primary" horizontal />,
       hasData: exerciseAccuracyChart.values.length > 0,
     },
@@ -869,15 +1098,32 @@ export default function PerformancePage() {
   const nextChart = () => setCurrentChartIndex((prev) => (prev + 1) % charts.length)
   const prevChart = () => setCurrentChartIndex((prev) => (prev - 1 + charts.length) % charts.length)
 
+  /* =========================
+     Excel export (filtered)
+  ========================= */
+
   const handleExportToExcel = async () => {
     setExporting(true)
     try {
       const XLSX = await import("xlsx")
       const wb = XLSX.utils.book_new()
 
+      const timeLabel =
+        timeFilter === "all"
+          ? "Todo"
+          : timeFilter === "7d"
+          ? "Últimos 7 días"
+          : timeFilter === "30d"
+          ? "Últimos 30 días"
+          : `Personalizado: ${customFrom} → ${customTo}`
+
       const summaryData = [
-        ["REPORTE DE RENDIMIENTO DEL AULA"],
+        ["REPORTE DE RENDIMIENTO DEL AULA (FILTRADO)"],
         ["Fecha de generación:", new Date().toLocaleDateString()],
+        ["Filtros:"],
+        ["- Tiempo:", timeLabel],
+        ["- Categorías:", selectedExerciseTypes.length ? selectedExerciseTypes.join(", ") : "Todos"],
+        ["- Asignaciones:", assignmentStatusFilter === "active" ? "Activos" : "Inactivos"],
         [""],
         ["RESUMEN GENERAL"],
         ["Total de estudiantes:", totals.activeStudents],
@@ -945,6 +1191,15 @@ export default function PerformancePage() {
     }
   }
 
+  const timeLabelUI =
+    timeFilter === "all"
+      ? "Todo"
+      : timeFilter === "7d"
+      ? "7 días"
+      : timeFilter === "30d"
+      ? "30 días"
+      : `${customFrom} → ${customTo}`
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -957,6 +1212,23 @@ export default function PerformancePage() {
         ]}
       />
 
+      {/* Filters Summary chip */}
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card px-4 py-3 shadow-sm">
+        <span className="inline-flex items-center gap-2 text-sm font-semibold">
+          <Filter className="h-4 w-4" />
+          Filtros activos:
+        </span>
+        <span className="rounded-full border bg-background px-3 py-1 text-xs font-semibold">
+          Tiempo: {timeLabelUI}
+        </span>
+        <span className="rounded-full border bg-background px-3 py-1 text-xs font-semibold">
+          Categoría: {selectedExerciseTypes.length ? selectedExerciseTypes.join(", ") : "Todos"}
+        </span>
+        <span className="rounded-full border bg-background px-3 py-1 text-xs font-semibold">
+          Asignaciones: {assignmentStatusFilter === "active" ? "Activos" : "Inactivos"}
+        </span>
+      </div>
+
       {/* Hero KPI */}
       <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-background via-muted/30 to-background p-8 shadow-2xl">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.1),transparent_50%)]" />
@@ -968,7 +1240,7 @@ export default function PerformancePage() {
                   <Activity className="h-8 w-8 text-primary" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium uppercase tracking-wider text-muted-foreground">Rendimiento General</div>
+                  <div className="text-sm font-medium uppercase tracking-wider text-muted-foreground">Rendimiento General (Filtrado)</div>
                   <div className="text-4xl font-bold tracking-tight">{totals.accuracy}% Precisión</div>
                 </div>
               </div>
@@ -1008,6 +1280,113 @@ export default function PerformancePage() {
                 <Flame className="mx-auto mb-2 h-5 w-5 text-orange-500" />
                 <div className="text-2xl font-bold">{totals.bestStreak}</div>
                 <div className="text-xs text-muted-foreground">Mejor Racha</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            {/* Time filter */}
+            <div className="rounded-2xl border bg-background/70 p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Filtro de tiempo</div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setTimeFilter("all")}
+                  className={[
+                    "rounded-xl border px-3 py-2 text-sm font-semibold",
+                    timeFilter === "all" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
+                  ].join(" ")}
+                >
+                  Todo
+                </button>
+                <button
+                  onClick={() => setTimeFilter("7d")}
+                  className={[
+                    "rounded-xl border px-3 py-2 text-sm font-semibold",
+                    timeFilter === "7d" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
+                  ].join(" ")}
+                >
+                  7 días
+                </button>
+                <button
+                  onClick={() => setTimeFilter("30d")}
+                  className={[
+                    "rounded-xl border px-3 py-2 text-sm font-semibold",
+                    timeFilter === "30d" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
+                  ].join(" ")}
+                >
+                  30 días
+                </button>
+                <button
+                  onClick={() => setTimeFilter("custom")}
+                  className={[
+                    "rounded-xl border px-3 py-2 text-sm font-semibold",
+                    timeFilter === "custom" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
+                  ].join(" ")}
+                >
+                  Personalizado
+                </button>
+              </div>
+
+              {timeFilter === "custom" ? (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs font-semibold text-muted-foreground mb-1">Desde</div>
+                    <input
+                      type="date"
+                      value={customFrom}
+                      onChange={(e) => setCustomFrom(e.target.value)}
+                      className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-muted-foreground mb-1">Hasta</div>
+                    <input
+                      type="date"
+                      value={customTo}
+                      onChange={(e) => setCustomTo(e.target.value)}
+                      className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Exercise type filter */}
+            <MultiSelect
+              label="Categoría"
+              options={exerciseTypeOptions}
+              value={selectedExerciseTypes}
+              onChange={setSelectedExerciseTypes}
+            />
+
+            {/* Assignment status filter */}
+            <div className="rounded-2xl border bg-background p-3 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Asignaciones</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAssignmentStatusFilter("active")}
+                  className={[
+                    "rounded-xl border px-3 py-2 text-sm font-semibold",
+                    assignmentStatusFilter === "active"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-background hover:bg-muted/40",
+                  ].join(" ")}
+                >
+                  Activos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAssignmentStatusFilter("inactive")}
+                  className={[
+                    "rounded-xl border px-3 py-2 text-sm font-semibold",
+                    assignmentStatusFilter === "inactive"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-background hover:bg-muted/40",
+                  ].join(" ")}
+                >
+                  Inactivos
+                </button>
               </div>
             </div>
           </div>
@@ -1061,7 +1440,7 @@ export default function PerformancePage() {
 
       <ChartCard
         title="Perfiles de ADN en el aula"
-        subtitle="Resumen visual del tipo de perfil que tiene cada estudiante"
+        subtitle="Resumen visual del tipo de perfil que tiene cada estudiante (según filtros)"
         className="shadow-2xl"
       >
         <div className="grid gap-6 lg:grid-cols-[1fr,minmax(200px,0.45fr)] items-center">
@@ -1080,15 +1459,9 @@ export default function PerformancePage() {
             ) : (
               <div className="space-y-2">
                 {adnProfileDistribution.entries.map((entry) => (
-                  <div
-                    key={entry.key}
-                    className="flex items-center justify-between rounded-2xl border px-4 py-2 text-sm"
-                  >
+                  <div key={entry.key} className="flex items-center justify-between rounded-2xl border px-4 py-2 text-sm">
                     <div className="flex items-center gap-3">
-                      <span
-                        className="h-3.5 w-3.5 rounded-full"
-                        style={{ background: ADN_PROFILE_COLOR_MAP[entry.key] }}
-                      />
+                      <span className="h-3.5 w-3.5 rounded-full" style={{ background: ADN_PROFILE_COLOR_MAP[entry.key] }} />
                       <span className="font-semibold">{entry.label}</span>
                     </div>
                     <span className="text-xs text-muted-foreground">{entry.value} estudiantes</span>
@@ -1111,18 +1484,6 @@ export default function PerformancePage() {
               { value: "exercises", label: "Ejercicios", icon: BookOpenCheck },
             ]}
           />
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ejercicios:</span>
-            <Segmented
-              value={assignmentStatusFilter}
-              onChange={(v) => setAssignmentStatusFilter(v as "active" | "inactive")}
-              options={[
-                { value: "active", label: "Activos" },
-                { value: "inactive", label: "Inactivos" },
-              ]}
-            />
-          </div>
 
           <button
             onClick={() => setDescending((d) => !d)}
@@ -1255,9 +1616,7 @@ export default function PerformancePage() {
                             {s.accuracy_30d}%
                           </span>
 
-                          {/* ✅ ADN badge */}
                           <AdnPill adn={s.adn} />
-
                         </div>
 
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
