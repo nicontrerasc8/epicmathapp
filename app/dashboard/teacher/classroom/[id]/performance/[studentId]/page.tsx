@@ -81,66 +81,6 @@ type FeedbackRow = {
   } | null
 }
 
-type AdnRow = {
-  student_id: string
-  classroom_id: string
-  ritmo: string
-  tolerancia_error: string
-  persistencia: string
-  uso_pistas: string
-  reaccion_feedback: string
-  estilo_aprendizaje: string
-  total_attempts: number
-}
-
-const ADN_PROFILE_ORDER = ["explorador", "equilibrado", "pensador", "cauteloso", "impulsivo", "en_observacion"] as const
-type AdnProfileKey = (typeof ADN_PROFILE_ORDER)[number]
-const ADN_PROFILE_LABELS: Record<AdnProfileKey, string> = {
-  explorador: "🦊 Explorador",
-  equilibrado: "🧠 Equilibrado",
-  pensador: "🐢 Pensador",
-  cauteloso: "🐼 Cauteloso",
-  impulsivo: "⚡ Impulsivo",
-  en_observacion: "👀 En observación",
-}
-const ADN_PROFILE_BADGE: Record<AdnProfileKey, string> = {
-  explorador: "bg-emerald-600 text-white",
-  equilibrado: "bg-sky-600 text-white",
-  pensador: "bg-amber-600 text-white",
-  cauteloso: "bg-rose-500 text-white",
-  impulsivo: "bg-violet-600 text-white",
-  en_observacion: "bg-slate-700 text-white",
-}
-
-function normalizeTraitName(key: string) {
-  const k = key.toLowerCase()
-  if (k === "ritmo") return "Ritmo"
-  if (k === "persistencia") return "Persistencia"
-  if (k === "uso_pistas") return "Uso de pistas"
-  if (k === "tolerancia_error") return "Tolerancia al error"
-  if (k === "reaccion_feedback") return "Reacción al feedback"
-  return key
-}
-
-function normalizeTraitValue(val?: string | null) {
-  if (!val) return "Desconocido"
-  const v = val.toLowerCase().trim()
-  if (v === "rápido" || v === "rapido") return "Rápido"
-  if (v === "lento") return "Lento"
-  if (v === "medio") return "Medio"
-  if (v === "alta") return "Alta"
-  if (v === "media") return "Media"
-  if (v === "baja") return "Baja"
-  if (v === "independiente") return "Independiente"
-  if (v === "equilibrado") return "Equilibrado"
-  if (v === "dependiente") return "Dependiente"
-  if (v === "ignora") return "Ignora"
-  if (v === "mejora") return "Mejora"
-  if (v === "neutro") return "Neutro"
-  if (v === "desconocido") return "Desconocido"
-  return val
-}
-
 /* =========================
    HELPERS PEDAGÓGICOS
 ========================= */
@@ -323,7 +263,6 @@ export default function StudentPerformanceDetailPage() {
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [assignmentsLoaded, setAssignmentsLoaded] = useState(false)
   const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<"active" | "inactive">("active")
-  const [adnProfile, setAdnProfile] = useState<AdnRow | null>(null)
 
   const [commentForm, setCommentForm] = useState({ assignmentId: "", comment: "" })
   const [commentStatus, setCommentStatus] = useState<{ tone: "error" | "success"; message: string } | null>(null)
@@ -387,7 +326,7 @@ export default function StudentPerformanceDetailPage() {
       setErrorMsg(null)
 
       try {
-        const [{ data: student }, { data, error }, { data: adnData, error: adnErr }] = await Promise.all([
+        const [{ data: student }, { data, error }] = await Promise.all([
           supabase
             .from("edu_profiles")
             .select("first_name, last_name")
@@ -403,22 +342,12 @@ export default function StudentPerformanceDetailPage() {
             .eq("student_id", studentId)
             .eq("classroom_id", classroomId)
             .order("created_at", { ascending: false }),
-          supabase
-            .from("edu_student_learning_adn_view")
-            .select(
-              "student_id, classroom_id, ritmo, tolerancia_error, persistencia, uso_pistas, reaccion_feedback, estilo_aprendizaje, total_attempts"
-            )
-            .eq("student_id", studentId)
-            .eq("classroom_id", classroomId)
-            .maybeSingle(),
         ])
 
         if (error) throw error
-        if (adnErr) console.error(adnErr)
 
         setStudentName(`${student?.first_name || ""} ${student?.last_name || ""}`.trim() || "Estudiante")
         setRows((data ?? []) as any[])
-        setAdnProfile((adnData ?? null) as AdnRow | null)
       } catch (e) {
         console.error(e)
         setErrorMsg("No se pudieron cargar los datos del alumno.")
@@ -535,40 +464,6 @@ export default function StudentPerformanceDetailPage() {
       accuracy: r.attempts ? Math.round((r.correct / r.attempts) * 100) : 0,
     }))
   }, [relevantRows])
-
-  /* =========================
-     INSIGHTS PEDAGÓGICOS
-  ========================= */
-  const studentProfileKey: AdnProfileKey = useMemo(() => {
-    const estilo = (adnProfile?.estilo_aprendizaje || "en_observacion").toLowerCase()
-    if (ADN_PROFILE_ORDER.includes(estilo as AdnProfileKey)) {
-      return estilo as AdnProfileKey
-    }
-    return "en_observacion"
-  }, [adnProfile])
-
-  const profileInfo = useMemo(() => {
-    const attempts = adnProfile?.total_attempts ?? 0
-    const label = ADN_PROFILE_LABELS[studentProfileKey]
-    const badgeClass = ADN_PROFILE_BADGE[studentProfileKey]
-    const traits = [
-      { key: "ritmo", value: normalizeTraitValue(adnProfile?.ritmo) },
-      { key: "persistencia", value: normalizeTraitValue(adnProfile?.persistencia) },
-      { key: "uso_pistas", value: normalizeTraitValue(adnProfile?.uso_pistas) },
-      { key: "tolerancia_error", value: normalizeTraitValue(adnProfile?.tolerancia_error) },
-      { key: "reaccion_feedback", value: normalizeTraitValue(adnProfile?.reaccion_feedback) },
-    ].map((trait) => ({
-      label: normalizeTraitName(trait.key),
-      value: trait.value,
-    }))
-
-    return {
-      label,
-      badgeClass,
-      attempts,
-      traits,
-    }
-  }, [adnProfile, studentProfileKey])
 
   const insights = useMemo(() => {
     const level = getStudentLevel(resumen.accuracy, resumen.total)
@@ -825,42 +720,299 @@ export default function StudentPerformanceDetailPage() {
         </div>
       </div>
 
-      {/* ADN Perfil */}
-      <div className="rounded-3xl border bg-card p-6 shadow-xl">
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div className="rounded-2xl border bg-background p-3">
-            <Brain className="h-7 w-7 text-primary" />
+      {/* =========================
+          DATA TABLES (MEJORADAS)
+      ========================== */}
+      <div className="grid gap-6">
+        {/* Recent Attempts */}
+        <div className="rounded-3xl border-2 bg-card p-6 shadow-xl">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-xl font-black">Intentos</h2>
+            <button
+              type="button"
+              onClick={() => setAttemptsExpanded((prev) => !prev)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline-offset-4 hover:underline"
+            >
+              {attemptsExpanded ? "Ocultar detalles" : "Mostrar detalles"}
+              {attemptsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDownCircle className="h-4 w-4" />}
+            </button>
           </div>
-          <div>
-            <h2 className="text-xl font-black">Perfil del estudiante</h2>
-            <p className="text-sm text-muted-foreground">Tipo de perfil y rasgos pedagógicos</p>
-          </div>
+
+          {!attemptsExpanded ? (
+            <div className="rounded-2xl border px-4 py-6 text-sm text-muted-foreground">
+              {filteredAttempts.length
+                ? `Hay ${filteredAttempts.length} intentos visibles (usa el filtro para afinar).`
+                : "No hay intentos registrados o aplicados al filtro actual."}
+            </div>
+          ) : (
+            <>
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      value={attemptsSearch}
+                      onChange={(e) => setAttemptsSearch(e.target.value)}
+                      placeholder="Buscar ejercicio, tipo o resultado..."
+                      className="h-10 w-64 max-w-full rounded-xl border-2 bg-background pl-9 pr-3 text-xs font-medium transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-semibold text-muted-foreground">Mostrar:</span>
+                    <button
+                      type="button"
+                      onClick={() => setAssignmentStatusFilter("active")}
+                      className={[
+                        "rounded-full px-3 py-1 text-xs font-semibold transition",
+                        assignmentStatusFilter === "active"
+                          ? "bg-primary text-white"
+                          : "bg-muted/20 text-muted-foreground",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      Activos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssignmentStatusFilter("inactive")}
+                      className={[
+                        "rounded-full px-3 py-1 text-xs font-semibold transition",
+                        assignmentStatusFilter === "inactive"
+                          ? "bg-primary text-white"
+                          : "bg-muted/20 text-muted-foreground",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      Inactivos
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleExportToExcel}
+                  disabled={exportingExcel || filteredAttempts.length === 0}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border-2 border-primary bg-primary/10 px-3 text-xs font-black text-primary transition-all hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {exportingExcel ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      Exportando...
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="h-4 w-4" />
+                      Exportar Excel
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <PaginationBar
+                  total={filteredAttempts.length}
+                  page={attemptsPage}
+                  pageSize={attemptsPageSize}
+                  onPageChange={setAttemptsPage}
+                  onPageSizeChange={setAttemptsPageSize}
+                  label="Intentos"
+                />
+              </div>
+
+              {filteredAttempts.length === 0 ? (
+                <div className="rounded-2xl border-2 bg-muted/20 py-12 text-center">
+                  <Activity className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">
+                    {attemptsSearch ? "No hay resultados con ese filtro." : "No hay intentos registrados."}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border-2">
+                  <div className="max-h-[520px] overflow-auto">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 z-10 bg-card">
+                        <tr className="border-b-2 text-left">
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                            Fecha y Hora
+                          </th>
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                            Ejercicio
+                          </th>
+                          <th className="px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-muted-foreground">
+                            Resultado
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {attemptsPaged.map((r, i) => {
+                          const label = r.exercise?.description || r.exercise?.id || "Ejercicio"
+                          const type = r.exercise?.exercise_type || "sin_tipo"
+                          return (
+                            <tr key={i} className="border-b transition-colors hover:bg-muted/30">
+                              <td className="px-4 py-3 text-xs text-muted-foreground">
+                                {formatAttemptDateTime(r.created_at)}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="font-bold">{label}</div>
+                                <div className="text-xs text-muted-foreground">{type}</div>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {r.correct ? (
+                                  <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-black text-white">
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    Correcto
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-1 text-xs font-black text-white">
+                                    <XCircle className="h-3.5 w-3.5" />
+                                    Incorrecto
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4">
+                <PaginationBar
+                  total={filteredAttempts.length}
+                  page={attemptsPage}
+                  pageSize={attemptsPageSize}
+                  onPageChange={setAttemptsPage}
+                  onPageSizeChange={setAttemptsPageSize}
+                />
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr,minmax(220px,0.5fr)] items-center">
-          <div className="flex flex-col items-center gap-2 text-center">
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">Tipo de perfil</span>
-            <div className={`text-2xl font-black ${profileInfo.badgeClass} p-4 rounded-xl`}>{profileInfo.label}</div>
-            <span className="text-sm text-muted-foreground">{profileInfo.attempts} intentos registrados</span>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Perfil calculado sobre los intentos más recientes para darte contexto rápido.
-            </p>
+        {/* Exercise Summary */}
+        <div className="rounded-3xl border-2 bg-card p-6 shadow-xl">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-xl font-black">Resumen por Ejercicio</h2>
+            <button
+              type="button"
+              onClick={() => setSummaryExpanded((prev) => !prev)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline-offset-4 hover:underline"
+            >
+              {summaryExpanded ? "Ocultar detalles" : "Mostrar detalles"}
+              {summaryExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDownCircle className="h-4 w-4" />}
+            </button>
           </div>
 
-          <div className="space-y-3">
-            {adnProfile ? (
-              profileInfo.traits.map((trait) => (
-                <div key={trait.label} className="flex items-center justify-between rounded-2xl border px-4 py-2 text-sm">
-                  <span className="text-muted-foreground">{trait.label}</span>
-                  <span className="font-semibold text-foreground">{trait.value}</span>
+          {!summaryExpanded ? (
+            <div className="rounded-2xl border px-4 py-6 text-sm text-muted-foreground">
+              {filteredSummary.length
+                ? `Se analizan ${filteredSummary.length} ejercicios distintos.`
+                : "No hay ejercicios registrados o el filtro los oculta."}
+            </div>
+          ) : (
+            <>
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={summarySearch}
+                    onChange={(e) => setSummarySearch(e.target.value)}
+                    placeholder="Buscar por nombre o tipo..."
+                    className="h-10 w-64 max-w-full rounded-xl border-2 bg-background pl-9 pr-3 text-xs font-medium transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
                 </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border px-4 py-6 text-center text-sm text-muted-foreground">
-                ADN en observación. Registra al menos 5 intentos para ver el perfil completo.
               </div>
-            )}
-          </div>
+
+              <div className="mb-4">
+                <PaginationBar
+                  total={filteredSummary.length}
+                  page={summaryPage}
+                  pageSize={summaryPageSize}
+                  onPageChange={setSummaryPage}
+                  onPageSizeChange={setSummaryPageSize}
+                  label="Ejercicios"
+                />
+              </div>
+
+              {filteredSummary.length === 0 ? (
+                <div className="rounded-2xl border-2 bg-muted/20 py-12 text-center">
+                  <BookOpenCheck className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">
+                    {summarySearch ? "No hay resultados con ese filtro." : "No hay datos de ejercicios."}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border-2">
+                  <div className="max-h-[520px] overflow-auto">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 z-10 bg-card">
+                        <tr className="border-b-2 text-left">
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                            Ejercicio
+                          </th>
+                          <th className="px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-muted-foreground">
+                            Intentos
+                          </th>
+                          <th className="px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-muted-foreground">
+                            Precisión
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {summaryPaged.map((r) => (
+                          <tr key={r.id} className="border-b transition-colors hover:bg-muted/30">
+                            <td className="px-4 py-3">
+                              <div className="font-bold">{r.label}</div>
+                              <div className="text-xs text-muted-foreground">{r.type}</div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1 text-xs font-black text-primary">
+                                <Activity className="h-3 w-3" />
+                                {r.attempts}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-black text-white ${
+                                  r.accuracy >= 80 ? "bg-emerald-600" : r.accuracy >= 60 ? "bg-amber-600" : "bg-rose-600"
+                                }`}
+                              >
+                                <Target className="h-3 w-3" />
+                                {r.accuracy}%
+                              </span>
+
+                              <div className="mt-2">
+                                <ProgressBar value={r.accuracy} height="h-2" />
+                              </div>
+
+                              <div className="mt-2 text-[11px] text-muted-foreground">
+                                {r.correct} ✔ / {r.incorrect} ✖
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4">
+                <PaginationBar
+                  total={filteredSummary.length}
+                  page={summaryPage}
+                  pageSize={summaryPageSize}
+                  onPageChange={setSummaryPage}
+                  onPageSizeChange={setSummaryPageSize}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1185,301 +1337,6 @@ export default function StudentPerformanceDetailPage() {
         </div>
       )}
 
-      {/* =========================
-          DATA TABLES (MEJORADAS)
-      ========================== */}
-      <div className="grid gap-6">
-        {/* Recent Attempts */}
-        <div className="rounded-3xl border-2 bg-card p-6 shadow-xl">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xl font-black">Intentos</h2>
-            <button
-              type="button"
-              onClick={() => setAttemptsExpanded((prev) => !prev)}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline-offset-4 hover:underline"
-            >
-              {attemptsExpanded ? "Ocultar detalles" : "Mostrar detalles"}
-              {attemptsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDownCircle className="h-4 w-4" />}
-            </button>
-          </div>
-
-          {!attemptsExpanded ? (
-            <div className="rounded-2xl border px-4 py-6 text-sm text-muted-foreground">
-              {filteredAttempts.length
-                ? `Hay ${filteredAttempts.length} intentos visibles (usa el filtro para afinar).`
-                : "No hay intentos registrados o aplicados al filtro actual."}
-            </div>
-          ) : (
-            <>
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      value={attemptsSearch}
-                      onChange={(e) => setAttemptsSearch(e.target.value)}
-                      placeholder="Buscar ejercicio, tipo o resultado..."
-                      className="h-10 w-64 max-w-full rounded-xl border-2 bg-background pl-9 pr-3 text-xs font-medium transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-semibold text-muted-foreground">Mostrar:</span>
-                    <button
-                      type="button"
-                      onClick={() => setAssignmentStatusFilter("active")}
-                      className={[
-                        "rounded-full px-3 py-1 text-xs font-semibold transition",
-                        assignmentStatusFilter === "active"
-                          ? "bg-primary text-white"
-                          : "bg-muted/20 text-muted-foreground",
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
-                    >
-                      Activos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAssignmentStatusFilter("inactive")}
-                      className={[
-                        "rounded-full px-3 py-1 text-xs font-semibold transition",
-                        assignmentStatusFilter === "inactive"
-                          ? "bg-primary text-white"
-                          : "bg-muted/20 text-muted-foreground",
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
-                    >
-                      Inactivos
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleExportToExcel}
-                  disabled={exportingExcel || filteredAttempts.length === 0}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border-2 border-primary bg-primary/10 px-3 text-xs font-black text-primary transition-all hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {exportingExcel ? (
-                    <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      Exportando...
-                    </>
-                  ) : (
-                    <>
-                      <FileSpreadsheet className="h-4 w-4" />
-                      Exportar Excel
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <PaginationBar
-                  total={filteredAttempts.length}
-                  page={attemptsPage}
-                  pageSize={attemptsPageSize}
-                  onPageChange={setAttemptsPage}
-                  onPageSizeChange={setAttemptsPageSize}
-                  label="Intentos"
-                />
-              </div>
-
-              {filteredAttempts.length === 0 ? (
-                <div className="rounded-2xl border-2 bg-muted/20 py-12 text-center">
-                  <Activity className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">
-                    {attemptsSearch ? "No hay resultados con ese filtro." : "No hay intentos registrados."}
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-2xl border-2">
-                  <div className="max-h-[520px] overflow-auto">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 z-10 bg-card">
-                        <tr className="border-b-2 text-left">
-                          <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-muted-foreground">
-                            Fecha y Hora
-                          </th>
-                          <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-muted-foreground">
-                            Ejercicio
-                          </th>
-                          <th className="px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-muted-foreground">
-                            Resultado
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {attemptsPaged.map((r, i) => {
-                          const label = r.exercise?.description || r.exercise?.id || "Ejercicio"
-                          const type = r.exercise?.exercise_type || "sin_tipo"
-                          return (
-                            <tr key={i} className="border-b transition-colors hover:bg-muted/30">
-                              <td className="px-4 py-3 text-xs text-muted-foreground">
-                                {formatAttemptDateTime(r.created_at)}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="font-bold">{label}</div>
-                                <div className="text-xs text-muted-foreground">{type}</div>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                {r.correct ? (
-                                  <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-black text-white">
-                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                    Correcto
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-1 text-xs font-black text-white">
-                                    <XCircle className="h-3.5 w-3.5" />
-                                    Incorrecto
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4">
-                <PaginationBar
-                  total={filteredAttempts.length}
-                  page={attemptsPage}
-                  pageSize={attemptsPageSize}
-                  onPageChange={setAttemptsPage}
-                  onPageSizeChange={setAttemptsPageSize}
-                />
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Exercise Summary */}
-        <div className="rounded-3xl border-2 bg-card p-6 shadow-xl">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xl font-black">Resumen por Ejercicio</h2>
-            <button
-              type="button"
-              onClick={() => setSummaryExpanded((prev) => !prev)}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline-offset-4 hover:underline"
-            >
-              {summaryExpanded ? "Ocultar detalles" : "Mostrar detalles"}
-              {summaryExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDownCircle className="h-4 w-4" />}
-            </button>
-          </div>
-
-          {!summaryExpanded ? (
-            <div className="rounded-2xl border px-4 py-6 text-sm text-muted-foreground">
-              {filteredSummary.length
-                ? `Se analizan ${filteredSummary.length} ejercicios distintos.`
-                : "No hay ejercicios registrados o el filtro los oculta."}
-            </div>
-          ) : (
-            <>
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    value={summarySearch}
-                    onChange={(e) => setSummarySearch(e.target.value)}
-                    placeholder="Buscar por nombre o tipo..."
-                    className="h-10 w-64 max-w-full rounded-xl border-2 bg-background pl-9 pr-3 text-xs font-medium transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <PaginationBar
-                  total={filteredSummary.length}
-                  page={summaryPage}
-                  pageSize={summaryPageSize}
-                  onPageChange={setSummaryPage}
-                  onPageSizeChange={setSummaryPageSize}
-                  label="Ejercicios"
-                />
-              </div>
-
-              {filteredSummary.length === 0 ? (
-                <div className="rounded-2xl border-2 bg-muted/20 py-12 text-center">
-                  <BookOpenCheck className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">
-                    {summarySearch ? "No hay resultados con ese filtro." : "No hay datos de ejercicios."}
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-2xl border-2">
-                  <div className="max-h-[520px] overflow-auto">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 z-10 bg-card">
-                        <tr className="border-b-2 text-left">
-                          <th className="px-4 py-3 text-xs font-black uppercase tracking-wide text-muted-foreground">
-                            Ejercicio
-                          </th>
-                          <th className="px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-muted-foreground">
-                            Intentos
-                          </th>
-                          <th className="px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-muted-foreground">
-                            Precisión
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {summaryPaged.map((r) => (
-                          <tr key={r.id} className="border-b transition-colors hover:bg-muted/30">
-                            <td className="px-4 py-3">
-                              <div className="font-bold">{r.label}</div>
-                              <div className="text-xs text-muted-foreground">{r.type}</div>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1 text-xs font-black text-primary">
-                                <Activity className="h-3 w-3" />
-                                {r.attempts}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-black text-white ${
-                                  r.accuracy >= 80 ? "bg-emerald-600" : r.accuracy >= 60 ? "bg-amber-600" : "bg-rose-600"
-                                }`}
-                              >
-                                <Target className="h-3 w-3" />
-                                {r.accuracy}%
-                              </span>
-
-                              <div className="mt-2">
-                                <ProgressBar value={r.accuracy} height="h-2" />
-                              </div>
-
-                              <div className="mt-2 text-[11px] text-muted-foreground">
-                                {r.correct} ✔ / {r.incorrect} ✖
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4">
-                <PaginationBar
-                  total={filteredSummary.length}
-                  page={summaryPage}
-                  pageSize={summaryPageSize}
-                  onPageChange={setSummaryPage}
-                  onPageSizeChange={setSummaryPageSize}
-                />
-              </div>
-            </>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
