@@ -1,4 +1,4 @@
-"use client"
+ï»¿"use client"
 
 import { useMemo, useState } from "react"
 import { ShieldCheck, Sigma, Divide } from "lucide-react"
@@ -92,10 +92,10 @@ function uniqueValues(options: Option[], needed = 5): Option[] {
 
 const PROMPTS = [
   "Resuelve paso a paso la mediatriz del segmento dado.",
-  "Calcula la mediatriz en 3 pasos: punto medio, pendiente y ecuación.",
+  "Calcula la mediatriz en 3 pasos: punto medio, pendiente y ecuaciÃ³n.",
   "Determina la mediatriz del segmento siguiendo el proceso completo.",
-  "Encuentra la recta mediatriz aplicando el método paso a paso.",
-  "Del segmento AB, halla punto medio, pendiente y ecuación de la mediatriz.",
+  "Encuentra la recta mediatriz aplicando el mÃ©todo paso a paso.",
+  "Del segmento AB, halla punto medio, pendiente y ecuaciÃ³n de la mediatriz.",
 ]
 
 const STEP_TEXT: Record<Step, string[]> = {
@@ -103,18 +103,18 @@ const STEP_TEXT: Record<Step, string[]> = {
     "a) Halle el punto medio.",
     "a) Determine el punto medio del segmento AB.",
     "a) Calcule el punto medio entre A y B.",
-    "a) ¿Cuál es el punto medio del segmento?",
+    "a) Â¿CuÃ¡l es el punto medio del segmento?",
   ],
   2: [
     "b) Determine la pendiente de AB.",
     "b) Calcule la pendiente del segmento AB.",
-    "b) ¿Cuál es el valor de m para la recta AB?",
+    "b) Â¿CuÃ¡l es el valor de m para la recta AB?",
     "b) Obtenga la pendiente de la recta que une A y B.",
   ],
   3: [
-    "c) Obtenga la ecuación de la mediatriz.",
-    "c) Escriba la ecuación de la mediatriz en forma punto-pendiente.",
-    "c) Con el punto medio y la pendiente perpendicular, halle la ecuación.",
+    "c) Obtenga la ecuaciÃ³n de la mediatriz.",
+    "c) Escriba la ecuaciÃ³n de la mediatriz en forma punto-pendiente.",
+    "c) Con el punto medio y la pendiente perpendicular, halle la ecuaciÃ³n.",
     "c) Determine la recta mediatriz del segmento AB.",
   ],
 }
@@ -325,7 +325,7 @@ export default function MediatrizFullProcessGame({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Mediatriz completa: punto medio, pendiente y ecuación"
+        title="Mediatriz completa: punto medio, pendiente y ecuaciÃ³n"
         prompt={scenario.prompt}
         status={engine.status}
         attempts={engine.attempts}
@@ -335,7 +335,7 @@ export default function MediatrizFullProcessGame({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Resolución completa"
+              title="ResoluciÃ³n completa"
               steps={[
                 {
                   title: "1) Punto medio",
@@ -352,7 +352,7 @@ export default function MediatrizFullProcessGame({
                   title: "2) Pendiente de AB",
                   detail: (
                     <span>
-                      Calculamos la pendiente del segmento AB con la razón
+                      Calculamos la pendiente del segmento AB con la razÃ³n
                       de cambios en y y en x.
                     </span>
                   ),
@@ -360,7 +360,7 @@ export default function MediatrizFullProcessGame({
                   content: <MathTex block tex={slopeTex} />,
                 },
                 {
-                  title: "3) Pendiente perpendicular y ecuación",
+                  title: "3) Pendiente perpendicular y ecuaciÃ³n",
                   detail: (
                     <span>
                       La mediatriz es perpendicular a AB y pasa por el
@@ -378,7 +378,7 @@ export default function MediatrizFullProcessGame({
               ]}
               concluding={
                 <span>
-                  Ecuación final: <b>{scenario.equationCorrectTex}</b>
+                  EcuaciÃ³n final: <b>{scenario.equationCorrectTex}</b>
                 </span>
               }
             />
@@ -416,3 +416,4 @@ export default function MediatrizFullProcessGame({
     </MathProvider>
   )
 }
+
