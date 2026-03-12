@@ -19,6 +19,8 @@ import {
   addMemberToClassroomAction,
   createStudentAction,
   listStudentsAction,
+  removeMemberFromClassroomAction,
+  deleteUserCompletelyAction,
 } from "../../../admin-actions"
 import { importUsersAction } from "@/app/dashboard/admin/students/import/import.actions"
 
@@ -27,6 +29,7 @@ interface Member {
   role: string
   active: boolean
   profile: {
+    id: string
     first_name: string
     last_name: string
   }
@@ -69,28 +72,6 @@ type BulkRow = {
 }
 
 const DEFAULT_PASSWORD = "123456"
-
-const columns: ColumnDef<Member>[] = [
-  {
-    key: "name",
-    header: "Nombre",
-    render: (_, row) => (
-      <div className="font-medium">
-        {row.profile.first_name} {row.profile.last_name}
-      </div>
-    ),
-  },
-  {
-    key: "role",
-    header: "Rol",
-    render: (val) => <span className="capitalize">{val}</span>,
-  },
-  {
-    key: "active",
-    header: "Estado",
-    render: (val) => <StatusBadge active={val} />,
-  },
-]
 
 function getPrimaryMembership(user: UserRow) {
   const members = user.edu_institution_members || []
@@ -181,6 +162,7 @@ export default function ClassroomMembersPage() {
   const [tab, setTab] = useState<"existing" | "new" | "bulk">("existing")
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
+  const [rowActionLoading, setRowActionLoading] = useState<string | null>(null)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [searchRole, setSearchRole] = useState<"student" | "teacher" | "all">("student")
@@ -227,6 +209,98 @@ export default function ClassroomMembersPage() {
     institutionSlug,
   ])
 
+  const handleRemoveFromClassroom = async (member: Member) => {
+    const ok = window.confirm("¿Quitar este usuario solo de este salón?")
+    if (!ok) return
+
+    try {
+      setRowActionLoading(`remove:${member.id}`)
+      setActionError(null)
+      setActionSuccess(null)
+      await removeMemberFromClassroomAction({
+        institution_member_id: member.id,
+        classroom_id: classroomId,
+      })
+      setActionSuccess("Usuario quitado del salón.")
+      await reloadMembers()
+    } catch (err: any) {
+      setActionError(err?.message ?? "No se pudo quitar del salón.")
+    } finally {
+      setRowActionLoading(null)
+    }
+  }
+
+  const handleDeleteCompletely = async (member: Member) => {
+    const fullName = `${member.profile.first_name} ${member.profile.last_name}`.trim()
+    const ok = window.confirm(
+      `¿Eliminar completamente a ${fullName}? Esta acción borra auth, perfil y membresías.`,
+    )
+    if (!ok) return
+
+    try {
+      setRowActionLoading(`delete:${member.id}`)
+      setActionError(null)
+      setActionSuccess(null)
+      await deleteUserCompletelyAction(member.profile.id)
+      setActionSuccess("Usuario eliminado completamente.")
+      await reloadMembers()
+    } catch (err: any) {
+      setActionError(err?.message ?? "No se pudo eliminar el usuario.")
+    } finally {
+      setRowActionLoading(null)
+    }
+  }
+
+  const columns: ColumnDef<Member>[] = [
+    {
+      key: "name",
+      header: "Nombre",
+      render: (_, row) => (
+        <div className="font-medium">
+          {row.profile.first_name} {row.profile.last_name}
+        </div>
+      ),
+    },
+    {
+      key: "role",
+      header: "Rol",
+      render: (val) => <span className="capitalize">{val}</span>,
+    },
+    {
+      key: "active",
+      header: "Estado",
+      render: (val) => <StatusBadge active={val} />,
+    },
+    {
+      key: "actions",
+      header: "Acciones",
+      render: (_, row) => {
+        const removing = rowActionLoading === `remove:${row.id}`
+        const deleting = rowActionLoading === `delete:${row.id}`
+        return (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleRemoveFromClassroom(row)}
+              disabled={Boolean(rowActionLoading)}
+            >
+              {removing ? "Quitando..." : "Quitar del salón"}
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => handleDeleteCompletely(row)}
+              disabled={Boolean(rowActionLoading)}
+            >
+              {deleting ? "Eliminando..." : "Eliminar de todo"}
+            </Button>
+          </div>
+        )
+      },
+    },
+  ]
+
   useEffect(() => {
     const fetchMembers = async () => {
       const supabase = createClient()
@@ -238,7 +312,7 @@ export default function ClassroomMembersPage() {
             role,
             active,
             institution_id,
-            profile:edu_profiles ( first_name, last_name )
+            profile:edu_profiles ( id, first_name, last_name )
           )
         `)
         .eq("classroom_id", classroomId)
@@ -285,7 +359,7 @@ export default function ClassroomMembersPage() {
           role,
           active,
           institution_id,
-          profile:edu_profiles ( first_name, last_name )
+            profile:edu_profiles ( id, first_name, last_name )
         )
       `)
       .eq("classroom_id", classroomId)

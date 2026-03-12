@@ -693,6 +693,115 @@ export async function addMemberToClassroomAction(input: {
     return { id: input.institution_member_id }
 }
 
+export async function removeMemberFromClassroomAction(input: {
+    institution_member_id: string
+    classroom_id: string
+}) {
+    if (!input.institution_member_id || !input.classroom_id) {
+        throw new Error("Datos incompletos para quitar del aula")
+    }
+
+    const supabase = await createClient()
+    const institutionId = await getInstitutionId()
+
+    const { data: member, error: memberErr } = await supabase
+        .from("edu_institution_members")
+        .select("id, institution_id")
+        .eq("id", input.institution_member_id)
+        .single()
+    if (memberErr || !member) {
+        throw new Error(memberErr?.message || "Membresia no encontrada")
+    }
+    if (member.institution_id !== institutionId) {
+        throw new Error("Membresia fuera de la institucion")
+    }
+
+    const { data: classroom, error: classroomErr } = await supabase
+        .from("edu_classrooms")
+        .select("id, institution_id")
+        .eq("id", input.classroom_id)
+        .single()
+    if (classroomErr || !classroom) {
+        throw new Error(classroomErr?.message || "Aula no encontrada")
+    }
+    if (classroom.institution_id !== institutionId) {
+        throw new Error("Aula fuera de la institucion")
+    }
+
+    const { error: deleteErr } = await supabase
+        .from("edu_classroom_members")
+        .delete()
+        .eq("institution_member_id", input.institution_member_id)
+        .eq("classroom_id", input.classroom_id)
+    if (deleteErr) throw new Error(deleteErr.message)
+
+    return { id: input.institution_member_id }
+}
+
+export async function deleteUserCompletelyAction(profileId: string) {
+    if (!profileId) throw new Error("Usuario invalido")
+
+    const supabase = await createClient()
+    const institutionId = await getInstitutionId()
+
+    const { data: membership, error: membershipErr } = await supabase
+        .from("edu_institution_members")
+        .select("id")
+        .eq("profile_id", profileId)
+        .eq("institution_id", institutionId)
+        .limit(1)
+        .maybeSingle()
+    if (membershipErr) throw new Error(membershipErr.message)
+    if (!membership?.id) {
+        throw new Error("Usuario fuera de la institucion")
+    }
+
+    const { data: members, error: membersErr } = await supabaseAdmin
+        .from("edu_institution_members")
+        .select("id")
+        .eq("profile_id", profileId)
+    if (membersErr) throw new Error(membersErr.message)
+
+    const memberIds = (members ?? []).map((m) => m.id).filter(Boolean)
+
+    if (memberIds.length > 0) {
+        const { error: cmErr } = await supabaseAdmin
+            .from("edu_classroom_members")
+            .delete()
+            .in("institution_member_id", memberIds)
+        if (cmErr) throw new Error(cmErr.message)
+    }
+
+    const { error: psByStudentErr } = await supabaseAdmin
+        .from("edu_parent_students")
+        .delete()
+        .eq("student_id", profileId)
+    if (psByStudentErr) throw new Error(psByStudentErr.message)
+
+    const { error: psByParentErr } = await supabaseAdmin
+        .from("edu_parent_students")
+        .delete()
+        .eq("parent_id", profileId)
+    if (psByParentErr) throw new Error(psByParentErr.message)
+
+    const { error: membersDeleteErr } = await supabaseAdmin
+        .from("edu_institution_members")
+        .delete()
+        .eq("profile_id", profileId)
+    if (membersDeleteErr) throw new Error(membersDeleteErr.message)
+
+    const { error: profileDeleteErr } = await supabaseAdmin
+        .from("edu_profiles")
+        .delete()
+        .eq("id", profileId)
+    if (profileDeleteErr) throw new Error(profileDeleteErr.message)
+
+    const { error: authDeleteErr } = await supabaseAdmin.auth.admin.deleteUser(profileId)
+    if (authDeleteErr) throw new Error(authDeleteErr.message)
+
+    return { id: profileId }
+}
+
 // -----------------------------------------------------------------------------
 // CLASSROOMS ACTIONS
 // -----------------------------------------------------------------------------

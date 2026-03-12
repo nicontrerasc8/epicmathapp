@@ -85,12 +85,17 @@ export default function ClassroomExercisesPage() {
   const [exercises, setExercises] = useState<ClassroomExercise[]>([])
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([])
   const [message, setMessage] = useState<Message | null>(null)
+  const [selectedAssignedIds, setSelectedAssignedIds] = useState<string[]>([])
 
   const [search, setSearch] = useState("")
+  const [tableExerciseType, setTableExerciseType] = useState("")
   const [pageSize, setPageSize] = useState(pageSizeOptions[0])
   const [page, setPage] = useState(1)
 
   const [institutionId, setInstitutionId] = useState<string | null>(null)
+  const [classroomGrade, setClassroomGrade] = useState<string | null>(null)
+  const [classroomAcademicYear, setClassroomAcademicYear] = useState<number | null>(null)
+  const [replicatingGrade, setReplicatingGrade] = useState(false)
 
   /* ---------- form state ---------- */
   const [form, setForm] = useState({
@@ -118,12 +123,18 @@ export default function ClassroomExercisesPage() {
     const fetchClassroomInstitution = async () => {
       const { data } = await supabase
         .from("edu_classrooms")
-        .select("institution_id")
+        .select("institution_id, grade, academic_year")
         .eq("id", classroomId)
         .single()
 
       if (data?.institution_id) {
         setInstitutionId(data.institution_id)
+      }
+      if (data?.grade) {
+        setClassroomGrade(data.grade)
+      }
+      if (typeof data?.academic_year === "number") {
+        setClassroomAcademicYear(data.academic_year)
       }
     }
 
@@ -205,10 +216,48 @@ export default function ClassroomExercisesPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [exerciseOptions])
 
+  const assignedExerciseTypeOptions = useMemo(() => {
+    const set = new Set(
+      exercises
+        .map((e) => e.exercise?.exercise_type?.trim())
+        .filter((t): t is string => Boolean(t))
+    )
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }))
+  }, [exercises])
+
   const filteredExerciseOptions = useMemo(() => {
     if (!selectedExerciseType) return exerciseOptions
     return exerciseOptions.filter((e) => e.exercise_type === selectedExerciseType)
   }, [exerciseOptions, selectedExerciseType])
+
+  const filteredExerciseIds = useMemo(
+    () => filteredExerciseOptions.map((e) => e.id),
+    [filteredExerciseOptions],
+  )
+
+  const allFilteredSelected = useMemo(() => {
+    if (filteredExerciseIds.length === 0) return false
+    const selectedSet = new Set(selectedExerciseIds)
+    return filteredExerciseIds.every((id) => selectedSet.has(id))
+  }, [filteredExerciseIds, selectedExerciseIds])
+
+  const someFilteredSelected = useMemo(() => {
+    if (filteredExerciseIds.length === 0) return false
+    const selectedSet = new Set(selectedExerciseIds)
+    return filteredExerciseIds.some((id) => selectedSet.has(id))
+  }, [filteredExerciseIds, selectedExerciseIds])
+
+  const toggleSelectAllFiltered = (checked: boolean) => {
+    setSelectedExerciseIds((prev) => {
+      if (checked) {
+        const merged = new Set(prev)
+        for (const id of filteredExerciseIds) merged.add(id)
+        return Array.from(merged)
+      }
+      const filteredSet = new Set(filteredExerciseIds)
+      return prev.filter((id) => !filteredSet.has(id))
+    })
+  }
 
   const mappingText = useMemo(() => {
     if (importMappings.length === 0) return ""
@@ -271,23 +320,33 @@ export default function ClassroomExercisesPage() {
   /* =========================
      Filtering & paging
   ========================= */
-  useEffect(() => setPage(1), [search, pageSize])
+  useEffect(() => setPage(1), [search, tableExerciseType, pageSize])
 
   const filteredExercises = useMemo(() => {
     const needle = search.toLowerCase().trim()
-    if (!needle) return exercises
+    const byType = !tableExerciseType
+      ? exercises
+      : exercises.filter((r) => (r.exercise?.exercise_type ?? "") === tableExerciseType)
 
-    return exercises.filter((r) => {
-      const d = r.exercise?.description ?? ""
-      const t = r.exercise?.exercise_type ?? ""
-      const i = r.exercise?.id ?? ""
-      return (
-        d.toLowerCase().includes(needle) ||
-        t.toLowerCase().includes(needle) ||
-        i.toLowerCase().includes(needle)
-      )
+    const base = !needle
+      ? byType
+      : byType.filter((r) => {
+          const d = r.exercise?.description ?? ""
+          const t = r.exercise?.exercise_type ?? ""
+          const i = r.exercise?.id ?? ""
+          return (
+            d.toLowerCase().includes(needle) ||
+            t.toLowerCase().includes(needle) ||
+            i.toLowerCase().includes(needle)
+          )
+        })
+
+    return [...base].sort((a, b) => {
+      const labelA = (a.exercise?.description || a.exercise?.id || "").trim()
+      const labelB = (b.exercise?.description || b.exercise?.id || "").trim()
+      return labelA.localeCompare(labelB, "es", { sensitivity: "base" })
     })
-  }, [exercises, search])
+  }, [exercises, search, tableExerciseType])
 
   const pagedExercises = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -303,6 +362,7 @@ export default function ClassroomExercisesPage() {
 
     const supabase = createClient()
     let exerciseIds: string[] = []
+    let targetClassroomIds: string[] = [classroomId]
 
     /* ---- create many exercises ---- */
     if (createMode) {
@@ -351,11 +411,41 @@ export default function ClassroomExercisesPage() {
       exerciseIds = selectedExerciseIds
     }
 
+    if (assignToGrade) {
+      if (!institutionId || !classroomGrade || classroomAcademicYear == null) {
+        setMessage({
+          type: "error",
+          text: "No se pudo identificar grado/año para asignar al bloque.",
+        })
+        return
+      }
+
+      const { data: classroomsByGrade, error: classroomsByGradeError } = await supabase
+        .from("edu_classrooms")
+        .select("id")
+        .eq("institution_id", institutionId)
+        .eq("grade", classroomGrade)
+        .eq("academic_year", classroomAcademicYear)
+        .eq("active", true)
+
+      if (classroomsByGradeError) {
+        setMessage({ type: "error", text: classroomsByGradeError.message })
+        return
+      }
+
+      const ids = (classroomsByGrade ?? []).map((c: any) => c.id).filter(Boolean)
+      if (ids.length === 0) {
+        setMessage({ type: "error", text: "No hay salones activos del mismo grado." })
+        return
+      }
+      targetClassroomIds = ids
+    }
+
     /* ---- RPC (for each exercise) ---- */
     for (const exerciseId of exerciseIds) {
       const { error } = await supabase.rpc("assign_exercise_to_classrooms", {
         p_exercise_id: exerciseId,
-        p_classroom_ids: [classroomId],
+        p_classroom_ids: targetClassroomIds,
       })
       if (error) {
         setMessage({ type: "error", text: error.message })
@@ -398,13 +488,128 @@ export default function ClassroomExercisesPage() {
 
     setMessage({
       type: "success",
-      text: `Se asignaron ${exerciseIds.length} ejercicio(s) correctamente.`,
+      text: assignToGrade
+        ? `Se asignaron ${exerciseIds.length} ejercicio(s) en ${targetClassroomIds.length} aula(s) del mismo grado.`
+        : `Se asignaron ${exerciseIds.length} ejercicio(s) correctamente.`,
     })
     setForm({ active: true })
     setSelectedExerciseIds([])
     setNewExercise({ exercise_type: "", custom_type: "", descriptionsText: "" })
     setAssignToGrade(false)
     setCreateMode(false)
+  }
+
+  const handleReplicateToSameGrade = async () => {
+    const sourceAssignments = exercises
+      .map((row) => ({
+        exerciseId: row.exercise?.id || "",
+        active: row.active,
+      }))
+      .filter((row) => Boolean(row.exerciseId))
+
+    await replicateAssignmentsToSameGrade(
+      sourceAssignments,
+      "Se copiarán todas las asignaciones de esta aula a los demás salones del mismo grado. ¿Continuar?",
+    )
+  }
+
+  const handleReplicateSelectedToSameGrade = async () => {
+    const selectedSet = new Set(selectedAssignedIds)
+    const sourceAssignments = exercises
+      .filter((row) => selectedSet.has(row.id))
+      .map((row) => ({
+        exerciseId: row.exercise?.id || "",
+        active: row.active,
+      }))
+      .filter((row) => Boolean(row.exerciseId))
+
+    await replicateAssignmentsToSameGrade(
+      sourceAssignments,
+      `Se copiarán ${sourceAssignments.length} asignaciones seleccionadas a los demás salones del mismo grado. ¿Continuar?`,
+    )
+  }
+
+  const replicateAssignmentsToSameGrade = async (
+    sourceAssignments: { exerciseId: string; active: boolean }[],
+    confirmText: string,
+  ) => {
+    if (!institutionId || !classroomGrade || classroomAcademicYear == null) {
+      setMessage({
+        type: "error",
+        text: "No se pudo identificar grado/año del aula actual.",
+      })
+      return
+    }
+
+    if (sourceAssignments.length === 0) {
+      setMessage({
+        type: "error",
+        text: "No hay ejercicios asignados para replicar.",
+      })
+      return
+    }
+
+    const ok = window.confirm(confirmText)
+    if (!ok) return
+
+    const supabase = createClient()
+    setReplicatingGrade(true)
+    setMessage(null)
+    try {
+      const { data: targetClassrooms, error: targetsError } = await supabase
+        .from("edu_classrooms")
+        .select("id")
+        .eq("institution_id", institutionId)
+        .eq("grade", classroomGrade)
+        .eq("academic_year", classroomAcademicYear)
+        .neq("id", classroomId)
+        .eq("active", true)
+
+      if (targetsError) {
+        setMessage({ type: "error", text: targetsError.message })
+        return
+      }
+
+      const targetIds = (targetClassrooms ?? []).map((c: any) => c.id).filter(Boolean)
+      if (targetIds.length === 0) {
+        setMessage({
+          type: "error",
+          text: "No se encontraron otros salones del mismo grado.",
+        })
+        return
+      }
+
+      for (const row of sourceAssignments) {
+        const { error: assignError } = await supabase.rpc("assign_exercise_to_classrooms", {
+          p_exercise_id: row.exerciseId,
+          p_classroom_ids: targetIds,
+        })
+        if (assignError) {
+          setMessage({ type: "error", text: assignError.message })
+          return
+        }
+
+        if (!row.active) {
+          const { error: inactiveError } = await supabase
+            .from("edu_exercise_assignments")
+            .update({ active: false })
+            .in("classroom_id", targetIds)
+            .eq("exercise_id", row.exerciseId)
+          if (inactiveError) {
+            setMessage({ type: "error", text: inactiveError.message })
+            return
+          }
+        }
+      }
+
+      setMessage({
+        type: "success",
+        text: `Se replicaron ${sourceAssignments.length} asignaciones en ${targetIds.length} aula(s) del mismo grado.`,
+      })
+      setSelectedAssignedIds([])
+    } finally {
+      setReplicatingGrade(false)
+    }
   }
 
   /* =========================
@@ -433,6 +638,17 @@ export default function ClassroomExercisesPage() {
             />
 
             <select
+              value={tableExerciseType}
+              onChange={(e) => setTableExerciseType(e.target.value)}
+              className="h-9 rounded-md border px-2 text-sm bg-white"
+            >
+              <option value="">Todos los tipos</option>
+              {assignedExerciseTypeOptions.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+
+            <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
               className="h-9 rounded-md border px-2 text-sm bg-white"
@@ -447,6 +663,8 @@ export default function ClassroomExercisesPage() {
             columns={columns}
             data={pagedExercises}
             loading={loading}
+            selectable
+            onSelectionChange={setSelectedAssignedIds}
             pagination={{ page, pageSize, total: filteredExercises.length }}
             onPageChange={setPage}
             emptyState={{
@@ -618,6 +836,20 @@ export default function ClassroomExercisesPage() {
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={
+                    allFilteredSelected
+                      ? true
+                      : someFilteredSelected
+                        ? "indeterminate"
+                        : false
+                  }
+                  onCheckedChange={(v) => toggleSelectAllFiltered(Boolean(v))}
+                  disabled={filteredExerciseOptions.length === 0}
+                />
+                Seleccionar todos ({filteredExerciseOptions.length})
+              </label>
               <div className="max-h-56 overflow-auto rounded-md border p-2 space-y-2">
                 {filteredExerciseOptions.map((e) => (
                   <label key={e.id} className="flex items-start gap-2 text-sm">
@@ -661,6 +893,33 @@ export default function ClassroomExercisesPage() {
             />
             Asignar a todos los salones del mismo grado
           </label>
+
+          <div className="rounded-md border p-3 space-y-2">
+            <div className="text-sm font-medium">Copiar asignaciones actuales</div>
+            <div className="text-xs text-muted-foreground">
+              Copia todos los ejercicios ya asignados en esta aula a los demás salones del mismo grado.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleReplicateToSameGrade}
+                disabled={replicatingGrade || exercises.length === 0}
+              >
+                {replicatingGrade ? "Copiando..." : "Copiar todo a salones del mismo grado"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleReplicateSelectedToSameGrade}
+                disabled={replicatingGrade || selectedAssignedIds.length === 0}
+              >
+                {replicatingGrade
+                  ? "Copiando..."
+                  : `Copiar seleccionados (${selectedAssignedIds.length})`}
+              </Button>
+            </div>
+          </div>
 
           {message && (
             <div
