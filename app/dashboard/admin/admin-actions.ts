@@ -772,6 +772,42 @@ export async function deleteUserCompletelyAction(profileId: string) {
         if (cmErr) throw new Error(cmErr.message)
     }
 
+    const { error: feedbackStudentErr } = await supabaseAdmin
+        .from("edu_assignment_feedback")
+        .delete()
+        .eq("student_id", profileId)
+    if (feedbackStudentErr) throw new Error(feedbackStudentErr.message)
+
+    const { error: feedbackTeacherErr } = await supabaseAdmin
+        .from("edu_assignment_feedback")
+        .delete()
+        .eq("teacher_id", profileId)
+    if (feedbackTeacherErr) throw new Error(feedbackTeacherErr.message)
+
+    const { error: exercisesErr } = await supabaseAdmin
+        .from("edu_student_exercises")
+        .delete()
+        .eq("student_id", profileId)
+    if (exercisesErr) throw new Error(exercisesErr.message)
+
+    const { error: gamificationErr } = await supabaseAdmin
+        .from("edu_student_gamification")
+        .delete()
+        .eq("student_id", profileId)
+    if (gamificationErr) throw new Error(gamificationErr.message)
+
+    const { error: learningEventsErr } = await supabaseAdmin
+        .from("edu_student_learning_events")
+        .delete()
+        .eq("student_id", profileId)
+    if (learningEventsErr) throw new Error(learningEventsErr.message)
+
+    const { error: learningStatsErr } = await supabaseAdmin
+        .from("edu_student_learning_stats")
+        .delete()
+        .eq("student_id", profileId)
+    if (learningStatsErr) throw new Error(learningStatsErr.message)
+
     const { error: psByStudentErr } = await supabaseAdmin
         .from("edu_parent_students")
         .delete()
