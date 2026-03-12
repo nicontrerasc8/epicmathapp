@@ -24,6 +24,7 @@ import {
   BookOpen,
   Plus,
   X,
+  Pencil,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -224,6 +225,7 @@ function ExerciseRow({
   isLast,
   updatingId,
   onToggle,
+  onEdit,
   onMove,
   onOrderChange,
 }: {
@@ -232,6 +234,7 @@ function ExerciseRow({
   isLast: boolean
   updatingId: string | null
   onToggle: (row: ClassroomExercise) => void
+  onEdit: (row: ClassroomExercise) => void
   onMove: (row: ClassroomExercise, dir: "up" | "down") => void
   onOrderChange: (row: ClassroomExercise, value: number) => void
 }) {
@@ -291,7 +294,16 @@ function ExerciseRow({
 
       {/* Actions */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          disabled={!!updatingId}
+          onClick={() => onEdit(row)}
+          title="Editar nombre"
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -328,6 +340,9 @@ export default function TeacherClassroomExercisesPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingExercise, setEditingExercise] = useState<ClassroomExercise | null>(null)
+  const [editingDescription, setEditingDescription] = useState("")
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const fetchData = useCallback(async () => {
     if (!classroomId) return
@@ -449,6 +464,18 @@ export default function TeacherClassroomExercisesPage() {
     })
   }
 
+  const openEditExercise = (row: ClassroomExercise) => {
+    setEditingExercise(row)
+    setEditingDescription(row.exercise?.description || "")
+    setMessage(null)
+  }
+
+  const closeEditExercise = () => {
+    if (savingEdit) return
+    setEditingExercise(null)
+    setEditingDescription("")
+  }
+
   // ── Toggle active ────────────────────────────────────────────────────────────
 
   const toggleAssignment = async (row: ClassroomExercise) => {
@@ -551,6 +578,53 @@ export default function TeacherClassroomExercisesPage() {
       setMessage({ type: "success", text: "Orden actualizado." })
     }
     setUpdatingId(null)
+  }
+
+  const saveExerciseDescription = async () => {
+    const exerciseId = editingExercise?.exercise?.id
+    const description = editingDescription.trim()
+
+    if (!exerciseId) {
+      setMessage({ type: "error", text: "No se encontró el ejercicio." })
+      return
+    }
+
+    if (!description) {
+      setMessage({ type: "error", text: "Ingresa un nombre para el ejercicio." })
+      return
+    }
+
+    const supabase = createClient()
+    setSavingEdit(true)
+    setMessage(null)
+
+    const { error } = await supabase
+      .from("edu_exercises")
+      .update({ description })
+      .eq("id", exerciseId)
+
+    if (error) {
+      setMessage({ type: "error", text: "No se pudo actualizar el nombre del ejercicio." })
+      setSavingEdit(false)
+      return
+    }
+
+    setExercises((prev) =>
+      prev.map((item) =>
+        item.exercise?.id === exerciseId
+          ? {
+              ...item,
+              exercise: item.exercise
+                ? { ...item.exercise, description }
+                : item.exercise,
+            }
+          : item
+      )
+    )
+    setEditingExercise(null)
+    setEditingDescription("")
+    setSavingEdit(false)
+    setMessage({ type: "success", text: "Nombre del ejercicio actualizado." })
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -670,6 +744,7 @@ export default function TeacherClassroomExercisesPage() {
                         isLast={idx === group.rows.length - 1}
                         updatingId={updatingId}
                         onToggle={toggleAssignment}
+                        onEdit={openEditExercise}
                         onMove={moveAssignment}
                         onOrderChange={updateOrder}
                       />
@@ -694,6 +769,43 @@ export default function TeacherClassroomExercisesPage() {
             setMessage({ type: "success", text: "Ejercicio asignado correctamente." })
           }}
         />
+      )}
+
+      {editingExercise && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xl rounded-xl border bg-background shadow-2xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <div className="font-semibold">Editar nombre del ejercicio</div>
+                <div className="text-xs text-muted-foreground">
+                  ID: {editingExercise.exercise?.id || "Sin ID"}
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" onClick={closeEditExercise} disabled={savingEdit}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              <div className="text-sm text-muted-foreground">
+                Tipo: {editingExercise.exercise?.exercise_type || "Sin tipo"}
+              </div>
+              <Input
+                value={editingDescription}
+                onChange={(e) => setEditingDescription(e.target.value)}
+                placeholder="Nombre del ejercicio"
+                disabled={savingEdit}
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeEditExercise} disabled={savingEdit}>
+                  Cancelar
+                </Button>
+                <Button type="button" onClick={saveExerciseDescription} disabled={savingEdit}>
+                  {savingEdit ? "Guardando..." : "Guardar"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

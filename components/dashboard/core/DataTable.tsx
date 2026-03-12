@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, ReactNode } from "react"
+import { useEffect, useState, useMemo, ReactNode } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     ChevronUp,
@@ -34,6 +34,7 @@ export interface BulkAction {
     label: string
     icon?: ReactNode
     variant?: "default" | "destructive"
+    disabled?: boolean
     onClick: (selectedIds: string[]) => void | Promise<void>
 }
 
@@ -97,10 +98,12 @@ function SortIcon({
 function BulkActionsBar({
     selectedCount,
     actions,
+    selectedIds,
     onClear,
 }: {
     selectedCount: number
     actions: BulkAction[]
+    selectedIds: string[]
     onClear: () => void
 }) {
     if (selectedCount === 0) return null
@@ -129,7 +132,8 @@ function BulkActionsBar({
                         key={i}
                         variant={action.variant === "destructive" ? "destructive" : "secondary"}
                         size="sm"
-                        onClick={() => action.onClick}
+                        disabled={action.disabled}
+                        onClick={() => action.onClick(selectedIds)}
                     >
                         {action.icon}
                         {action.label}
@@ -234,6 +238,20 @@ export function DataTable<T extends { id: string }>({
 }: DataTableProps<T>) {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
+    useEffect(() => {
+        setSelectedIds((current) => {
+            const validIds = new Set(data.map((row) => row.id))
+            const next = new Set(Array.from(current).filter((id) => validIds.has(id)))
+
+            if (next.size === current.size) {
+                return current
+            }
+
+            onSelectionChange?.(Array.from(next))
+            return next
+        })
+    }, [data, onSelectionChange])
+
     // Handle selection
     const toggleRow = (id: string) => {
         const newSet = new Set(selectedIds)
@@ -296,6 +314,7 @@ export function DataTable<T extends { id: string }>({
                     <BulkActionsBar
                         selectedCount={selectedIds.size}
                         actions={bulkActions}
+                        selectedIds={Array.from(selectedIds)}
                         onClear={clearSelection}
                     />
                 )}

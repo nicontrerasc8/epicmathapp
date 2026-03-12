@@ -86,6 +86,9 @@ export default function ClassroomExercisesPage() {
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([])
   const [message, setMessage] = useState<Message | null>(null)
   const [selectedAssignedIds, setSelectedAssignedIds] = useState<string[]>([])
+  const [editingExercise, setEditingExercise] = useState<ClassroomExercise | null>(null)
+  const [editingDescription, setEditingDescription] = useState("")
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const [search, setSearch] = useState("")
   const [tableExerciseType, setTableExerciseType] = useState("")
@@ -205,6 +208,36 @@ export default function ClassroomExercisesPage() {
         }))
       )
     }
+  }
+
+  const refreshExerciseOptions = async () => {
+    if (!institutionId) return
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("edu_exercises")
+      .select("id, exercise_type, description")
+      .eq("active", true)
+      .eq("institution_id", institutionId)
+      .order("created_at", { ascending: false })
+
+    if (data) setExerciseOptions(data)
+  }
+
+  const openEditExercise = (row: ClassroomExercise) => {
+    setEditingExercise(row)
+    setEditingDescription(row.exercise?.description || "")
+    setMessage(null)
+  }
+
+  const closeEditExercise = () => {
+    if (savingEdit) return
+    setEditingExercise(null)
+    setEditingDescription("")
+  }
+
+  const resetEditExercise = () => {
+    setEditingExercise(null)
+    setEditingDescription("")
   }
 
   const exerciseTypeOptions = useMemo(() => {
@@ -612,6 +645,48 @@ export default function ClassroomExercisesPage() {
     }
   }
 
+  const handleSaveExerciseName = async () => {
+    const exerciseId = editingExercise?.exercise?.id
+    const description = editingDescription.trim()
+
+    if (!exerciseId) {
+      setMessage({ type: "error", text: "No se encontró el ejercicio a editar." })
+      return
+    }
+
+    if (!description) {
+      setMessage({ type: "error", text: "Ingresa un nombre para el ejercicio." })
+      return
+    }
+
+    const supabase = createClient()
+    setSavingEdit(true)
+    setMessage(null)
+    try {
+      const { error } = await supabase
+        .from("edu_exercises")
+        .update({ description })
+        .eq("id", exerciseId)
+
+      if (error) {
+        setMessage({ type: "error", text: error.message })
+        return
+      }
+
+      await refreshExercises()
+      await refreshExerciseOptions()
+      setImportMappings((prev) =>
+        prev.map((item) =>
+          item.id === exerciseId ? { ...item, description } : item
+        )
+      )
+      setMessage({ type: "success", text: "Nombre del ejercicio actualizado." })
+      resetEditExercise()
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   /* =========================
      Render
   ========================= */
@@ -674,6 +749,10 @@ export default function ClassroomExercisesPage() {
             rowActions={(row) => (
               <RowActionsMenu
                 actions={[
+                  {
+                    label: "Editar nombre",
+                    onClick: () => openEditExercise(row),
+                  },
                   {
                     label: row.active ? "Desactivar" : "Activar",
                     onClick: async () => {
@@ -967,6 +1046,45 @@ export default function ClassroomExercisesPage() {
           <Button type="submit">Guardar</Button>
         </form>
       </div>
+
+      {editingExercise && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-xl rounded-2xl border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <div className="text-base font-semibold">Editar nombre del ejercicio</div>
+                <div className="text-sm text-muted-foreground">
+                  ID: {editingExercise.exercise?.id || "Sin ID"}
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={closeEditExercise} disabled={savingEdit}>
+                Cerrar
+              </Button>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">
+                  Tipo: {editingExercise.exercise?.exercise_type || "Sin tipo"}
+                </div>
+                <Input
+                  value={editingDescription}
+                  onChange={(e) => setEditingDescription(e.target.value)}
+                  placeholder="Nombre del ejercicio"
+                  disabled={savingEdit}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeEditExercise} disabled={savingEdit}>
+                  Cancelar
+                </Button>
+                <Button type="button" onClick={handleSaveExerciseName} disabled={savingEdit}>
+                  {savingEdit ? "Guardando..." : "Guardar"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

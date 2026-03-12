@@ -7,6 +7,7 @@ import {
   PageHeader,
   DataTable,
   StatusBadge,
+  type BulkAction,
   type ColumnDef
 } from "@/components/dashboard/core"
 import { useInstitution } from "@/components/institution-provider"
@@ -163,6 +164,9 @@ export default function ClassroomMembersPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
   const [rowActionLoading, setRowActionLoading] = useState<string | null>(null)
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
+  const [bulkRemoving, setBulkRemoving] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [searchRole, setSearchRole] = useState<"student" | "teacher" | "all">("student")
@@ -251,6 +255,93 @@ export default function ClassroomMembersPage() {
     }
   }
 
+  const handleBulkRemoveFromClassroom = async (ids: string[]) => {
+    if (!ids.length) return
+
+    const selectedMembers = members.filter((member) => ids.includes(member.id))
+    const ok = window.confirm(
+      `¿Quitar ${selectedMembers.length} usuario(s) seleccionados de este salón?`,
+    )
+    if (!ok) return
+
+    try {
+      setBulkRemoving(true)
+      setActionError(null)
+      setActionSuccess(null)
+
+      const results = await Promise.allSettled(
+        selectedMembers.map((member) =>
+          removeMemberFromClassroomAction({
+            institution_member_id: member.id,
+            classroom_id: classroomId,
+          }),
+        ),
+      )
+
+      const failed = results.filter((result) => result.status === "rejected")
+      const successCount = results.length - failed.length
+
+      if (failed.length === 0) {
+        setActionSuccess(`${successCount} usuario(s) quitados del salón.`)
+      } else if (successCount === 0) {
+        const firstError = failed[0]
+        setActionError(
+          firstError.status === "rejected"
+            ? firstError.reason?.message ?? "No se pudieron quitar los usuarios seleccionados."
+            : "No se pudieron quitar los usuarios seleccionados.",
+        )
+      } else {
+        setActionSuccess(`${successCount} usuario(s) quitados del salón.`)
+        setActionError(`${failed.length} usuario(s) no se pudieron quitar.`)
+      }
+
+      await reloadMembers()
+    } finally {
+      setBulkRemoving(false)
+    }
+  }
+
+  const handleBulkDeleteCompletely = async (ids: string[]) => {
+    if (!ids.length) return
+
+    const selectedMembers = members.filter((member) => ids.includes(member.id))
+    const ok = window.confirm(
+      `¿Eliminar completamente ${selectedMembers.length} usuario(s) seleccionados? Esta acción borra auth, perfil y membresías.`,
+    )
+    if (!ok) return
+
+    try {
+      setBulkDeleting(true)
+      setActionError(null)
+      setActionSuccess(null)
+
+      const results = await Promise.allSettled(
+        selectedMembers.map((member) => deleteUserCompletelyAction(member.profile.id)),
+      )
+
+      const failed = results.filter((result) => result.status === "rejected")
+      const successCount = results.length - failed.length
+
+      if (failed.length === 0) {
+        setActionSuccess(`${successCount} usuario(s) eliminados completamente.`)
+      } else if (successCount === 0) {
+        const firstError = failed[0]
+        setActionError(
+          firstError.status === "rejected"
+            ? firstError.reason?.message ?? "No se pudieron eliminar los usuarios seleccionados."
+            : "No se pudieron eliminar los usuarios seleccionados.",
+        )
+      } else {
+        setActionSuccess(`${successCount} usuario(s) eliminados completamente.`)
+        setActionError(`${failed.length} usuario(s) no se pudieron eliminar.`)
+      }
+
+      await reloadMembers()
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
   const columns: ColumnDef<Member>[] = [
     {
       key: "name",
@@ -283,7 +374,7 @@ export default function ClassroomMembersPage() {
               size="sm"
               variant="outline"
               onClick={() => handleRemoveFromClassroom(row)}
-              disabled={Boolean(rowActionLoading)}
+              disabled={Boolean(rowActionLoading) || bulkRemoving || bulkDeleting}
             >
               {removing ? "Quitando..." : "Quitar del salón"}
             </Button>
@@ -291,7 +382,7 @@ export default function ClassroomMembersPage() {
               size="sm"
               variant="destructive"
               onClick={() => handleDeleteCompletely(row)}
-              disabled={Boolean(rowActionLoading)}
+              disabled={Boolean(rowActionLoading) || bulkRemoving || bulkDeleting}
             >
               {deleting ? "Eliminando..." : "Eliminar de todo"}
             </Button>
@@ -703,6 +794,23 @@ export default function ClassroomMembersPage() {
     }
   }
 
+  const bulkActions: BulkAction[] = [
+    {
+      label: bulkRemoving ? "Quitando..." : "Quitar del salón",
+      variant: "destructive",
+      disabled:
+        bulkRemoving || bulkDeleting || Boolean(rowActionLoading) || selectedMemberIds.length === 0,
+      onClick: handleBulkRemoveFromClassroom,
+    },
+    {
+      label: bulkDeleting ? "Eliminando..." : "Eliminar de todo",
+      variant: "destructive",
+      disabled:
+        bulkDeleting || bulkRemoving || Boolean(rowActionLoading) || selectedMemberIds.length === 0,
+      onClick: handleBulkDeleteCompletely,
+    },
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -719,6 +827,13 @@ export default function ClassroomMembersPage() {
           { label: "Miembros" },
         ]}
       />
+
+      {(actionError || actionSuccess) && (
+        <div className="space-y-2">
+          {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+          {actionSuccess && <p className="text-sm text-foreground">{actionSuccess}</p>}
+        </div>
+      )}
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -1168,6 +1283,9 @@ export default function ClassroomMembersPage() {
         columns={columns}
         data={members}
         loading={loading}
+        selectable
+        onSelectionChange={setSelectedMemberIds}
+        bulkActions={bulkActions}
         emptyState={{
           title: "miembros",
           description: "No hay miembros asignados a esta aula."
