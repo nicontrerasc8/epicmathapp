@@ -453,7 +453,7 @@ export default function PerformancePage() {
   const [currentChartIndex, setCurrentChartIndex] = useState(0)
 
   // ✅ Assignment (activo/inactivo)
-  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<"active" | "inactive">("active")
+  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<"all" | "active" | "inactive">("all")
 
   // ✅ NEW: time + exercise_type + exercise filters (apply to charts & tables)
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all")
@@ -622,7 +622,11 @@ export default function PerformancePage() {
       }
 
       const visibleExerciseIds = new Set<string>()
-      if (assignmentStatusFilter === "active") {
+      if (assignmentStatusFilter === "all") {
+        activeAssignmentExerciseIds.forEach((id) => visibleExerciseIds.add(id))
+        inactiveAssignmentExerciseIds.forEach((id) => visibleExerciseIds.add(id))
+        attemptExerciseIds.forEach((id) => visibleExerciseIds.add(id))
+      } else if (assignmentStatusFilter === "active") {
         activeAssignmentExerciseIds.forEach((id) => visibleExerciseIds.add(id))
         attemptExerciseIds.forEach((id) => {
           if (!inactiveAssignmentExerciseIds.has(id)) visibleExerciseIds.add(id)
@@ -1184,7 +1188,7 @@ export default function PerformancePage() {
         ["Filtros:"],
         ["- Tiempo:", timeLabel],
         ["- Categorías:", selectedExerciseTypes.length ? selectedExerciseTypes.join(", ") : "Todos"],
-        ["- Asignaciones:", assignmentStatusFilter === "active" ? "Activos" : "Inactivos"],
+        ["- Asignaciones:", assignmentStatusFilter === "all" ? "Todos" : assignmentStatusFilter === "active" ? "Activos" : "Inactivos"],
         [""],
         ["RESUMEN GENERAL"],
         ["Total de estudiantes:", totals.activeStudents],
@@ -1265,8 +1269,8 @@ export default function PerformancePage() {
       />
 
       {/* Hero KPI */}
-      <div className="lg:sticky lg:top-3 lg:z-30">
-        <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-background via-muted/30 to-background p-8 shadow-2xl lg:max-h-[84vh] lg:overflow-y-auto lg:backdrop-blur">
+      <div className="relative">
+        <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-background via-muted/30 to-background p-8 shadow-2xl backdrop-blur">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.1),transparent_50%)]" />
         <div className="relative">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -1420,6 +1424,21 @@ export default function PerformancePage() {
             <div className="rounded-2xl border bg-background p-3 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Asignaciones</div>
               <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoading(true)
+                    setAssignmentStatusFilter("all")
+                  }}
+                  className={[
+                    "rounded-xl border px-3 py-2 text-sm font-semibold",
+                    assignmentStatusFilter === "all"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-background hover:bg-muted/40",
+                  ].join(" ")}
+                >
+                  Todos
+                </button>
                 <button
                   type="button"
                   onClick={() => {

@@ -263,7 +263,7 @@ export default function StudentPerformanceDetailPage() {
   const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [assignmentsLoaded, setAssignmentsLoaded] = useState(false)
-  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<"active" | "inactive">("active")
+  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<"all" | "active" | "inactive">("all")
 
   const [commentForm, setCommentForm] = useState({ assignmentId: "", comment: "" })
   const [commentStatus, setCommentStatus] = useState<{ tone: "error" | "success"; message: string } | null>(null)
@@ -413,7 +413,14 @@ export default function StudentPerformanceDetailPage() {
     })
 
     const set = new Set<string>()
-    if (assignmentStatusFilter === "active") {
+    if (assignmentStatusFilter === "all") {
+      activeSet.forEach((id) => set.add(id))
+      inactiveSet.forEach((id) => set.add(id))
+      rows.forEach((row) => {
+        const id = row.exercise?.id || row.exercise_id
+        if (id) set.add(id)
+      })
+    } else if (assignmentStatusFilter === "active") {
       activeSet.forEach((id) => set.add(id))
       rows.forEach((row) => {
         const id = row.exercise?.id || row.exercise_id
@@ -775,6 +782,20 @@ export default function StudentPerformanceDetailPage() {
 
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-semibold text-muted-foreground">Mostrar:</span>
+                    <button
+                      type="button"
+                      onClick={() => setAssignmentStatusFilter("all")}
+                      className={[
+                        "rounded-full px-3 py-1 text-xs font-semibold transition",
+                        assignmentStatusFilter === "all"
+                          ? "bg-primary text-white"
+                          : "bg-muted/20 text-muted-foreground",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      Todos
+                    </button>
                     <button
                       type="button"
                       onClick={() => setAssignmentStatusFilter("active")}
