@@ -413,7 +413,14 @@ export default function StudentPerformanceDetailPage() {
     })
 
     const set = new Set<string>()
-    if (assignmentStatusFilter === "active") {
+    if (assignmentStatusFilter === "all") {
+      activeSet.forEach((id) => set.add(id))
+      inactiveSet.forEach((id) => set.add(id))
+      rows.forEach((row) => {
+        const id = row.exercise?.id || row.exercise_id
+        if (id) set.add(id)
+      })
+    } else if (assignmentStatusFilter === "active") {
       activeSet.forEach((id) => set.add(id))
       rows.forEach((row) => {
         const id = row.exercise?.id || row.exercise_id
