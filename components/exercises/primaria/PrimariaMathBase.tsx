@@ -10,7 +10,6 @@ import { useExerciseEngine } from '@/lib/exercises/useExerciseEngine'
 import { useExerciseSubmission } from '@/lib/exercises/useExerciseSubmission'
 import { useExerciseTimer } from '@/lib/exercises/useExerciseTimer'
 import { computeTrophyGain, WRONG_PENALTY } from '@/lib/exercises/gamification'
-import { persistExerciseOnce } from '@/lib/exercises/persistExerciseOnce'
 
 type ExplanationStep = { title: string; detail: string }
 
@@ -59,22 +58,10 @@ export function PrimariaMathBase({ exerciseId, classroomId, sessionId, config }:
     setSelected(option.value)
     engine.submit(option.correct)
 
-    persistExerciseOnce({
-      exerciseId,
-      classroomId,
-      sessionId,
-      correct: option.correct,
-      answer: {
-        question: ejercicio.question,
-        selected: option.value,
-        correctOption: ejercicio.options.find(o => o.correct)?.value,
-        options: ejercicio.options.map(o => o.value),
-      },
-    })
-
     await submitAttempt({
       correct: option.correct,
       answer: {
+        question: ejercicio.question,
         selected: option.value,
         correctAnswer: ejercicio.options.find(o => o.correct)?.value,
         options: ejercicio.options.map(o => o.value),

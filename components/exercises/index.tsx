@@ -446,6 +446,7 @@ export const ExerciseRegistry = ({
             <ExerciseComponent
               exerciseId={exerciseId}
               classroomId={classroomId}
+              studentId={studentId}
               sessionId={sessionId}
             />
           </div>

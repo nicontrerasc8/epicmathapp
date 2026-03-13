@@ -35,6 +35,7 @@ import {
    TIPOS
 ========================= */
 type AttemptRow = {
+  exercise_id: string
   correct: boolean
   created_at: string
   exercise: {
@@ -283,9 +284,8 @@ export default function StudentPerformanceDetailPage() {
       const [assignmentsResult, feedbackResult] = await Promise.all([
         supabase
           .from("edu_exercise_assignments")
-        .select("id, exercise_id, active, exercise:edu_exercises ( id, description, exercise_type )")
-          .eq("classroom_id", classroomId)
-          .eq("active", true),
+          .select("id, exercise_id, active, exercise:edu_exercises ( id, description, exercise_type )")
+          .eq("classroom_id", classroomId),
         supabase
           .from("edu_assignment_feedback")
           .select(
@@ -335,6 +335,7 @@ export default function StudentPerformanceDetailPage() {
           supabase
             .from("edu_student_exercises")
             .select(`
+              exercise_id,
               correct,
               created_at,
               exercise:edu_exercises ( id, description, exercise_type )
@@ -401,16 +402,30 @@ export default function StudentPerformanceDetailPage() {
   }
 
   const assignmentExerciseIds = useMemo(() => {
-    const set = new Set<string>()
+    const activeSet = new Set<string>()
+    const inactiveSet = new Set<string>()
     assignments.forEach((assignment) => {
       const id = assignment.exercise?.id || assignment.exercise_id
       if (!id) return
       const isActive = assignment.active ?? true
-      const matchesFilter = assignmentStatusFilter === "active" ? isActive : !isActive
-      if (matchesFilter) set.add(id)
+      if (isActive) activeSet.add(id)
+      else inactiveSet.add(id)
     })
+
+    const set = new Set<string>()
+    if (assignmentStatusFilter === "active") {
+      activeSet.forEach((id) => set.add(id))
+      rows.forEach((row) => {
+        const id = row.exercise?.id || row.exercise_id
+        if (id && !inactiveSet.has(id)) set.add(id)
+      })
+    } else {
+      inactiveSet.forEach((id) => {
+        if (!activeSet.has(id)) set.add(id)
+      })
+    }
     return set
-  }, [assignments, assignmentStatusFilter])
+  }, [assignments, assignmentStatusFilter, rows])
 
   /* =========================
      RESÚMENES
@@ -419,7 +434,7 @@ export default function StudentPerformanceDetailPage() {
     if (!assignmentsLoaded) return rows
     if (assignmentExerciseIds.size === 0) return []
     return rows.filter((row) => {
-      const id = row.exercise?.id
+      const id = row.exercise?.id || row.exercise_id
       return id ? assignmentExerciseIds.has(id) : false
     })
   }, [rows, assignmentsLoaded, assignmentExerciseIds])

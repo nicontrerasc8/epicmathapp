@@ -5,6 +5,7 @@ export function useExerciseSubmission(input: {
   exerciseId: string
   classroomId: string
   sessionId?: string
+  studentId?: string
 }) {
   const { studentId, gami, gamiLoading, applyGamification } =
     useExerciseGamification(input.exerciseId, input.classroomId)
@@ -18,6 +19,7 @@ export function useExerciseSubmission(input: {
       exerciseId: input.exerciseId,
       classroomId: input.classroomId,
       sessionId: input.sessionId,
+      studentId: input.studentId ?? studentId ?? undefined,
       correct: params.correct,
       answer: params.answer,
       timeSeconds: params.timeSeconds,

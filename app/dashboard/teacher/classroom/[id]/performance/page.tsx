@@ -110,6 +110,12 @@ type ExerciseRow = {
   last_played_at: string | null
 }
 
+type ExerciseMetaRow = {
+  id: string
+  description: string | null
+  exercise_type: string | null
+}
+
 type SortKeyStudents =
   | "accuracy"
   | "attempts"
@@ -524,19 +530,20 @@ export default function PerformancePage() {
       })
 
       // ---------------------------
-      // 4) Build exercise sets from assignments + active/inactive filter
+      // 4) Build assignment state + base exercise metadata
       // ---------------------------
-      const statusTarget = assignmentStatusFilter === "active"
-      const exerciseIds = new Set<string>()
+      const activeAssignmentExerciseIds = new Set<string>()
+      const inactiveAssignmentExerciseIds = new Set<string>()
       const exerciseInfo = new Map<string, { label: string; type: string }>()
 
       ;(assignments || []).forEach((row: any) => {
         const ex = Array.isArray(row.exercise) ? row.exercise[0] : row.exercise
         if (!ex?.id) return
         const isActive = row.active ?? true
-        if (isActive !== statusTarget) return
 
-        exerciseIds.add(ex.id)
+        if (isActive) activeAssignmentExerciseIds.add(ex.id)
+        else inactiveAssignmentExerciseIds.add(ex.id)
+
         exerciseInfo.set(ex.id, {
           label: ex.description || ex.id,
           type: ex.exercise_type || "sin_tipo",
@@ -544,30 +551,7 @@ export default function PerformancePage() {
       })
 
       // ---------------------------
-      // 5) Prepare filter options (types & exercises)
-      //    (based on assignments list)
-      // ---------------------------
-      const typeSet = new Set<string>()
-      exerciseInfo.forEach((info, id) => {
-        typeSet.add(info.type || "sin_tipo")
-      })
-      const typeOpts = Array.from(typeSet)
-        .sort((a, b) => a.localeCompare(b))
-        .map((t) => ({ value: t, label: t }))
-
-      setExerciseTypeOptions(typeOpts)
-
-      // If previously selected types are now invalid (because active/inactive changed), prune them
-      setSelectedExerciseTypes((prev) => {
-        const next = prev.filter((t) => typeSet.has(t))
-        if (next.length === prev.length && next.every((value, index) => value === prev[index])) {
-          return prev
-        }
-        return next
-      })
-
-      // ---------------------------
-      // 6) Attempts query with dynamic filters
+      // 5) Attempts query with dynamic filters
       // ---------------------------
       let attemptsQuery = supabase
         .from("edu_student_exercises")
@@ -587,35 +571,107 @@ export default function PerformancePage() {
           .lte("created_at", endOfDayISO(customTo))
       }
 
-      // Important: we ALWAYS restrict to assigned exercises (active/inactive toggle already decided above)
-      if (exerciseIds.size > 0) {
-        attemptsQuery = attemptsQuery.in("exercise_id", Array.from(exerciseIds))
+      const { data: attempts, error: attErr } = await attemptsQuery
+      if (attErr) console.error(attErr)
+
+      const attemptStudentIds = new Set<string>()
+      const attemptExerciseIds = new Set<string>()
+      ;((attempts || []) as AttemptRow[]).forEach((row) => {
+        if (row.student_id) attemptStudentIds.add(row.student_id)
+        if (row.exercise_id) attemptExerciseIds.add(row.exercise_id)
+      })
+
+      const missingStudentIds = Array.from(attemptStudentIds).filter((id) => !studentIds.has(id))
+      if (missingStudentIds.length > 0) {
+        const { data: extraProfiles, error: extraProfilesErr } = await supabase
+          .from("edu_profiles")
+          .select("id, first_name, last_name")
+          .in("id", missingStudentIds)
+
+        if (extraProfilesErr) console.error(extraProfilesErr)
+
+        ;(extraProfiles || []).forEach((profile: any) => {
+          studentIds.add(profile.id)
+          const fullName = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim()
+          studentNameMap.set(profile.id, fullName || profile.id)
+        })
+
+        missingStudentIds.forEach((id) => {
+          if (!studentNameMap.has(id)) {
+            studentIds.add(id)
+            studentNameMap.set(id, id)
+          }
+        })
+      }
+
+      const missingExerciseIds = Array.from(attemptExerciseIds).filter((id) => !exerciseInfo.has(id))
+      if (missingExerciseIds.length > 0) {
+        const { data: extraExercises, error: extraExercisesErr } = await supabase
+          .from("edu_exercises")
+          .select("id, description, exercise_type")
+          .in("id", missingExerciseIds)
+
+        if (extraExercisesErr) console.error(extraExercisesErr)
+
+        ;((extraExercises || []) as ExerciseMetaRow[]).forEach((exercise) => {
+          exerciseInfo.set(exercise.id, {
+            label: exercise.description || exercise.id,
+            type: exercise.exercise_type || "sin_tipo",
+          })
+        })
+      }
+
+      const visibleExerciseIds = new Set<string>()
+      if (assignmentStatusFilter === "active") {
+        activeAssignmentExerciseIds.forEach((id) => visibleExerciseIds.add(id))
+        attemptExerciseIds.forEach((id) => {
+          if (!inactiveAssignmentExerciseIds.has(id)) visibleExerciseIds.add(id)
+        })
       } else {
-        // No exercises assigned for this filter; set empty quickly
+        inactiveAssignmentExerciseIds.forEach((id) => {
+          if (!activeAssignmentExerciseIds.has(id)) visibleExerciseIds.add(id)
+        })
+      }
+
+      const typeSet = new Set<string>()
+      visibleExerciseIds.forEach((id) => {
+        const info = exerciseInfo.get(id)
+        if (info?.type) typeSet.add(info.type)
+      })
+      const typeOpts = Array.from(typeSet)
+        .sort((a, b) => a.localeCompare(b))
+        .map((t) => ({ value: t, label: t }))
+
+      setExerciseTypeOptions(typeOpts)
+      setSelectedExerciseTypes((prev) => {
+        const next = prev.filter((t) => typeSet.has(t))
+        if (next.length === prev.length && next.every((value, index) => value === prev[index])) {
+          return prev
+        }
+        return next
+      })
+
+      let finalExerciseIds = new Set<string>(visibleExerciseIds)
+      if (selectedExerciseTypes.length > 0) {
+        finalExerciseIds = new Set(
+          Array.from(visibleExerciseIds).filter((id) => {
+            const info = exerciseInfo.get(id)
+            return info ? selectedExerciseTypes.includes(info.type) : false
+          }),
+        )
+      }
+
+      if (finalExerciseIds.size === 0) {
         setStudents([])
         setExercises([])
         setLoading(false)
         return
       }
 
-      // If exercise_type filter selected -> convert to exercise IDs subset
-      let exerciseIdsAfterType = new Set<string>(exerciseIds)
-      if (selectedExerciseTypes.length > 0) {
-        const allowed = new Set<string>()
-        exerciseInfo.forEach((info, id) => {
-          if (selectedExerciseTypes.includes(info.type)) allowed.add(id)
-        })
-        exerciseIdsAfterType = allowed
-        attemptsQuery = attemptsQuery.in("exercise_id", Array.from(allowed))
-      }
-
-      const { data: attempts, error: attErr } = await attemptsQuery
-      if (attErr) console.error(attErr)
-
       // ---------------------------
       // 7) Gamification rows (match filtered exercise set + students)
       // ---------------------------
-      let finalExerciseIdsForGam = Array.from(exerciseIdsAfterType)
+      let finalExerciseIdsForGam = Array.from(finalExerciseIds)
 
       let gamRows: GamRow[] = []
       if (studentIds.size > 0 && finalExerciseIdsForGam.length > 0) {
@@ -677,7 +733,7 @@ export default function PerformancePage() {
       // ---------------------------
       const byExercise = new Map<string, ExerciseRow>()
       const attemptsArr = ((attempts || []) as AttemptRow[]).filter(
-        (row) => studentIds.has(row.student_id) && exerciseIds.has(row.exercise_id),
+        (row) => studentIds.has(row.student_id) && finalExerciseIds.has(row.exercise_id),
       )
 
       for (const row of attemptsArr) {
