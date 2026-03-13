@@ -34,31 +34,100 @@ function shuffle<T>(arr: T[]): T[] {
 
 type Scenario = ReturnType<typeof generateScenario>
 
+type FormName =
+  | "General"
+  | "Pendiente–intersección"
+  | "Punto–pendiente"
+  | "Segmentaria"
+  | "Vectorial"
+
+type FormScenario = {
+  exprTex: string
+  correct: FormName
+  recognitionText: string
+  elementsText: string
+  ruleText: string
+}
+
 function generateScenario() {
   const m = randInt(-5, 5) || 2
   const x0 = randInt(-5, 5)
   const y0 = randInt(-5, 5)
+  const b = randInt(-6, 6)
+  const A = randInt(-6, 6) || 3
+  const B = randInt(-6, 6) || -2
+  const C = randInt(-10, 10)
+  const a = randInt(-9, 9) || 3
+  const c = randInt(-9, 9) || -4
+  const v1 = randInt(-6, 6) || 2
+  const v2 = randInt(-6, 6) || -3
 
-  const exprTex = `y ${y0 >= 0 ? "-" : "+"} ${Math.abs(y0)} = ${m}(x ${
-    x0 >= 0 ? "-" : "+"
-  } ${Math.abs(x0)})`
+  const forms: FormScenario[] = [
+    {
+      exprTex: `y ${y0 >= 0 ? "-" : "+"} ${Math.abs(y0)} = ${m}(x ${
+        x0 >= 0 ? "-" : "+"
+      } ${Math.abs(x0)})`,
+      correct: "Punto–pendiente",
+      recognitionText: "Tiene el patrón y - y_0 = m(x - x_0).",
+      elementsText:
+        "m representa la pendiente y (x_0, y_0) un punto de la recta.",
+      ruleText: "La forma punto–pendiente es: y - y₀ = m(x - x₀).",
+    },
+    {
+      exprTex: `y = ${m}x ${b >= 0 ? "+" : "-"} ${Math.abs(b)}`,
+      correct: "Pendiente–intersección",
+      recognitionText: "Se ajusta al modelo y = mx + b.",
+      elementsText:
+        "m es la pendiente y b es la intersección con el eje y.",
+      ruleText:
+        "La forma pendiente–intersección es: y = mx + b.",
+    },
+    {
+      exprTex: `${A}x ${B >= 0 ? "+" : "-"} ${Math.abs(B)}y ${
+        C >= 0 ? "+" : "-"
+      } ${Math.abs(C)} = 0`,
+      correct: "General",
+      recognitionText: "Coincide con la estructura Ax + By + C = 0.",
+      elementsText:
+        "A, B y C son constantes reales, con A y B no ambos nulos.",
+      ruleText: "La forma general es: Ax + By + C = 0.",
+    },
+    {
+      exprTex: `\\frac{x}{${a}} + \\frac{y}{${c}} = 1`,
+      correct: "Segmentaria",
+      recognitionText: "Está escrita como suma de interceptos igual a 1.",
+      elementsText:
+        "Los denominadores son los interceptos en los ejes x e y.",
+      ruleText: "La forma segmentaria es: x/a + y/b = 1.",
+    },
+    {
+      exprTex: `\\begin{pmatrix}x\\\\y\\end{pmatrix} = \\begin{pmatrix}${x0}\\\\${y0}\\end{pmatrix} + t\\begin{pmatrix}${v1}\\\\${v2}\\end{pmatrix}`,
+      correct: "Vectorial",
+      recognitionText:
+        "Aparece un punto base más un parámetro multiplicando un vector dirección.",
+      elementsText:
+        "El vector dirección marca la orientación y t es un parámetro real.",
+      ruleText:
+        "La forma vectorial es: r⃗ = r⃗₀ + t·v⃗.",
+    },
+  ]
 
-  return {
-    m,
-    x0,
-    y0,
-    exprTex,
-    correct: "Punto–pendiente",
-  }
+  return forms[randInt(0, forms.length - 1)]
 }
 
-function generateOptions(correct: string): Option[] {
+function generateOptions(correct: FormName): Option[] {
   const all: Option[] = [
-    { value: "General", correct: false },
-    { value: "Pendiente–intersección", correct: false },
-    { value: "Punto–pendiente", correct: true },
-    { value: "Segmentaria", correct: false },
-    { value: "Vectorial", correct: false },
+    { value: "General", correct: correct === "General" },
+    {
+      value: "Pendiente–intersección",
+      correct: correct === "Pendiente–intersección",
+    },
+    {
+      value: "Punto–pendiente",
+      correct: correct === "Punto–pendiente",
+    },
+    { value: "Segmentaria", correct: correct === "Segmentaria" },
+    { value: "Vectorial", correct: correct === "Vectorial" },
   ]
 
   return shuffle(all)
@@ -120,8 +189,7 @@ export default function FormaRectaGame({
           expression: scenario.exprTex,
         },
         computed: {
-          rule:
-            "La forma punto–pendiente es: y - y₀ = m(x - x₀).",
+          rule: scenario.ruleText,
         },
         options: scenario.options.map(o => o.value),
       },
@@ -156,17 +224,12 @@ export default function FormaRectaGame({
                   title: "Reconocer la estructura",
                   detail: (
                     <span>
-                      La ecuación tiene la forma
-                      <b> y − y₀ = m(x − x₀)</b>.
+                      {scenario.recognitionText}
                     </span>
                   ),
                   icon: Sigma,
                   content: (
                     <div className="space-y-3">
-                      <MathTex
-                        block
-                        tex={`y - y_0 = m(x - x_0)`}
-                      />
                       <MathTex block tex={scenario.exprTex} />
                     </div>
                   ),
@@ -175,7 +238,7 @@ export default function FormaRectaGame({
                   title: "Identificar sus elementos",
                   detail: (
                     <span>
-                      m es la pendiente, y (x₀, y₀) es un punto de la recta.
+                      {scenario.elementsText}
                     </span>
                   ),
                   icon: Divide,
@@ -184,8 +247,8 @@ export default function FormaRectaGame({
                   title: "Conclusión",
                   detail: (
                     <span>
-                      Por lo tanto, está en forma
-                      <b> punto–pendiente</b>.
+                      Por lo tanto, la ecuación está en forma
+                      <b> {scenario.correct}</b>.
                     </span>
                   ),
                   icon: ShieldCheck,

@@ -27,6 +27,19 @@ function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5)
 }
 
+function buildUniqueOptions(correct: string, candidates: string[]): Option[] {
+  const uniqueDistractors = Array.from(
+    new Set(candidates.filter(candidate => candidate !== correct))
+  )
+
+  const options: Option[] = [
+    { value: correct, correct: true },
+    ...uniqueDistractors.slice(0, 4).map(value => ({ value, correct: false })),
+  ]
+
+  return shuffle(options)
+}
+
 /* =========================
    GENERADOR
    Intersección con eje Y
@@ -46,6 +59,9 @@ function generateScenario() {
     `(0, ${m})`,         // usar pendiente
     `(${m}, ${b})`,      // punto cualquiera
     `(${b}, ${m})`,      // invertido
+    `(${m}, 0)`,
+    `(1, ${b})`,
+    `(0, ${b + (b === 0 ? 1 : -1)})`,
   ]
 
   return {
@@ -57,12 +73,7 @@ function generateScenario() {
 }
 
 function generateOptions(s: Scenario): Option[] {
-  const all: Option[] = [
-    { value: s.correct, correct: true },
-    ...s.distractors.map(d => ({ value: d, correct: false })),
-  ]
-
-  return shuffle(all)
+  return buildUniqueOptions(s.correct, s.distractors)
 }
 
 /* ============================================================

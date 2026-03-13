@@ -229,7 +229,11 @@ export default function VoronoiInsertGame({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={`\\text{${op.value}}`} />}
+          renderValue={(op) => (
+            <span className="block whitespace-normal break-words text-base leading-relaxed">
+              {op.value}
+            </span>
+          )}
         />
 
         <div className="mt-6">

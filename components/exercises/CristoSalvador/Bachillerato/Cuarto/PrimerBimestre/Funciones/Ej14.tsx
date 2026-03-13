@@ -23,6 +23,35 @@ function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
 
+function buildQuestionTex(a0: number, ma: number, b0: number, mb: number) {
+  return [
+    "\\text{Dos planes de internet tienen costos mensuales:}",
+    `\\text{Plan A: } C_A = ${a0} + ${ma}x`,
+    `\\text{Plan B: } C_B = ${b0} + ${mb}x`,
+    "\\text{¿Para qué cantidad de consumo }x\\text{ ambos planes cuestan lo mismo?}",
+  ].join("\\\\")
+}
+
+function buildUniqueOptions(correct: number, distractors: number[]): Option[] {
+  const uniqueDistractors = Array.from(
+    new Set(
+      distractors.filter(value => Number.isFinite(value) && value > 0 && value !== correct)
+    )
+  )
+
+  while (uniqueDistractors.length < 4) {
+    const candidate = randInt(Math.max(1, correct - 8), correct + 12)
+    if (candidate !== correct && !uniqueDistractors.includes(candidate)) {
+      uniqueDistractors.push(candidate)
+    }
+  }
+
+  return shuffle([
+    { value: `${correct}`, correct: true },
+    ...uniqueDistractors.slice(0, 4).map(value => ({ value: `${value}`, correct: false })),
+  ])
+}
+
 type Scenario = ReturnType<typeof generateScenario>
 
 function generateScenario() {
@@ -40,21 +69,19 @@ function generateScenario() {
     const x = diff0 / diffM
     if (x <= 0 || x > 60) continue
 
-    const questionTex = `
-\\text{Dos planes de internet tienen costos mensuales:}\\\\
-\\text{Plan A: } C_A = ${a0} + ${ma}x\\\\
-\\text{Plan B: } C_B = ${b0} + ${mb}x\\\\
-\\text{?Para que cantidad de consumo } x \\text{ ambos planes cuestan lo mismo?}
-`
-
+    const questionTex = buildQuestionTex(a0, ma, b0, mb)
     const correct = `${x}`
-
-    const options: Option[] = shuffle([
-      { value: correct, correct: true },
-      { value: `${x + 2}`, correct: false },
-      { value: `${Math.max(1, x - 2)}`, correct: false },
-      { value: `${Math.abs(diff0)}`, correct: false },
-      { value: `${Math.abs(diffM)}`, correct: false },
+    const options = buildUniqueOptions(x, [
+      x + 1,
+      x + 2,
+      x + 3,
+      x - 1,
+      x - 2,
+      Math.abs(diff0),
+      Math.abs(diffM),
+      a0,
+      b0,
+      ma + mb,
     ])
 
     return { a0, b0, ma, mb, x, questionTex, correct, options }
@@ -66,20 +93,9 @@ function generateScenario() {
     ma: 5,
     mb: 8,
     x: 20,
-    questionTex: `
-\\text{Dos planes de internet tienen costos mensuales:}\\\\
-\\text{Plan A: } C_A = 80 + 5x\\\\
-\\text{Plan B: } C_B = 40 + 8x\\\\
-\\text{?Para que cantidad de consumo } x \\text{ ambos planes cuestan lo mismo?}
-`,
+    questionTex: buildQuestionTex(80, 5, 40, 8),
     correct: "20",
-    options: shuffle([
-      { value: "20", correct: true },
-      { value: "10", correct: false },
-      { value: "12", correct: false },
-      { value: "15", correct: false },
-      { value: "25", correct: false },
-    ]),
+    options: buildUniqueOptions(20, [10, 12, 15, 25, 18, 22]),
   }
 }
 
@@ -142,7 +158,7 @@ export default function IgualarPlanesInternetGame({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Igualacion de funciones lineales"
+        title="Igualación de funciones lineales"
         prompt="Resolver:"
         status={engine.status}
         attempts={engine.attempts}
@@ -152,7 +168,7 @@ export default function IgualarPlanesInternetGame({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Guia paso a paso"
+              title="Guía paso a paso"
               steps={[
                 {
                   title: "Igualar los costos",
@@ -161,8 +177,8 @@ export default function IgualarPlanesInternetGame({
                   content: <MathTex block tex={step1} />,
                 },
                 {
-                  title: "Pasar terminos semejantes",
-                  detail: <span>Reagrupamos constantes y terminos con x en lados opuestos.</span>,
+                  title: "Pasar términos semejantes",
+                  detail: <span>Reagrupamos constantes y términos con x en lados opuestos.</span>,
                   icon: Divide,
                   content: <MathTex block tex={step2} />,
                 },
@@ -184,8 +200,11 @@ export default function IgualarPlanesInternetGame({
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
           <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
-          <div className="rounded-lg border bg-background p-3">
-            <MathTex block tex={scenario.questionTex} />
+          <div className="rounded-lg border bg-background p-3 space-y-1 overflow-x-auto">
+            <MathTex block tex={`\\text{Dos planes de internet tienen costos mensuales:}`} />
+            <MathTex block tex={`\\text{Plan A: } C_A = ${scenario.a0} + ${scenario.ma}x`} />
+            <MathTex block tex={`\\text{Plan B: } C_B = ${scenario.b0} + ${scenario.mb}x`} />
+            <MathTex block tex={`\\text{¿Para qué cantidad de consumo }x\\text{ ambos planes cuestan lo mismo?}`} />
           </div>
         </div>
 

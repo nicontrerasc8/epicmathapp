@@ -49,6 +49,19 @@ function slopeToTex(a: number, b: number) {
   return `\\frac{${n}}{${d}}`
 }
 
+function buildUniqueOptions(correct: string, candidates: string[]): Option[] {
+  const uniqueDistractors = Array.from(
+    new Set(candidates.filter(candidate => candidate !== correct))
+  )
+
+  const options: Option[] = [
+    { value: correct, correct: true },
+    ...uniqueDistractors.slice(0, 4).map(value => ({ value, correct: false })),
+  ]
+
+  return shuffle(options)
+}
+
 type Scenario = ReturnType<typeof buildScenario>
 
 function buildScenario() {
@@ -60,17 +73,18 @@ function buildScenario() {
 
     const pendiente = slopeToTex(a, b)
 
-    const wrong1 = slopeToTex(-a, b)
-    const wrong2 = slopeToTex(a, b)
-    const wrong3 = slopeToTex(b, a)
-    const wrong4 = `${Math.abs(a)}`
-
-    const options: Option[] = shuffle([
-      { value: pendiente, correct: true },
-      { value: wrong1, correct: false },
-      { value: wrong2, correct: false },
-      { value: wrong3, correct: false },
-      { value: wrong4, correct: false },
+    const options = buildUniqueOptions(pendiente, [
+      slopeToTex(-a, b),
+      slopeToTex(a, -b),
+      slopeToTex(b, a),
+      slopeToTex(-b, a),
+      `${Math.abs(a)}`,
+      `${Math.abs(b)}`,
+      `${a}`,
+      `${b}`,
+      "0",
+      "1",
+      "-1",
     ])
 
     return { a, b, c, pendiente, options }

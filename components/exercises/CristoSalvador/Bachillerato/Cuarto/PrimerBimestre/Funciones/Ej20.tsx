@@ -23,26 +23,71 @@ function choice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
+function formatSlope(value: number) {
+  return Number(value.toFixed(1)).toString()
+}
+
+function buildUniqueOptions(options: Option[]): Option[] {
+  const unique = new Map<string, Option>()
+  for (const option of options) {
+    if (!unique.has(option.value)) {
+      unique.set(option.value, option)
+    }
+  }
+  return shuffle(Array.from(unique.values()))
+}
+
 type Scenario = ReturnType<typeof buildScenario>
 
 function buildScenario() {
-  const pendiente = choice([-2, -1.5, -1.2, -0.8, -0.6, -0.4])
+  const pendiente = choice([-2, -1.5, -1.2, -0.8, -0.6, -0.4, 0, 0.5, 1, 1.4, 2.2])
   const absP = Math.abs(pendiente)
-  const absTxt = Number(absP.toFixed(1)).toString()
+  const absTxt = formatSlope(absP)
 
-  const options: Option[] = shuffle([
-    { value: `La variable dependiente disminuye ${absTxt} por unidad.`, correct: true },
-    { value: `La variable dependiente aumenta ${absTxt} por unidad.`, correct: false },
-    { value: "No hay relacion entre variables.", correct: false },
-    { value: "La relacion es cuadratica.", correct: false },
-    { value: "La variable dependiente es constante.", correct: false },
+  let correct = ""
+  let explanation = ""
+
+  if (pendiente > 0) {
+    correct = `La variable dependiente aumenta ${absTxt} por unidad.`
+    explanation =
+      "Pendiente positiva indica que cuando la variable independiente aumenta en 1 unidad, la dependiente también aumenta."
+  } else if (pendiente < 0) {
+    correct = `La variable dependiente disminuye ${absTxt} por unidad.`
+    explanation =
+      "Pendiente negativa indica que cuando la variable independiente aumenta en 1 unidad, la dependiente disminuye."
+  } else {
+    correct = "La variable dependiente permanece constante."
+    explanation =
+      "Pendiente cero indica que no hay cambio en la variable dependiente aunque cambie la independiente."
+  }
+
+  const options = buildUniqueOptions([
+    { value: correct, correct: true },
+    {
+      value:
+        pendiente === 0
+          ? `La variable dependiente aumenta ${absTxt || "1"} por unidad.`
+          : `La variable dependiente disminuye ${absTxt} por unidad.`,
+      correct: false,
+    },
+    {
+      value:
+        pendiente === 0
+          ? `La variable dependiente disminuye ${absTxt || "1"} por unidad.`
+          : `La variable dependiente aumenta ${absTxt} por unidad.`,
+      correct: false,
+    },
+    { value: "No hay relación lineal entre variables.", correct: false },
+    { value: "La relación es cuadrática.", correct: false },
+    { value: "La variable dependiente permanece constante.", correct: pendiente === 0 ? true : false },
   ])
 
   return {
     pendiente,
     absTxt,
     options,
-    correct: `La variable dependiente disminuye ${absTxt} por unidad.`,
+    correct,
+    explanation,
   }
 }
 
@@ -90,8 +135,7 @@ export default function InterpretacionPendienteGame({
           pendiente: scenario.pendiente,
         },
         computed: {
-          interpretacion:
-            "Pendiente negativa indica que cuando la variable independiente aumenta en 1 unidad, la dependiente disminuye.",
+          interpretacion: scenario.explanation,
         },
         options: scenario.options.map(o => o.value),
       },
@@ -106,7 +150,7 @@ export default function InterpretacionPendienteGame({
   }
 
   const questionTex1 = `
-\\text{Una recta tiene pendiente } ${scenario.pendiente} \\text{ en un contexto economico.}
+\\text{Una recta tiene pendiente } ${formatSlope(scenario.pendiente)} \\text{ en un contexto económico.}
 `
 
   const questionTex2 = `
@@ -118,14 +162,14 @@ export default function InterpretacionPendienteGame({
 `
 
   const step2 = `
-\\text{Como } ${scenario.pendiente} < 0, \\text{ la variable dependiente disminuye en } ${scenario.absTxt} \\text{ por cada unidad.}
+\\text{Interpretación: } ${scenario.correct}
 `
 
   return (
     <MathProvider>
       <ExerciseShell
-        title="Interpretacion de la pendiente"
-        prompt="Selecciona la opcion correcta:"
+        title="Interpretación de la pendiente"
+        prompt="Selecciona la opción correcta:"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -134,13 +178,13 @@ export default function InterpretacionPendienteGame({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Guia paso a paso"
+              title="Guía paso a paso"
               steps={[
                 {
-                  title: "Recordar que representa la pendiente",
+                  title: "Recordar qué representa la pendiente",
                   detail: (
                     <span>
-                      La pendiente indica cuanto cambia la variable dependiente por cada unidad que cambia la independiente.
+                      La pendiente indica cuánto cambia la variable dependiente por cada unidad que cambia la independiente.
                     </span>
                   ),
                   icon: Sigma,
@@ -150,17 +194,17 @@ export default function InterpretacionPendienteGame({
                   title: "Analizar el signo",
                   detail: (
                     <span>
-                      Una pendiente negativa implica una relacion decreciente.
+                      El signo de la pendiente determina si la relación crece, decrece o se mantiene constante.
                     </span>
                   ),
                   icon: Divide,
                   content: <MathTex block tex={step2} />,
                 },
                 {
-                  title: "Conclusion",
+                  title: "Conclusión",
                   detail: (
                     <span>
-                      La variable dependiente disminuye {scenario.absTxt} por unidad.
+                      {scenario.correct}
                     </span>
                   ),
                   icon: ShieldCheck,

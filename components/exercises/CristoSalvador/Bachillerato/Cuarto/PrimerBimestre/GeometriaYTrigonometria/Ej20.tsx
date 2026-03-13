@@ -423,7 +423,15 @@ export default function UrbanVoronoiGame({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={(op) =>
+            step === "c" ? (
+              <span className="block whitespace-normal break-words text-base leading-relaxed">
+                {op.value}
+              </span>
+            ) : (
+              <MathTex tex={op.value} />
+            )
+          }
         />
 
         <div className="mt-6">
