@@ -22,12 +22,36 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
+
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
 
+function choice<T>(arr: T[]): T {
+  return arr[randInt(0, arr.length - 1)]
+}
+
+function buildUniqueOptions(correct: string, candidates: string[]): Option[] {
+  const uniqueDistractors = Array.from(
+    new Set(candidates.filter(candidate => candidate !== correct))
+  )
+
+  return shuffle([
+    { value: correct, correct: true },
+    ...uniqueDistractors.slice(0, 4).map(value => ({ value, correct: false })),
+  ])
+}
+
 type Site = { x: number; y: number }
-type Scenario = ReturnType<typeof generateScenario>
+type BaseScenario = ReturnType<typeof generateScenario>
+type QuestionPack = {
+  prompt: string
+  correct: string
+  options: Option[]
+  explanationTitle: string
+  explanationDetail: string
+  conclusion: string
+}
 
 function samePoint(a: Site, b: Site) {
   return a.x === b.x && a.y === b.y
@@ -42,7 +66,6 @@ function pickTwoDistinctSites(sites: Site[]) {
 }
 
 function generateScenario() {
-  // 3..6 sitios distintos
   const count = randInt(3, 6)
   const sites: Site[] = []
 
@@ -53,25 +76,81 @@ function generateScenario() {
   }
 
   if (sites.length < 3) {
-    // fallback
     sites.splice(0, sites.length, { x: -2, y: 1 }, { x: 4, y: 0 }, { x: 1, y: 5 })
   }
 
-  // Elegimos 2 sitios para una "micro-demostración" en la explicación
   const { A, B } = pickTwoDistinctSites(sites)
 
   return { sites, demoA: A, demoB: B }
 }
 
-function generateOptions(): Option[] {
-  const options: Option[] = [
-    { value: "Mediatrices entre pares de sitios", correct: true }, // ✅ A
-    { value: "Rectas paralelas", correct: false },
-    { value: "Segmentos aleatorios", correct: false },
-    { value: "Circunferencias", correct: false },
-    { value: "Ejes coordenados", correct: false },
-  ]
-  return shuffle(options)
+function buildQuestionPack(_: BaseScenario): QuestionPack {
+  return choice<QuestionPack>([
+    {
+      prompt: "Las aristas de un diagrama de Voronoi estan formadas por:",
+      correct: "Mediatrices entre pares de sitios",
+      options: buildUniqueOptions("Mediatrices entre pares de sitios", [
+        "Rectas paralelas",
+        "Segmentos aleatorios",
+        "Circunferencias",
+        "Ejes coordenados",
+        "Tangentes comunes",
+      ]),
+      explanationTitle: "Formacion de aristas",
+      explanationDetail:
+        "Cada borde de Voronoi aparece como frontera de empate de distancia entre dos sitios.",
+      conclusion:
+        "Por eso las aristas se describen como mediatrices entre pares de sitios.",
+    },
+    {
+      prompt: "Un borde de Voronoi representa el conjunto de puntos que:",
+      correct: "Estan a igual distancia de dos sitios",
+      options: buildUniqueOptions("Estan a igual distancia de dos sitios", [
+        "Estan mas cerca de todos los sitios a la vez",
+        "Tienen distancia maxima a un sitio",
+        "Forman un triangulo con tres sitios",
+        "Coinciden con los ejes del plano",
+        "Pertenecen a una sola celda completa",
+      ]),
+      explanationTitle: "Interpretacion del borde",
+      explanationDetail:
+        "Un borde separa dos celdas porque sus puntos empatan en distancia con los dos sitios vecinos.",
+      conclusion:
+        "La propiedad correcta es la equidistancia respecto de dos sitios.",
+    },
+    {
+      prompt: "Geometricamente, la frontera comun entre dos regiones Voronoi coincide con:",
+      correct: "La mediatriz del segmento que une dos sitios",
+      options: buildUniqueOptions("La mediatriz del segmento que une dos sitios", [
+        "La diagonal del poligono convexo",
+        "La recta que pasa por ambos sitios",
+        "Una curva cerrada arbitraria",
+        "La bisectriz de un angulo fijo del plano",
+        "El centroide de todos los sitios",
+      ]),
+      explanationTitle: "Descripcion geometrica",
+      explanationDetail:
+        "Si dos sitios son los unicos relevantes para una frontera local, el empate de distancia produce la mediatriz del segmento que los une.",
+      conclusion:
+        "La descripcion geometrica correcta es la mediatriz del segmento entre dos sitios.",
+    },
+    {
+      prompt: "Que condicion caracteriza a los puntos de una arista de Voronoi?",
+      correct: "Tienen la misma distancia a dos sitios vecinos",
+      options: buildUniqueOptions("Tienen la misma distancia a dos sitios vecinos", [
+        "Tienen la misma distancia a todos los sitios",
+        "Estan mas lejos del sitio central",
+        "Tienen coordenadas enteras siempre",
+        "Pertenecen solo al borde exterior",
+        "Son puntos medios entre tres regiones",
+      ]),
+      explanationTitle: "Condicion de frontera",
+      explanationDetail:
+        "La arista existe precisamente porque los puntos sobre ella no prefieren uno de los dos sitios vecinos: empatan.",
+      conclusion:
+        "La condicion correcta es tener la misma distancia a dos sitios vecinos.",
+    },
+  ])
 }
 
 function formatSites(sites: Site[]) {
@@ -107,10 +186,10 @@ export default function VoronoiAristasGame({
   const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
 
   const scenario = useMemo(() => {
-    const s = generateScenario()
+    const base = generateScenario()
     return {
-      ...s,
-      options: generateOptions(),
+      ...base,
+      questionPack: buildQuestionPack(base),
     }
   }, [nonce])
 
@@ -127,9 +206,10 @@ export default function VoronoiAristasGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: "Mediatrices entre pares de sitios",
+        correctAnswer: scenario.questionPack.correct,
         question: {
           type: "voronoi_aristas",
+          prompt: scenario.questionPack.prompt,
           sites: scenario.sites,
         },
       },
@@ -143,9 +223,8 @@ export default function VoronoiAristasGame({
     setNonce(n => n + 1)
   }
 
-  // TeX de apoyo (conceptual)
   const defVoronoiTex = `
-\\text{Voronoi: región de un sitio } S_i = \\{P: d(P,S_i) \\le d(P,S_j)\\; \\forall j\\}.
+\\text{Voronoi: region de un sitio } S_i = \\{P: d(P,S_i) \\le d(P,S_j)\\; \\forall j\\}.
 `
   const bisectorTex = `
 \\text{Frontera entre dos regiones } (S_a,S_b):\\; d(P,S_a)=d(P,S_b)
@@ -156,14 +235,14 @@ export default function VoronoiAristasGame({
   const B = scenario.demoB
   const demoLineTex = `
 \\text{Ejemplo con } S_a(${A.x},${A.y}) \\text{ y } S_b(${B.x},${B.y}):
-\\quad d(P,S_a)=d(P,S_b) \\;\\Rightarrow\\; P \\text{ está en la mediatriz.}
+\\quad d(P,S_a)=d(P,S_b) \\Rightarrow P \\text{ esta en la mediatriz.}
 `
 
   return (
     <MathProvider>
       <ExerciseShell
         title="Diagrama de Voronoi y mediatrices"
-        prompt="Las aristas de un diagrama de Voronoi están formadas por:"
+        prompt={scenario.questionPack.prompt}
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -172,27 +251,21 @@ export default function VoronoiAristasGame({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Explicación"
+              title="Explicacion"
               steps={[
                 {
-                  title: "Qué es Voronoi",
+                  title: "Que es Voronoi",
                   detail: (
                     <span>
-                      Un diagrama de Voronoi divide el plano en regiones: cada región contiene los puntos
-                      más cercanos a un “sitio” que a los demás.
+                      Un diagrama de Voronoi divide el plano en regiones segun el sitio mas cercano.
                     </span>
                   ),
                   icon: Sigma,
                   content: <MathTex block tex={defVoronoiTex} />,
                 },
                 {
-                  title: "Qué son las aristas",
-                  detail: (
-                    <span>
-                      Las aristas son fronteras entre dos regiones. En esa frontera, los puntos están a
-                      igual distancia de dos sitios.
-                    </span>
-                  ),
+                  title: scenario.questionPack.explanationTitle,
+                  detail: <span>{scenario.questionPack.explanationDetail}</span>,
                   icon: Divide,
                   content: (
                     <div className="space-y-2">
@@ -202,10 +275,11 @@ export default function VoronoiAristasGame({
                   ),
                 },
                 {
-                  title: "Conclusión",
+                  title: "Conclusion",
                   detail: (
                     <span>
-                      Por eso, las aristas de Voronoi se forman con <b>mediatrices entre pares de sitios</b>.
+                      {scenario.questionPack.conclusion} La respuesta correcta es{" "}
+                      <b>{scenario.questionPack.correct}</b>.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -213,7 +287,7 @@ export default function VoronoiAristasGame({
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: <b>Mediatrices entre pares de sitios</b>
+                  Respuesta correcta: <b>{scenario.questionPack.correct}</b>
                 </span>
               }
             />
@@ -221,7 +295,7 @@ export default function VoronoiAristasGame({
         }
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
-          <div className="text-xs text-muted-foreground mb-2">Contexto (varía en cada intento)</div>
+          <div className="text-xs text-muted-foreground mb-2">Contexto (varia en cada intento)</div>
 
           <div className="rounded-lg border bg-background p-3 space-y-2">
             <div className="text-sm">
@@ -231,18 +305,22 @@ export default function VoronoiAristasGame({
               <b>{formatSites(scenario.sites)}</b>
             </div>
             <div className="text-sm">
-              Las aristas (bordes) del diagrama representan los puntos que están a igual distancia de dos sitios.
+              Las aristas del diagrama representan fronteras locales entre dos sitios vecinos.
             </div>
           </div>
         </div>
 
         <OptionsGrid
-          options={scenario.options}
+          options={scenario.questionPack.options}
           selectedValue={selected}
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <span>{op.value}</span>}
+          renderValue={(op) => (
+            <span className="block whitespace-normal break-words text-base leading-relaxed">
+              {op.value}
+            </span>
+          )}
         />
 
         <div className="mt-6">

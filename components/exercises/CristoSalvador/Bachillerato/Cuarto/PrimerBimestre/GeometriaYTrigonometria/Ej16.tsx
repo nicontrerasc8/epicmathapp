@@ -22,17 +22,42 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
+
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
+
+function choice<T>(arr: T[]): T {
+  return arr[randInt(0, arr.length - 1)]
+}
+
 function dist2(ax: number, ay: number, bx: number, by: number) {
   const dx = ax - bx
   const dy = ay - by
   return dx * dx + dy * dy
 }
 
+function buildUniqueOptions(correct: string, candidates: string[]): Option[] {
+  const uniqueDistractors = Array.from(
+    new Set(candidates.filter(candidate => candidate !== correct))
+  )
+
+  return shuffle([
+    { value: correct, correct: true },
+    ...uniqueDistractors.slice(0, 4).map(value => ({ value, correct: false })),
+  ])
+}
+
 type Site = { id: string; x: number; y: number; v: number }
-type Scenario = ReturnType<typeof generateScenario>
+type BaseScenario = ReturnType<typeof generateScenario>
+type QuestionPack = {
+  prompt: string
+  correct: string
+  options: Option[]
+  explanationTitle: string
+  explanationDetail: string
+  conclusion: string
+}
 
 function generateScenario() {
   const n = randInt(4, 7)
@@ -46,7 +71,6 @@ function generateScenario() {
     if (used.has(key)) continue
     used.add(key)
 
-    // valor tipo "medición" (puede ser temp, lluvia, etc.)
     const v = randInt(10, 90)
     sites.push({ id: `S${sites.length + 1}`, x, y, v })
   }
@@ -62,7 +86,6 @@ function generateScenario() {
     )
   }
 
-  // punto objetivo P (evitar que coincida con un sitio)
   let px = randInt(-8, 8)
   let py = randInt(-8, 8)
   for (let tries = 0; tries < 50; tries++) {
@@ -71,7 +94,6 @@ function generateScenario() {
     py = randInt(-8, 8)
   }
 
-  // encontrar el sitio más cercano
   let best = sites[0]
   let bestD2 = dist2(px, py, best.x, best.y)
   for (const s of sites.slice(1)) {
@@ -85,20 +107,88 @@ function generateScenario() {
   return { sites, P: { x: px, y: py }, nearest: best, nearestD2: bestD2 }
 }
 
-function generateOptions(): Option[] {
-  const options: Option[] = [
-    { value: "El promedio de todos", correct: false },
-    { value: "El sitio más cercano", correct: true }, // ✅ B
-    { value: "El sitio más lejano", correct: false },
-    { value: "La mediana", correct: false },
-    { value: "Una parábola", correct: false },
-  ]
-  return shuffle(options)
+function buildQuestionPack(scenario: BaseScenario): QuestionPack {
+  const nearest = scenario.nearest
+  const sortedByDistance = [...scenario.sites].sort(
+    (a, b) =>
+      dist2(scenario.P.x, scenario.P.y, a.x, a.y) -
+      dist2(scenario.P.x, scenario.P.y, b.x, b.y)
+  )
+  const farthest = sortedByDistance[sortedByDistance.length - 1]
+  const averageValue = Math.round(
+    scenario.sites.reduce((sum, site) => sum + site.v, 0) / scenario.sites.length
+  )
+
+  return choice<QuestionPack>([
+    {
+      prompt: "La interpolacion del vecino mas proximo asigna un valor basandose en:",
+      correct: "El sitio mas cercano",
+      options: buildUniqueOptions("El sitio mas cercano", [
+        "El sitio mas lejano",
+        "El promedio de todos",
+        "La mediana",
+        "Una parabola",
+        "La suma de distancias",
+      ]),
+      explanationTitle: "Idea del metodo",
+      explanationDetail:
+        "NNI copia al punto objetivo el valor observado en el sitio con menor distancia.",
+      conclusion: "La base del metodo es elegir el sitio mas cercano.",
+    },
+    {
+      prompt: `Segun NNI, que sitio se usa para estimar el valor en P(${scenario.P.x}, ${scenario.P.y})?`,
+      correct: `${nearest.id}(${nearest.x}, ${nearest.y})`,
+      options: buildUniqueOptions(`${nearest.id}(${nearest.x}, ${nearest.y})`, [
+        `${farthest.id}(${farthest.x}, ${farthest.y})`,
+        ...sortedByDistance
+          .filter(site => site.id !== nearest.id && site.id !== farthest.id)
+          .map(site => `${site.id}(${site.x}, ${site.y})`),
+        "El centro del conjunto",
+        "No se puede determinar",
+      ]),
+      explanationTitle: "Seleccion del sitio",
+      explanationDetail:
+        "Se comparan distancias desde P hasta cada sitio y se elige el de menor distancia.",
+      conclusion: `El sitio utilizado es ${nearest.id}.`,
+    },
+    {
+      prompt: `Cual es el valor estimado en P(${scenario.P.x}, ${scenario.P.y}) usando NNI?`,
+      correct: `${nearest.v}`,
+      options: buildUniqueOptions(`${nearest.v}`, [
+        `${farthest.v}`,
+        `${averageValue}`,
+        ...scenario.sites
+          .filter(site => site.id !== nearest.id && site.v !== farthest.v)
+          .map(site => `${site.v}`),
+        `${nearest.v + randInt(2, 9)}`,
+        `${Math.max(0, nearest.v - randInt(2, 9))}`,
+      ]),
+      explanationTitle: "Valor interpolado",
+      explanationDetail:
+        "Una vez identificado el vecino mas cercano, el valor estimado es exactamente el de ese sitio.",
+      conclusion: `La estimacion correcta es ${nearest.v}.`,
+    },
+    {
+      prompt: "En NNI, el criterio correcto para elegir el dato que se asigna es:",
+      correct: "La menor distancia entre P y un sitio observado",
+      options: buildUniqueOptions("La menor distancia entre P y un sitio observado", [
+        "La mayor distancia entre P y un sitio observado",
+        "El promedio de los valores vecinos",
+        "La pendiente entre dos sitios",
+        "La suma de todos los valores",
+        "El area del poligono de Voronoi",
+      ]),
+      explanationTitle: "Criterio de eleccion",
+      explanationDetail:
+        "NNI no promedia ni ajusta curvas: solamente compara distancias y toma la minima.",
+      conclusion: "El criterio correcto es la menor distancia a un sitio observado.",
+    },
+  ])
 }
 
 function formatSites(sites: Site[]) {
   return sites
-    .map(s => `${s.id}(${s.x}, ${s.y}) → ${s.v}`)
+    .map(s => `${s.id}(${s.x}, ${s.y}) -> ${s.v}`)
     .join(" | ")
 }
 
@@ -129,8 +219,8 @@ export default function VecinoMasProximoGame({
   const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
 
   const scenario = useMemo(() => {
-    const s = generateScenario()
-    return { ...s, options: generateOptions() }
+    const base = generateScenario()
+    return { ...base, questionPack: buildQuestionPack(base) }
   }, [nonce])
 
   const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
@@ -146,9 +236,10 @@ export default function VecinoMasProximoGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: "El sitio más cercano",
+        correctAnswer: scenario.questionPack.correct,
         question: {
           type: "nearest_neighbor_interpolation",
+          prompt: scenario.questionPack.prompt,
           P: scenario.P,
           sites: scenario.sites,
           nearest: scenario.nearest,
@@ -176,8 +267,8 @@ S^*=${scenario.nearest.id}(${scenario.nearest.x},${scenario.nearest.y})
   return (
     <MathProvider>
       <ExerciseShell
-        title="Interpolación del vecino más próximo (NNI)"
-        prompt="La interpolación del vecino más próximo asigna un valor basándose en:"
+        title="Interpolacion del vecino mas proximo (NNI)"
+        prompt={scenario.questionPack.prompt}
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -186,21 +277,16 @@ S^*=${scenario.nearest.id}(${scenario.nearest.x},${scenario.nearest.y})
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Explicación"
+              title="Explicacion"
               steps={[
                 {
-                  title: "Idea del método",
-                  detail: (
-                    <span>
-                      El vecino más próximo (Nearest Neighbor) asigna al punto objetivo <b>P</b> el valor del
-                      <b> sitio más cercano</b>.
-                    </span>
-                  ),
+                  title: scenario.questionPack.explanationTitle,
+                  detail: <span>{scenario.questionPack.explanationDetail}</span>,
                   icon: Sigma,
                   content: <MathTex block tex={nniTex} />,
                 },
                 {
-                  title: "Aplicación al caso generado",
+                  title: "Aplicacion al caso generado",
                   detail: (
                     <span>
                       Para el punto <b>P</b>, se identifica el sitio <b>S*</b> con menor distancia. Ese valor es el
@@ -211,10 +297,11 @@ S^*=${scenario.nearest.id}(${scenario.nearest.x},${scenario.nearest.y})
                   content: <MathTex block tex={demoTex} />,
                 },
                 {
-                  title: "Conclusión",
+                  title: "Conclusion",
                   detail: (
                     <span>
-                      Por lo tanto, la respuesta correcta es: <b>El sitio más cercano</b>.
+                      {scenario.questionPack.conclusion} La respuesta correcta es:{" "}
+                      <b>{scenario.questionPack.correct}</b>.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -222,7 +309,7 @@ S^*=${scenario.nearest.id}(${scenario.nearest.x},${scenario.nearest.y})
               ]}
               concluding={
                 <span>
-                  Respuesta correcta: <b>El sitio más cercano</b>
+                  Respuesta correcta: <b>{scenario.questionPack.correct}</b>
                 </span>
               }
             />
@@ -230,12 +317,10 @@ S^*=${scenario.nearest.id}(${scenario.nearest.x},${scenario.nearest.y})
         }
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
-          <div className="text-xs text-muted-foreground mb-2">Contexto (varía en cada intento)</div>
+          <div className="text-xs text-muted-foreground mb-2">Contexto (varia en cada intento)</div>
 
           <div className="rounded-lg border bg-background p-3 space-y-2">
-            <div className="text-sm">
-              Sitios con mediciones (coordenadas → valor):
-            </div>
+            <div className="text-sm">Sitios con mediciones (coordenadas -> valor):</div>
             <div className="text-sm">
               <b>{formatSites(scenario.sites)}</b>
             </div>
@@ -246,7 +331,7 @@ S^*=${scenario.nearest.id}(${scenario.nearest.x},${scenario.nearest.y})
         </div>
 
         <OptionsGrid
-          options={scenario.options}
+          options={scenario.questionPack.options}
           selectedValue={selected}
           status={engine.status}
           canAnswer={engine.canAnswer}
