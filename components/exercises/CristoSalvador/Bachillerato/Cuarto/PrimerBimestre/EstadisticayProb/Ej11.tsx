@@ -197,7 +197,7 @@ export default function Ej11({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej11 — Frecuencia (al menos) y tabla acumulada"
+        title="Frecuencia y tabla acumulada"
         prompt={
           <>
             En un grupo de <b>{scenario.n}</b> estudiantes se registró cuántos simulacros rindieron.

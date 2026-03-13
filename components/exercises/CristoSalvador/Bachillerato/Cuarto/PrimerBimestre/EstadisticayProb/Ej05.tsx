@@ -180,7 +180,7 @@ export default function Ej05({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej05 — Media (promedio)"
+        title="Media (promedio)"
         prompt={`En el Colegio Cristo Salvador se registraron estas ${scenario.contexto}: ${scenario.datos.join(
           ", "
         )}. ¿Cuál es la media?`}

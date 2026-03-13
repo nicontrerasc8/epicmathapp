@@ -215,7 +215,7 @@ export default function Ej03({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej03 — Frecuencia absoluta"
+        title="Frecuencia absoluta"
         prompt={
           `En el Colegio Cristo Salvador se registró el ${scenario.tema} de un grupo de estudiantes. ` +
           `Observa la tabla y responde: ${scenario.ask}`

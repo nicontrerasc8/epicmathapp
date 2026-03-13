@@ -178,7 +178,7 @@ export default function Ej01({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej01 — Población y muestra"
+        title="Población y muestra"
         prompt={`En el ${scenario.grado} del Colegio Cristo Salvador hay ${scenario.poblacion} estudiantes. Se elige al azar a ${scenario.muestra} para una encuesta. ¿Cuál es la muestra?`}
         status={engine.status}
         attempts={engine.attempts}

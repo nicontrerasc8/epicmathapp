@@ -177,7 +177,7 @@ export default function Ej20({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej20 — Probabilidad con 2 dados"
+        title="Probabilidad con 2 dados"
         prompt={`Se lanzan 2 dados. Halla la probabilidad de que la suma sea ${scenario.S}.`}
         status={engine.status}
         attempts={engine.attempts}

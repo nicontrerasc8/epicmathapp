@@ -160,7 +160,7 @@ export default function Ej16({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej16 — Mediana (datos no agrupados)"
+        title="Mediana (datos no agrupados)"
         prompt="Halla la mediana del conjunto de datos."
         status={engine.status}
         attempts={engine.attempts}

@@ -246,7 +246,7 @@ export default function Ej07({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej07 — Moda"
+        title="Moda"
         prompt={`En el Colegio Cristo Salvador se registraron estos valores: ${scenario.datos.join(
           ", "
         )}. ¿Cuál es la moda?`}

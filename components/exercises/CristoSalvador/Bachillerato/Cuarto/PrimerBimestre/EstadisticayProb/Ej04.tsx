@@ -187,7 +187,7 @@ export default function Ej04({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej04 — Frecuencia relativa (%)"
+        title="Frecuencia relativa (%)"
         prompt={`En el Colegio Cristo Salvador, de ${scenario.total} estudiantes, ${scenario.favorables} ${scenario.contexto}. ¿Qué porcentaje representa?`}
         status={engine.status}
         attempts={engine.attempts}

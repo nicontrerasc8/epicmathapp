@@ -198,7 +198,7 @@ export default function Ej06({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej06 — Mediana"
+        title="Mediana"
         prompt={`En el Colegio Cristo Salvador se registraron ${n} valores: ${scenario.datos.join(
           ", "
         )}. ¿Cuál es la mediana?`}

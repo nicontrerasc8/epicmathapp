@@ -19,12 +19,10 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
    HELPERS
 ========================= */
 
-function randInt(min: number, max: number) {
-  return min + Math.floor(Math.random() * (max - min + 1))
-}
 function choice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
+
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
@@ -33,16 +31,17 @@ function texLn(n: number) {
   return `\\ln(${n})`
 }
 
+function texPair(a: string, b: string) {
+  return `x=${a}\\ \\text{o}\\ x=${b}`
+}
+
 /* =========================
-   GENERADOR (tema: e^{2x} - S e^x + P = 0)
-   Construimos el caso desde raíces positivas:
-   u = e^x => (u - r1)(u - r2) = 0
+   GENERADOR
 ========================= */
 
 type Scenario = ReturnType<typeof generateScenario>
 
 function generateScenario() {
-  // raíces positivas “bonitas” (evitamos 1 para no chocar con ln(1))
   const pool = [2, 3, 4, 5, 6, 7, 8, 9]
   const r1 = choice(pool)
   let r2 = choice(pool)
@@ -50,64 +49,62 @@ function generateScenario() {
 
   const a = Math.min(r1, r2)
   const b = Math.max(r1, r2)
-
   const S = a + b
   const P = a * b
-
-  const equationTex = `e^{2x} - ${S}e^{x} + ${P} = 0`
-  const correct = `x=${texLn(a)}\\ \\text{o}\\ x=${texLn(b)}`
 
   return {
     r1: a,
     r2: b,
     S,
     P,
-    equationTex,
-    correct,
+    equationTex: `e^{2x} - ${S}e^{x} + ${P} = 0`,
+    correct: texPair(texLn(a), texLn(b)),
   }
 }
 
 /* =========================
-   OPCIONES (A–E tipo imagen)
+   OPCIONES
 ========================= */
 
 function generateOptions(s: Scenario): Option[] {
-  const correct = s.correct
-
-  const wrongForgetLn = `x=${s.r1}\\ \\text{o}\\ x=${s.r2}`
-  const wrongProduct = `x=${texLn(s.P)}`
-  const wrongLn1 = `x=${texLn(1)}`
-  const wrongNoReal = `\\text{No tiene solución real}`
-
-  const all: Option[] = [
-    { value: correct, correct: true },
-    { value: wrongForgetLn, correct: false },
-    { value: wrongProduct, correct: false },
-    { value: wrongLn1, correct: false },
-    { value: wrongNoReal, correct: false },
+  const distractorPool = [
+    texPair(String(s.r1), String(s.r2)),
+    texPair(texLn(s.P), texLn(s.r2)),
+    texPair(texLn(s.r1), texLn(s.P)),
+    texPair(texLn(1), texLn(s.r2)),
+    `x=${texLn(s.P)}`,
+    `x=${texLn(s.S)}`,
+    `x=${texLn(Math.abs(s.r2 - s.r1))}`,
+    `x=${texLn(Math.floor((s.r1 + s.r2) / 2))}`,
+    `\\text{No tiene solución real}`,
   ]
 
-  // por si acaso, evitar duplicados (muy raro con nuestra selección)
-  const seen = new Set<string>()
-  const unique: Option[] = []
-  for (const o of all) {
-    if (seen.has(o.value)) continue
-    seen.add(o.value)
-    unique.push(o)
+  const seen = new Set<string>([s.correct])
+  const unique: Option[] = [{ value: s.correct, correct: true }]
+
+  for (const value of shuffle(distractorPool)) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    unique.push({ value, correct: false })
+    if (unique.length === 5) break
   }
 
-  // si por alguna razón faltara alguna, relleno con “ln(S)” típico error
   while (unique.length < 5) {
-    const extra = `x=${texLn(s.S)}`
-    if (!seen.has(extra) && extra !== correct) {
-      unique.push({ value: extra, correct: false })
-      seen.add(extra)
-    } else {
-      unique.push({ value: `x=${texLn(s.S + 1)}`, correct: false })
+    const fallback = `x=${texLn(s.S + unique.length)}`
+    if (!seen.has(fallback)) {
+      seen.add(fallback)
+      unique.push({ value: fallback, correct: false })
+      continue
+    }
+
+    const alt = texPair(texLn(s.r1), texLn(s.S + unique.length))
+    if (!seen.has(alt)) {
+      seen.add(alt)
+      unique.push({ value: alt, correct: false })
     }
   }
 
-  return shuffle(unique).slice(0, 5)
+  return shuffle(unique)
 }
 
 /* ============================================================
@@ -213,15 +210,9 @@ export default function EcuacionExponencialCuadraticaGame({
                       <MathTex block tex={`u^2-${scenario.S}u+${scenario.P}=0`} />
                     </div>
                   ),
-                  tip: (
-                    <span>
-                      Esto transforma el problema en una ecuación cuadrática “normal”, pero en la variable{" "}
-                      <MathTex tex={`u`} />.
-                    </span>
-                  ),
                 },
                 {
-                  title: "Resolver la cuadrática (factorizando)",
+                  title: "Resolver la cuadrática",
                   detail: (
                     <span>
                       Buscamos dos números positivos que multipliquen <MathTex tex={`P`} /> y sumen{" "}
@@ -236,38 +227,20 @@ export default function EcuacionExponencialCuadraticaGame({
                       <MathTex block tex={`u=${scenario.r1}\\ \\text{o}\\ u=${scenario.r2}`} />
                     </div>
                   ),
-                  tip: (
-                    <span>
-                      Aquí salió “bonito” porque el ejercicio está construido para factorizar directo.
-                    </span>
-                  ),
                 },
                 {
                   title: "Volver a x con logaritmos",
                   detail: (
                     <span>
-                      Reemplazamos <MathTex tex={`u=e^x`} /> y aplicamos <MathTex tex={`\\ln`} /> a ambos lados.
+                      Reemplazamos <MathTex tex={`u=e^x`} /> y aplicamos <MathTex tex={`\\ln`} />.
                     </span>
                   ),
                   icon: ShieldCheck,
                   content: (
                     <div className="space-y-3">
-                      <MathTex
-                        block
-                        tex={`e^x=${scenario.r1}\\ \\text{o}\\ e^x=${scenario.r2}`}
-                      />
-                      <MathTex
-                        block
-                        tex={`x=${texLn(scenario.r1)}\\ \\text{o}\\ x=${texLn(scenario.r2)}`}
-                      />
+                      <MathTex block tex={`e^x=${scenario.r1}\\ \\text{o}\\ e^x=${scenario.r2}`} />
+                      <MathTex block tex={scenario.correct} />
                     </div>
-                  ),
-                  tip: (
-                    <span>
-                      Error típico: quedarse con <MathTex tex={`x=${scenario.r1}`} /> o{" "}
-                      <MathTex tex={`x=${scenario.r2}`} />. Recuerda que si <MathTex tex={`e^x=a`} />, entonces{" "}
-                      <MathTex tex={`x=\\ln(a)`} />.
-                    </span>
                   ),
                 },
               ]}
@@ -293,7 +266,7 @@ export default function EcuacionExponencialCuadraticaGame({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={op => <MathTex tex={op.value} />}
         />
 
         <div className="mt-6">

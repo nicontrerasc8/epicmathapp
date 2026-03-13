@@ -52,20 +52,36 @@ function generateScenario() {
 }
 
 function generateOptions(correct: number): Option[] {
-  const wrongDenominator = correct + 1
-  const wrongNoAbs = correct - 1 > 0 ? correct - 1 : correct + 2
-  const wrongDouble = correct * 2
-  const wrongHalf = Math.max(1, Math.round(correct / 2))
-
-  const options = [
-    { value: `${correct}\\%`, correct: true },
-    { value: `${wrongDenominator}\\%`, correct: false },
-    { value: `${wrongNoAbs}\\%`, correct: false },
-    { value: `${wrongDouble}\\%`, correct: false },
-    { value: `${wrongHalf}\\%`, correct: false },
+  const candidates = [
+    correct,
+    correct + 1,
+    correct - 1 > 0 ? correct - 1 : correct + 2,
+    correct * 2,
+    Math.max(1, Math.round(correct / 2)),
   ]
 
-  return options.sort(() => Math.random() - 0.5)
+  const seen = new Set<number>()
+  const unique = candidates.filter(value => {
+    if (seen.has(value) || value <= 0) return false
+    seen.add(value)
+    return true
+  })
+
+  while (unique.length < 5) {
+    const extra = correct + randInt(-3, 4)
+    if (extra > 0 && !seen.has(extra)) {
+      seen.add(extra)
+      unique.push(extra)
+    }
+  }
+
+  return unique
+    .slice(0, 5)
+    .map(value => ({
+      value: `${value}\\%`,
+      correct: value === correct,
+    }))
+    .sort(() => Math.random() - 0.5)
 }
 
 /* ============================================================

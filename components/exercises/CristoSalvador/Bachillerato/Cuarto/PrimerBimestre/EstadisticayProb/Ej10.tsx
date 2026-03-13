@@ -176,7 +176,7 @@ export default function Ej10({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej10 — Principio multiplicativo"
+        title="Principio multiplicativo"
         prompt={`En el Colegio Cristo Salvador, un estudiante puede elegir 1 ${scenario.prendas1} entre ${scenario.n1} opciones y 1 ${scenario.prendas2} entre ${scenario.n2} opciones. ¿Cuántas combinaciones diferentes puede formar?`}
         status={engine.status}
         attempts={engine.attempts}

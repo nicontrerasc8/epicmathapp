@@ -19,123 +19,146 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
    HELPERS
 ========================= */
 
+function randInt(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1))
+}
+
 function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5)
 }
+
+function nonZeroInt(min: number, max: number) {
+  let value = 0
+  while (value === 0) value = randInt(min, max)
+  return value
+}
+
 function par(n: number) {
   return n < 0 ? `(${n})` : `${n}`
 }
+
 function texPow(sym: "x" | "y", exp: number) {
   if (exp === 1) return sym
   return `${sym}^{${exp}}`
 }
+
 function monoTex(expX: number, expY: number) {
   return `${texPow("x", expX)}${texPow("y", expY)}`
 }
 
 /* =========================
-   ESCENARIO (el de la imagen)
-   (x^{-2}y^{3})^{-2} (xy^{-1})^{3} / (x^{-1}y^{2})
+   ESCENARIO
 ========================= */
 
 type Scenario = ReturnType<typeof buildScenario>
 
 function buildScenario() {
-  // datos fijos (según imagen)
-  const a = -2,
-    b = 3,
-    n1 = -2
-  const c = 1,
-    d = -1,
-    n2 = 3
-  const denX = -1,
-    denY = 2
+  for (let tries = 0; tries < 200; tries++) {
+    const a = nonZeroInt(-3, 3)
+    const b = nonZeroInt(-3, 3)
+    const n1 = nonZeroInt(-3, 3)
+    const c = nonZeroInt(-3, 3)
+    const d = nonZeroInt(-3, 3)
+    const n2 = nonZeroInt(-3, 3)
+    const denX = nonZeroInt(-3, 3)
+    const denY = nonZeroInt(-3, 3)
 
-  // (x^a y^b)^n1
-  const p1x = a * n1 // 4
-  const p1y = b * n1 // -6
+    const p1x = a * n1
+    const p1y = b * n1
+    const p2x = c * n2
+    const p2y = d * n2
+    const numX = p1x + p2x
+    const numY = p1y + p2y
+    const finalX = numX - denX
+    const finalY = numY - denY
 
-  // (x^c y^d)^n2
-  const p2x = c * n2 // 3
-  const p2y = d * n2 // -3
+    const values = [p1x, p1y, p2x, p2y, numX, numY, finalX, finalY]
+    if (values.some(value => value === 0)) continue
+    if (Math.abs(finalX) > 14 || Math.abs(finalY) > 14) continue
+    if (Math.abs(numX) > 12 || Math.abs(numY) > 12) continue
 
-  // numerador: multiplicación (se suman exponentes)
-  const numX = p1x + p2x // 7
-  const numY = p1y + p2y // -9
+    const exprTex =
+      `\\frac{\\left(x^{${a}}y^{${b}}\\right)^{${n1}}\\left(x^{${c}}y^{${d}}\\right)^{${n2}}}{x^{${denX}}y^{${denY}}}`
 
-  // división por x^{denX} y^{denY}: se restan exponentes
-  const finalX = numX - denX // 7 - (-1) = 8
-  const finalY = numY - denY // -9 - 2 = -11
-
-  const exprTex =
-    "\\frac{\\left(x^{-2}y^{3}\\right)^{-2}\\left(xy^{-1}\\right)^{3}}{x^{-1}y^{2}}"
-
-  const correct = monoTex(finalX, finalY)
+    return {
+      a,
+      b,
+      n1,
+      c,
+      d,
+      n2,
+      denX,
+      denY,
+      exprTex,
+      p1x,
+      p1y,
+      p2x,
+      p2y,
+      numX,
+      numY,
+      finalX,
+      finalY,
+      correct: monoTex(finalX, finalY),
+    }
+  }
 
   return {
-    a,
-    b,
-    n1,
-    c,
-    d,
-    n2,
-    denX,
-    denY,
-    exprTex,
-    // parciales
-    p1x,
-    p1y,
-    p2x,
-    p2y,
-    numX,
-    numY,
-    finalX,
-    finalY,
-    correct,
+    a: -2,
+    b: 3,
+    n1: -2,
+    c: 1,
+    d: -1,
+    n2: 3,
+    denX: -1,
+    denY: 2,
+    exprTex: "\\frac{\\left(x^{-2}y^{3}\\right)^{-2}\\left(xy^{-1}\\right)^{3}}{x^{-1}y^{2}}",
+    p1x: 4,
+    p1y: -6,
+    p2x: 3,
+    p2y: -3,
+    numX: 7,
+    numY: -9,
+    finalX: 8,
+    finalY: -11,
+    correct: monoTex(8, -11),
   }
 }
 
 /* =========================
-   OPCIONES (A–E)
-   (incluyo distractor x^6 y^-5 porque en tu imagen aparece como clave,
-    pero aquí marco como correcta la simplificación algebraica del enunciado.)
+   OPCIONES
 ========================= */
 
 function buildOptions(s: Scenario): Option[] {
-  const correct = s.correct
-
-  const wrong1 = monoTex(s.numX, s.numY) // olvidar dividir entre el denominador
-  const wrong2 = monoTex(s.numX - 1, s.numY) // tratar x^{-1} como x^{+1} (error de signo)
-  const wrong3 = monoTex(s.finalX, s.numY) // olvidar restar el y^2
-  const wrong4 = monoTex(6, -5) // la “clave” que aparece en la imagen (distractor aquí)
-
-  const all: Option[] = [
-    { value: correct, correct: true },
-    { value: wrong1, correct: false },
-    { value: wrong2, correct: false },
-    { value: wrong3, correct: false },
-    { value: wrong4, correct: false },
+  const candidates = [
+    s.correct,
+    monoTex(s.numX, s.numY),
+    monoTex(s.numX + s.denX, s.finalY),
+    monoTex(s.finalX, s.numY),
+    monoTex(s.finalX, s.numY + s.denY),
+    monoTex(s.p1x + s.p2x, s.finalY),
+    monoTex(s.p1x - s.p2x, s.p1y - s.p2y),
+    monoTex(s.finalX + 1, s.finalY - 1),
+    monoTex(s.finalX - 1, s.finalY + 2),
   ]
 
-  // por si algún distractor coincide raro (no debería), filtra duplicados
   const seen = new Set<string>()
   const unique: Option[] = []
-  for (const o of all) {
-    if (seen.has(o.value)) continue
-    seen.add(o.value)
-    unique.push(o)
+
+  for (const value of candidates) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    unique.push({ value, correct: value === s.correct })
   }
 
-  // relleno de emergencia
   while (unique.length < 5) {
-    const extra = monoTex(s.finalX + 1, s.finalY + 2)
-    if (!seen.has(extra) && extra !== correct) {
-      unique.push({ value: extra, correct: false })
+    const extra = monoTex(s.finalX + randInt(-3, 3) || s.finalX + 4, s.finalY + randInt(-3, 3) || s.finalY - 4)
+    if (!seen.has(extra) && extra !== s.correct) {
       seen.add(extra)
+      unique.push({ value: extra, correct: false })
     }
   }
 
-  return shuffle(unique).slice(0, 5)
+  return shuffle(unique.slice(0, 5))
 }
 
 /* ============================================================
@@ -172,7 +195,7 @@ export default function LeyesExponentesEnterosQ1Game({
 
   const letters = ["A", "B", "C", "D", "E"] as const
   const correctIndex = scenario.options.findIndex(o => o.correct)
-  const correctLetter = correctIndex >= 0 ? letters[correctIndex] : "—"
+  const correctLetter = correctIndex >= 0 ? letters[correctIndex] : "-"
 
   async function pickOption(op: Option) {
     if (!engine.canAnswer) return
@@ -225,11 +248,11 @@ export default function LeyesExponentesEnterosQ1Game({
 = x^{${scenario.p2x}}y^{${scenario.p2y}}`
 
   const step3Tex = `\\text{Numerador: }x^{${scenario.p1x}}y^{${scenario.p1y}}\\cdot x^{${scenario.p2x}}y^{${scenario.p2y}}
-= x^{${scenario.p1x}+${scenario.p2x}}\\,y^{${par(scenario.p1y)}+${par(scenario.p2y)}}
+= x^{${par(scenario.p1x)}+${par(scenario.p2x)}}\\,y^{${par(scenario.p1y)}+${par(scenario.p2y)}}
 = x^{${scenario.numX}}y^{${scenario.numY}}`
 
   const step4Tex = `\\frac{x^{${scenario.numX}}y^{${scenario.numY}}}{x^{${scenario.denX}}y^{${scenario.denY}}}
-= x^{${scenario.numX}-${par(scenario.denX)}}\\,y^{${par(scenario.numY)}-${par(scenario.denY)}}
+= x^{${par(scenario.numX)}-${par(scenario.denX)}}\\,y^{${par(scenario.numY)}-${par(scenario.denY)}}
 = x^{${scenario.finalX}}y^{${scenario.finalY}}`
 
   return (
@@ -267,7 +290,7 @@ export default function LeyesExponentesEnterosQ1Game({
                   title: "Multiplicar el numerador",
                   detail: (
                     <span>
-                      Al multiplicar potencias de la misma base, los exponentes se <b>suman</b>.
+                      Al multiplicar potencias de la misma base, los exponentes se suman.
                     </span>
                   ),
                   icon: Divide,
@@ -276,17 +299,12 @@ export default function LeyesExponentesEnterosQ1Game({
                       <MathTex block tex={step3Tex} />
                     </div>
                   ),
-                  tip: (
-                    <span>
-                      Ej.: <MathTex tex={`y^{-6}\\cdot y^{-3}=y^{-9}`} />.
-                    </span>
-                  ),
                 },
                 {
                   title: "Dividir entre el denominador",
                   detail: (
                     <span>
-                      Al dividir potencias de la misma base, los exponentes se <b>restan</b>.
+                      Al dividir potencias de la misma base, los exponentes se restan.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -294,11 +312,6 @@ export default function LeyesExponentesEnterosQ1Game({
                     <div className="space-y-3">
                       <MathTex block tex={step4Tex} />
                     </div>
-                  ),
-                  tip: (
-                    <span>
-                      Ojo con el signo: <MathTex tex={`7-(-1)=8`} />.
-                    </span>
                   ),
                 },
               ]}

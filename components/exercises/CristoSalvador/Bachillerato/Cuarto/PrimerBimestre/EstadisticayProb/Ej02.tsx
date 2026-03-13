@@ -200,7 +200,7 @@ export default function Ej02({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej02 — Tipo de variable"
+        title="Tipo de variable"
         prompt={`En el Colegio Cristo Salvador se registra la variable: “${scenario.variable}”. Si para un estudiante se obtiene “${scenario.exampleValue}”, ¿qué tipo de variable es?`}
         status={engine.status}
         attempts={engine.attempts}

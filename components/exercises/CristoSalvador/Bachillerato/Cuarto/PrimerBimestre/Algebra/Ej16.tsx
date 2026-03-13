@@ -15,93 +15,113 @@ import { SolutionBox } from "@/components/exercises/base/SolutionBox"
 import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
-/* =========================
-   HELPERS
-========================= */
-
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
+
+function choice<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
 function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5)
 }
+
 function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n))
 }
 
-// ES: decimal con coma (89,96)
 function formatDecimalComma(n: number, decimals = 2) {
   return n.toFixed(decimals).replace(".", ",")
 }
 
-/* =========================
-   GENERADOR
-   Redondeo a entero (velocidad)
-========================= */
-
 type Scenario = ReturnType<typeof generateScenario>
 
 function generateScenario() {
-  // Genera un valor con 2 decimales y cercanos a 2 cifras para que se parezca a la imagen
-  const base = randInt(40, 140)
-  const dec = randInt(0, 99) / 100
+  const contexts = [
+    {
+      noun: "La velocidad de un automóvil se calcula como",
+      unit: "km/h",
+      question: "Si el tablero muestra la velocidad como número entero, ¿qué valor aparecerá?",
+      min: 40,
+      max: 140,
+    },
+    {
+      noun: "La temperatura registrada en una cámara es",
+      unit: "°C",
+      question: "Si el visor solo muestra enteros, ¿qué valor aparecerá?",
+      min: 10,
+      max: 45,
+    },
+    {
+      noun: "La masa de una maleta es",
+      unit: "kg",
+      question: "Si la balanza redondea a número entero, ¿qué valor mostrará?",
+      min: 8,
+      max: 38,
+    },
+    {
+      noun: "La distancia recorrida por un ciclista es",
+      unit: "km",
+      question: "Si se redondea al entero más cercano, ¿qué valor queda?",
+      min: 3,
+      max: 120,
+    },
+  ] as const
+
+  const context = choice(contexts)
+  const base = randInt(context.min, context.max)
+  const dec = randInt(1, 99) / 100
   const v = Number((base + dec).toFixed(2))
-
   const unidad = Math.floor(v)
-  const centesimas = Math.round((v - unidad) * 100) // 0..99
-  const decimalPart = v - unidad
-
+  const decimalPart = Number((v - unidad).toFixed(2))
   const rounded = Math.round(v)
 
-  // opciones típicas
-  const optA = rounded - 1
-  const optB = rounded + 1
-  const optC = rounded
-  const optD = unidad // “truncar” (error típico)
-  const optE = rounded - 2
-
-  // asegura rango razonable
-  const candidates = [optA, optB, optC, optD, optE].map(x => clamp(x, 0, 250))
-
   return {
+    context,
     v,
     unidad,
-    centesimas,
     decimalPart,
     rounded,
-    candidates,
   }
 }
 
 function generateOptions(s: Scenario): Option[] {
-  // hacemos 5 opciones únicas (por si coinciden truncado y redondeo cuando .00)
+  const candidates = [
+    s.rounded,
+    s.unidad,
+    s.rounded + 1,
+    s.rounded - 1,
+    s.rounded + 2,
+    s.rounded - 2,
+    s.decimalPart >= 0.5 ? s.unidad : s.unidad + 1,
+  ].map(value => clamp(value, 0, 250))
+
   const seen = new Set<number>()
-  const opts: number[] = []
-  for (const x of s.candidates) {
-    if (!seen.has(x)) {
-      seen.add(x)
-      opts.push(x)
-    }
+  const options: number[] = []
+
+  for (const value of shuffle(candidates)) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    options.push(value)
+    if (options.length === 5) break
   }
-  // rellena si faltan
-  while (opts.length < 5) {
+
+  while (options.length < 5) {
     const extra = clamp(s.rounded + randInt(-4, 4), 0, 250)
     if (!seen.has(extra)) {
       seen.add(extra)
-      opts.push(extra)
+      options.push(extra)
     }
   }
 
-  const shuffled = shuffle(opts).slice(0, 5)
-  return shuffled.map(x => ({
-    value: `${x} \\text{ km/h}`,
-    correct: x === s.rounded,
-  }))
+  return shuffle(
+    options.map(value => ({
+      value: `${value} \\text{ ${s.context.unit}}`,
+      correct: value === s.rounded,
+    }))
+  )
 }
-
-/* ============================================================
-   COMPONENTE
-============================================================ */
 
 export default function RedondeoVelocidadGame({
   exerciseId,
@@ -142,14 +162,16 @@ export default function RedondeoVelocidadGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: `${scenario.rounded} km/h`,
+        correctAnswer: `${scenario.rounded} ${scenario.context.unit}`,
         question: {
-          speed: scenario.v,
+          value: scenario.v,
+          unit: scenario.context.unit,
+          context: scenario.context.noun,
         },
         computed: {
           units: scenario.unidad,
-          decimalPart: Number((scenario.v - scenario.unidad).toFixed(2)),
-          rule: "Si la parte decimal es ≥ 0.5 se redondea hacia arriba; si es < 0.5, hacia abajo.",
+          decimalPart: scenario.decimalPart,
+          rule: "Si la parte decimal es >= 0.5 se redondea hacia arriba; si es < 0.5, hacia abajo.",
         },
         options: scenario.options.map(o => o.value),
       },
@@ -163,21 +185,18 @@ export default function RedondeoVelocidadGame({
     setNonce(n => n + 1)
   }
 
-  const speedStr = formatDecimalComma(scenario.v, 2)
-
-  const questionTex = `\\text{La velocidad de un automóvil se calcula como } ${speedStr}\\,\\text{km/h.}`
-  const questionTex2 = `\\text{Si el tablero muestra la velocidad como número entero, ¿qué valor aparecerá?}`
-
-  const dec = Number((scenario.v - scenario.unidad).toFixed(2))
+  const valueStr = formatDecimalComma(scenario.v, 2)
+  const questionTex = `\\text{${scenario.context.noun} } ${valueStr}\\,\\text{${scenario.context.unit}.}`
+  const questionTex2 = `\\text{${scenario.context.question}}`
   const decisionTex =
-    dec >= 0.5
-      ? `\\text{Como } ${dec}\\ge 0.5, \\text{ se redondea hacia arriba.}`
-      : `\\text{Como } ${dec}< 0.5, \\text{ se redondea hacia abajo.}`
+    scenario.decimalPart >= 0.5
+      ? `\\text{Como } ${scenario.decimalPart}\\ge 0.5, \\text{ se redondea hacia arriba.}`
+      : `\\text{Como } ${scenario.decimalPart}< 0.5, \\text{ se redondea hacia abajo.}`
 
   return (
     <MathProvider>
       <ExerciseShell
-        title="Redondeo a número entero (contexto: velocidad)"
+        title="Redondeo a número entero"
         prompt="Selecciona la opción correcta:"
         status={engine.status}
         attempts={engine.attempts}
@@ -191,23 +210,19 @@ export default function RedondeoVelocidadGame({
               steps={[
                 {
                   title: "Identificar la parte entera y la parte decimal",
-                  detail: <span>Para redondear, miramos la parte decimal (décimas/centésimas).</span>,
+                  detail: <span>Para redondear, miramos la parte decimal.</span>,
                   icon: Sigma,
                   content: (
                     <div className="space-y-3">
                       <MathTex block tex={questionTex} />
                       <MathTex block tex={`\\text{Parte entera} = ${scenario.unidad}`} />
-                      <MathTex block tex={`\\text{Parte decimal} = ${dec}`} />
+                      <MathTex block tex={`\\text{Parte decimal} = ${scenario.decimalPart}`} />
                     </div>
                   ),
                 },
                 {
                   title: "Aplicar la regla de redondeo",
-                  detail: (
-                    <span>
-                      Regla: si la parte decimal es <b>≥ 0.5</b>, sube al siguiente entero; si es <b>&lt; 0.5</b>, baja.
-                    </span>
-                  ),
+                  detail: <span>Si la parte decimal es mayor o igual a 0.5, se sube; si no, se baja.</span>,
                   icon: Divide,
                   content: (
                     <div className="space-y-3">
@@ -216,21 +231,17 @@ export default function RedondeoVelocidadGame({
                   ),
                 },
                 {
-                  title: "Escribir el entero que mostrará el tablero",
-                  detail: <span>Ese es el número entero final.</span>,
+                  title: "Escribir el entero final",
+                  detail: <span>Ese es el valor entero que se mostrará.</span>,
                   icon: ShieldCheck,
                   content: (
                     <div className="space-y-3">
-                      <MathTex block tex={`\\text{Resultado: } ${scenario.rounded}\\,\\text{km/h}`} />
+                      <MathTex block tex={`\\text{Resultado: } ${scenario.rounded}\\,\\text{${scenario.context.unit}}`} />
                     </div>
                   ),
                 },
               ]}
-              concluding={
-                <span>
-                  Respuesta final: <b>{scenario.rounded} km/h</b>.
-                </span>
-              }
+              concluding={<span>Respuesta final: <b>{scenario.rounded} {scenario.context.unit}</b>.</span>}
             />
           </SolutionBox>
         }

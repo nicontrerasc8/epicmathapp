@@ -22,75 +22,112 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
+
 function choice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
+
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
 
+function formatTimesTex(kind: "power" | "plain" | "ratio", m: number) {
+  if (kind === "plain") return `${10 ** m}\\ \\text{veces}`
+  if (kind === "ratio") return `\\frac{I}{I_0}=10^{${m}}`
+  return `10^{${m}}\\ \\text{veces}`
+}
+
 /* =========================
-   GENERADOR (tema: M = log10(I/I0))
+   GENERADOR
 ========================= */
 
 type Scenario = ReturnType<typeof generateScenario>
 
 function generateScenario() {
-  // En la imagen: M=6 (clásico). Igual lo hacemos variable pero "bonito".
   const M = choice([2, 3, 4, 5, 6, 7, 8])
-  const ratioPow = `10^{${M}}` // I/I0
+  const questionStyle = choice(["sismo", "formula", "comparacion"] as const)
+  const answerStyle = choice(["power", "plain", "ratio"] as const)
 
   const equationTex = `M=\\log_{10}\\left(\\frac{I}{I_0}\\right)`
-  const questionTex = `\\text{Un sismo tiene magnitud } ${M}.\\ \\text{¿Cuántas veces mayor es su intensidad respecto a } I_0\\text{?}`
+  const correct = formatTimesTex(answerStyle, M)
 
-  const correct = `${ratioPow}\\ \\text{veces}`
+  const questionTex =
+    questionStyle === "formula"
+      ? `\\text{Si }M=${M}\\text{ en }M=\\log_{10}\\left(\\frac{I}{I_0}\\right),\\ \\text{¿cuál es }\\frac{I}{I_0}\\text{?}`
+      : questionStyle === "comparacion"
+        ? `\\text{La magnitud de un sismo es }${M}.\\ \\text{¿Qué factor multiplica a }I_0\\text{ para obtener }I\\text{?}`
+        : `\\text{Un sismo tiene magnitud }${M}.\\ \\text{¿Cuántas veces mayor es su intensidad respecto a }I_0\\text{?}`
 
   return {
     M,
-    ratioPow,
     equationTex,
     questionTex,
+    answerStyle,
+    questionStyle,
     correct,
   }
 }
 
 /* =========================
-   OPCIONES (A–E tipo imagen)
+   OPCIONES
 ========================= */
 
 function generateOptions(s: Scenario): Option[] {
-  const correct = s.correct
-
-  const wrongLinear = `${s.M}\\ \\text{veces}` // error: confundir log con proporción lineal
-  const wrongTimes10 = `${10 * s.M}\\ \\text{veces}` // error: “multiplico por 10”
-  const wrongPowMinus = `10^{-${s.M}}\\ \\text{veces}` // error: signo
-  const wrongE = `e^{${s.M}}\\ \\text{veces}` // error: base e
-
-  const all: Option[] = [
-    { value: wrongLinear, correct: false },
-    { value: wrongTimes10, correct: false },
-    { value: correct, correct: true },
-    { value: wrongPowMinus, correct: false },
-    { value: wrongE, correct: false },
+  const candidates = [
+    s.correct,
+    formatTimesTex("power", s.M + 1),
+    formatTimesTex("power", s.M - 1),
+    formatTimesTex("power", -s.M),
+    `${s.M}\\ \\text{veces}`,
+    `${10 * s.M}\\ \\text{veces}`,
+    `e^{${s.M}}\\ \\text{veces}`,
+    formatTimesTex("plain", Math.max(1, s.M)),
+    formatTimesTex("ratio", s.M),
+    formatTimesTex("ratio", s.M + 1),
   ]
 
-  // asegurar 5 únicas
   const seen = new Set<string>()
   const unique: Option[] = []
-  for (const o of all) {
-    if (seen.has(o.value)) continue
-    seen.add(o.value)
-    unique.push(o)
+
+  for (const value of shuffle(candidates)) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    unique.push({ value, correct: value === s.correct })
   }
-  while (unique.length < 5) {
-    const extra = `10^{${s.M + randInt(1, 3)}}\\ \\text{veces}`
-    if (!seen.has(extra) && extra !== correct) {
-      unique.push({ value: extra, correct: false })
-      seen.add(extra)
+
+  if (!unique.some(option => option.correct)) {
+    unique.unshift({ value: s.correct, correct: true })
+  }
+
+  const filtered = unique.filter((option, index, arr) => {
+    if (option.correct) return true
+    return arr.findIndex(other => other.value === option.value) === index
+  })
+
+  const withCorrectFirst = filtered.some(option => option.correct)
+    ? filtered
+    : [{ value: s.correct, correct: true }, ...filtered]
+
+  const finalOptions: Option[] = []
+  const finalSeen = new Set<string>()
+
+  for (const option of withCorrectFirst) {
+    if (finalSeen.has(option.value)) continue
+    finalSeen.add(option.value)
+    finalOptions.push(option)
+    if (finalOptions.length === 5) break
+  }
+
+  while (finalOptions.length < 5) {
+    const extraPow = s.M + randInt(2, 4)
+    const extra = formatTimesTex(choice(["power", "plain", "ratio"] as const), extraPow)
+    if (!finalSeen.has(extra) && extra !== s.correct) {
+      finalSeen.add(extra)
+      finalOptions.push({ value: extra, correct: false })
     }
   }
 
-  return shuffle(unique).slice(0, 5)
+  return shuffle(finalOptions)
 }
 
 /* ============================================================
@@ -140,6 +177,8 @@ export default function MagnitudSismoLog10Game({
         question: {
           formula: "M = log10(I/I0)",
           M: scenario.M,
+          questionStyle: scenario.questionStyle,
+          answerStyle: scenario.answerStyle,
         },
         computed: {
           ratio: `I/I_0 = 10^{${scenario.M}}`,
@@ -159,7 +198,7 @@ export default function MagnitudSismoLog10Game({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Logaritmos (base 10) — Magnitud de un sismo"
+        title="Logaritmos (base 10) - Magnitud de un sismo"
         prompt="Resuelve:"
         status={engine.status}
         attempts={engine.attempts}
@@ -175,8 +214,7 @@ export default function MagnitudSismoLog10Game({
                   title: "Identificar la fórmula y el dato",
                   detail: (
                     <span>
-                      Te dan la relación entre magnitud e intensidad:
-                      <MathTex tex={`M=\\log_{10}\\left(\\frac{I}{I_0}\\right)`} />.
+                      La relación es <MathTex tex={`M=\\log_{10}\\left(\\frac{I}{I_0}\\right)`} />.
                     </span>
                   ),
                   icon: Sigma,
@@ -184,12 +222,12 @@ export default function MagnitudSismoLog10Game({
                     <div className="space-y-3">
                       <MathTex block tex={scenario.equationTex} />
                       <MathTex block tex={`M=${scenario.M}`} />
-                      <MathTex block tex={`\\text{Buscamos }\\ \\frac{I}{I_0}`} />
+                      <MathTex block tex={`\\text{Buscamos }\\frac{I}{I_0}`} />
                     </div>
                   ),
                 },
                 {
-                  title: "Quitar el logaritmo (pasar a potencia de 10)",
+                  title: "Quitar el logaritmo",
                   detail: (
                     <span>
                       Si <MathTex tex={`M=\\log_{10}(A)`} />, entonces <MathTex tex={`A=10^M`} />.
@@ -198,25 +236,16 @@ export default function MagnitudSismoLog10Game({
                   icon: Divide,
                   content: (
                     <div className="space-y-3">
-                      <MathTex
-                        block
-                        tex={`${scenario.M}=\\log_{10}\\left(\\frac{I}{I_0}\\right)`}
-                      />
+                      <MathTex block tex={`${scenario.M}=\\log_{10}\\left(\\frac{I}{I_0}\\right)`} />
                       <MathTex block tex={`\\frac{I}{I_0}=10^{${scenario.M}}`} />
                     </div>
                   ),
-                  tip: (
-                    <span>
-                      Error típico: pensar que “<MathTex tex={`M=6`} />” significa “6 veces”. En log base 10, cada +1 multiplica por 10.
-                    </span>
-                  ),
                 },
                 {
-                  title: "Interpretar el resultado como “veces”",
+                  title: "Interpretar el resultado",
                   detail: (
                     <span>
-                      <MathTex tex={`\\frac{I}{I_0}`} /> ya significa “cuántas veces mayor es”
-                      <MathTex tex={`\\ I`} /> respecto a <MathTex tex={`I_0`} />.
+                      Ese cociente indica cuántas veces mayor es la intensidad.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -251,7 +280,7 @@ export default function MagnitudSismoLog10Game({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={op => <MathTex tex={op.value} />}
         />
 
         <div className="mt-6">

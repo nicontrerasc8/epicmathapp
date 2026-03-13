@@ -167,7 +167,7 @@ export default function Ej12({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej12 — Hallar x con frecuencias y media"
+        title="Hallar x con frecuencias y media"
         prompt={`En la tabla se sabe que el total de datos es N=${scenario.N} y la media es ${scenario.mean}. Halla x.`}
         status={engine.status}
         attempts={engine.attempts}

@@ -15,76 +15,148 @@ import { SolutionBox } from "@/components/exercises/base/SolutionBox"
 import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
-/* =========================
-   HELPERS (coma decimal)
-========================= */
+function randInt(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1))
+}
+
+function choice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+function shuffle<T>(arr: T[]) {
+  return [...arr].sort(() => Math.random() - 0.5)
+}
+
 function fmtComma(n: number, decimals = 1) {
   const s = n.toFixed(decimals).replace(/\.0$/, "")
   return s.replace(".", ",")
 }
+
 function texDec(n: number, decimals = 1) {
   return fmtComma(n, decimals).replace(",", "{,}")
 }
+
 function sciTexComma(m: number, e: number) {
   return `${texDec(m, 1)} \\times 10^{${e}}`
 }
 
-/* =========================
-   ESCENARIO (Pregunta 2)
-   (4,8×10^-3)(3×10^5) / (6×10^2)
-========================= */
+function normalizeScientific(m: number, e: number) {
+  let mm = m
+  let ee = e
+
+  while (mm >= 10) {
+    mm /= 10
+    ee += 1
+  }
+  while (mm < 1) {
+    mm *= 10
+    ee -= 1
+  }
+
+  return { m: Number(mm.toFixed(1)), e: ee }
+}
+
+type Scenario = ReturnType<typeof scenarioP2>
+
 function scenarioP2() {
-  const a1 = 4.8,
-    k1 = -3
-  const a2 = 3,
-    k2 = 5
-  const a3 = 6,
-    k3 = 2
+  for (let tries = 0; tries < 200; tries++) {
+    const a1 = choice([1.2, 1.5, 2.4, 3.2, 4.8, 5.4, 6.3, 7.2, 8.1])
+    const k1 = randInt(-5, 4)
+    const a2 = choice([2, 3, 4, 5, 6, 7, 8])
+    const k2 = randInt(-4, 6)
+    const a3 = choice([1.2, 1.5, 2, 2.5, 3, 4, 5, 6])
+    const k3 = randInt(-3, 4)
 
-  // Paso 1: multiplicación en numerador
-  const numMantissa = a1 * a2 // 14.4
-  const numExp = k1 + k2 // 2
+    const numMantissa = Number((a1 * a2).toFixed(2))
+    const numExp = k1 + k2
+    const rawMantissa = Number((numMantissa / a3).toFixed(2))
+    const rawExp = numExp - k3
+    const norm = normalizeScientific(rawMantissa, rawExp)
 
-  // Paso 2: división por el denominador
-  const rawMantissa = numMantissa / a3 // 2.4
-  const rawExp = numExp - k3 // 0
+    if (!(norm.m >= 1 && norm.m < 10)) continue
+    if (Math.abs(norm.e) > 8) continue
 
-  const correct = sciTexComma(rawMantissa, rawExp) // 2,4×10^0
-
-  const options: Option[] = [
-    { value: sciTexComma(2.4, 0), correct: true },  // A
-    { value: sciTexComma(2.4, -1), correct: false }, // B
-    { value: sciTexComma(2.4, 1), correct: false },  // C
-    { value: sciTexComma(24, -1), correct: false },  // D (equivalente pero NO normalizado)
-    { value: sciTexComma(0.24, 1), correct: false }, // E (equivalente pero NO normalizado)
-  ]
-
-  const exprTex = `
+    const correct = sciTexComma(norm.m, norm.e)
+    const options = buildOptions(norm.m, norm.e)
+    const exprTex = `
 \\frac{
   (${fmtComma(a1)} \\times 10^{${k1}})
-  (${fmtComma(a2)} \\times 10^{${k2}})
+  (${fmtComma(a2, 0)} \\times 10^{${k2}})
 }{
-  ${fmtComma(a3, 0)} \\times 10^{${k3}}
+  ${fmtComma(a3)} \\times 10^{${k3}}
 }
 `
 
+    return {
+      a1,
+      k1,
+      a2,
+      k2,
+      a3,
+      k3,
+      numMantissa,
+      numExp,
+      rawMantissa,
+      rawExp,
+      normMantissa: norm.m,
+      normExp: norm.e,
+      correct,
+      options,
+      exprTex,
+    }
+  }
+
+  const normMantissa = 2.4
+  const normExp = 0
   return {
-    a1, k1,
-    a2, k2,
-    a3, k3,
-    numMantissa,
-    numExp,
-    rawMantissa,
-    rawExp,
-    correct,
-    options,
-    exprTex,
+    a1: 4.8,
+    k1: -3,
+    a2: 3,
+    k2: 5,
+    a3: 6,
+    k3: 2,
+    numMantissa: 14.4,
+    numExp: 2,
+    rawMantissa: 2.4,
+    rawExp: 0,
+    normMantissa,
+    normExp,
+    correct: sciTexComma(normMantissa, normExp),
+    options: buildOptions(normMantissa, normExp),
+    exprTex: `
+\\frac{
+  (4,8 \\times 10^{-3})
+  (3 \\times 10^{5})
+}{
+  6 \\times 10^{2}
+}
+`,
   }
 }
 
-/* ============================================================
-   COMPONENTE
-============================================================ */
+function buildOptions(m: number, e: number): Option[] {
+  const correct = sciTexComma(m, e)
+  const candidates = [
+    correct,
+    sciTexComma(m, e + 1),
+    sciTexComma(m, e - 1),
+    sciTexComma(Number((m * 10).toFixed(1)), e - 1),
+    sciTexComma(Number((m / 10).toFixed(1)), e + 1),
+    sciTexComma(Number((m + 1).toFixed(1)), e),
+    sciTexComma(Number((m - 1 > 0 ? m - 1 : m + 0.5).toFixed(1)), e),
+  ]
+
+  const seen = new Set<string>()
+  const unique: Option[] = []
+  for (const value of candidates) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    unique.push({ value, correct: value === correct })
+  }
+
+  return shuffle(unique.slice(0, 5))
+}
+
 export default function NotacionCientificaPregunta2Game({
   exerciseId,
   classroomId,
@@ -130,19 +202,15 @@ export default function NotacionCientificaPregunta2Game({
           numExp: scenario.numExp,
           resultMantissa: scenario.rawMantissa,
           resultExp: scenario.rawExp,
+          normalized: { m: scenario.normMantissa, e: scenario.normExp },
         },
         options: scenario.options.map(o => o.value),
-        extra: {
-          time_seconds: Math.floor(timeSeconds),
-          trophy_preview: computeTrophyGain(timeSeconds),
-        },
       },
       timeSeconds,
     })
   }
 
   function siguiente() {
-    // (si quieres que “Siguiente” pase a otro ítem, acá lo conectas a navegación)
     setSelected(null)
     engine.reset()
     setNonce(n => n + 1)
@@ -151,7 +219,7 @@ export default function NotacionCientificaPregunta2Game({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Operaciones con números de la forma a×10^k — Pregunta 2"
+        title="Operaciones con números de la forma a×10^k - Pregunta 2"
         prompt="El valor de la expresión, expresado en notación científica, es:"
         status={engine.status}
         attempts={engine.attempts}
@@ -167,29 +235,15 @@ export default function NotacionCientificaPregunta2Game({
                   title: "Multiplicar el numerador",
                   detail: (
                     <span>
-                      Multiplicamos las mantisas y <b>sumamos</b> los exponentes:
-                      <MathTex tex={`(a\\times10^m)(b\\times10^n)=(ab)\\times10^{m+n}`} />.
+                      Multiplicamos las mantisas y sumamos los exponentes.
                     </span>
                   ),
                   icon: Sigma,
                   content: (
                     <div className="space-y-3">
                       <MathTex block tex={scenario.exprTex} />
-                      <MathTex
-                        block
-                        tex={`\\text{Mantisa: } ${texDec(scenario.a1)}\\cdot ${texDec(scenario.a2)} = ${texDec(
-                          scenario.numMantissa,
-                          1
-                        )}`}
-                      />
-                      <MathTex
-                        block
-                        tex={`\\text{Exponente: } ${scenario.k1} + (${scenario.k2}) = ${scenario.numExp}`}
-                      />
-                      <MathTex
-                        block
-                        tex={`${texDec(scenario.numMantissa, 1)} \\times 10^{${scenario.numExp}}`}
-                      />
+                      <MathTex block tex={`\\text{Mantisa: } ${texDec(scenario.a1)}\\cdot ${texDec(scenario.a2, 0)} = ${texDec(scenario.numMantissa, 2)}`} />
+                      <MathTex block tex={`\\text{Exponente: } ${scenario.k1} + (${scenario.k2}) = ${scenario.numExp}`} />
                     </div>
                   ),
                 },
@@ -197,63 +251,34 @@ export default function NotacionCientificaPregunta2Game({
                   title: "Dividir entre el denominador",
                   detail: (
                     <span>
-                      Dividimos mantisas y <b>restamos</b> exponentes:
-                      <MathTex tex={`\\frac{10^p}{10^q}=10^{p-q}`} />.
+                      Dividimos mantisas y restamos exponentes.
                     </span>
                   ),
                   icon: Divide,
                   content: (
                     <div className="space-y-3">
-                      <MathTex
-                        block
-                        tex={`\\frac{${texDec(scenario.numMantissa, 1)} \\times 10^{${scenario.numExp}}}{${texDec(
-                          scenario.a3,
-                          0
-                        )} \\times 10^{${scenario.k3}}}
-= \\left(\\frac{${texDec(scenario.numMantissa, 1)}}{${texDec(scenario.a3, 0)}}\\right) \\times 10^{${scenario.numExp} - ${scenario.k3}}`}
-                      />
-                      <MathTex
-                        block
-                        tex={`\\frac{${texDec(scenario.numMantissa, 1)}}{${texDec(scenario.a3, 0)}} = ${texDec(
-                          scenario.rawMantissa,
-                          1
-                        )}`}
-                      />
-                      <MathTex
-                        block
-                        tex={`${scenario.numExp} - ${scenario.k3} = ${scenario.rawExp}`}
-                      />
+                      <MathTex block tex={`\\frac{${texDec(scenario.numMantissa, 2)}}{${texDec(scenario.a3)}} = ${texDec(scenario.rawMantissa, 2)}`} />
+                      <MathTex block tex={`${scenario.numExp} - ${scenario.k3} = ${scenario.rawExp}`} />
                     </div>
                   ),
                 },
                 {
-                  title: "Verificar notación científica",
+                  title: "Normalizar",
                   detail: (
                     <span>
-                      En notación científica la mantisa cumple <b><MathTex tex={`1 \\le m < 10`} /></b>. Aquí{" "}
-                      <MathTex tex={`m=${texDec(scenario.rawMantissa, 1)}`} /> ya está en el rango.
+                      La mantisa debe cumplir <MathTex tex={`1 \\le m < 10`} />.
                     </span>
                   ),
                   icon: ShieldCheck,
                   content: (
                     <div className="space-y-3">
-                      <MathTex block tex={`\\text{Respuesta: } ${scenario.correct}`} />
-                      <MathTex block tex={`1 \\le ${texDec(scenario.rawMantissa, 1)} < 10`} />
+                      <MathTex block tex={`${texDec(scenario.rawMantissa, 2)} \\times 10^{${scenario.rawExp}}`} />
+                      <MathTex block tex={scenario.correct} />
                     </div>
-                  ),
-                  tip: (
-                    <span>
-                      <MathTex tex={`24\\times10^{-1}`} /> y <MathTex tex={`0{,}24\\times10^{1}`} /> valen lo mismo, pero <b>no</b> están normalizadas
-                      (mantisa <MathTex tex={`24 \\ge 10`} /> o <MathTex tex={`0{,}24 < 1`} />).
-                    </span>
                   ),
                 },
               ]}
-              concluding={
-                <span>
-                  Respuesta correcta: <MathTex tex={scenario.correct} /> (opción A).
-                </span>
-              }
+              concluding={<span>Respuesta correcta: <MathTex tex={scenario.correct} />.</span>}
             />
           </SolutionBox>
         }
@@ -266,12 +291,12 @@ export default function NotacionCientificaPregunta2Game({
         </div>
 
         <OptionsGrid
-          options={scenario.options} // NO shuffle: queda A–E como la imagen
+          options={scenario.options}
           selectedValue={selected}
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={op => <MathTex tex={op.value} />}
         />
 
         <div className="mt-6">

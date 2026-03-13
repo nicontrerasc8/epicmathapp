@@ -74,26 +74,35 @@ function choiceDelta(exact: number) {
 ========================= */
 
 function generateOptions(s: Scenario): Option[] {
-  const correct = s.correct
-
-  const wrong1 = fmtPercent(s.errorPercent + 2)
-  const wrong2 = fmtPercent(s.errorPercent - 2)
-  const wrong3 = fmtPercent(Math.round((s.errorAbs / s.approx) * 100)) // error relativo mal calculado
-  const wrong4 = fmtPercent(Math.round(s.errorAbs * 100)) // olvidar dividir por exacto
-
-  const all: Option[] = [
-    { value: correct, correct: true },
-    { value: wrong1, correct: false },
-    { value: wrong2, correct: false },
-    { value: wrong3, correct: false },
-    { value: wrong4, correct: false },
+  const candidates = [
+    s.errorPercent,
+    s.errorPercent + 2,
+    s.errorPercent - 2,
+    Math.round((s.errorAbs / s.approx) * 100), // error relativo mal calculado
+    Math.round(s.errorAbs * 100), // olvidar dividir por exacto
   ]
 
-  const unique = Array.from(
-    new Map(all.map(o => [o.value, o])).values()
-  )
+  const seen = new Set<number>()
+  const unique = candidates.filter(value => {
+    if (value < 0 || seen.has(value)) return false
+    seen.add(value)
+    return true
+  })
 
-  return shuffle(unique).slice(0, 5)
+  while (unique.length < 5) {
+    const extra = s.errorPercent + randInt(-4, 4)
+    if (extra >= 0 && !seen.has(extra)) {
+      seen.add(extra)
+      unique.push(extra)
+    }
+  }
+
+  return shuffle(
+    unique.slice(0, 5).map(value => ({
+      value: fmtPercent(value),
+      correct: value === s.errorPercent,
+    }))
+  )
 }
 
 /* ============================================================

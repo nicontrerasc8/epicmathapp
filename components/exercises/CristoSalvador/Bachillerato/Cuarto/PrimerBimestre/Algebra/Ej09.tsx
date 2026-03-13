@@ -22,12 +22,16 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
+
 function choice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
+function shuffle<T>(arr: T[]) {
+  return [...arr].sort(() => Math.random() - 0.5)
+}
+
 function texThousands(n: number) {
-  // 80000 -> 80\,000 ; 62500 -> 62\,500
   const s = Math.round(n).toString()
   const parts: string[] = []
   let i = s.length
@@ -40,24 +44,23 @@ function texThousands(n: number) {
 }
 
 function texDecComma(n: number, decimals = 2) {
-  // 0.03 -> 0{,}03 ; 1.6 -> 1{,}6 ; 1.25 -> 1{,}25
   let s = Number(n.toFixed(decimals)).toString()
-  if (s.includes("e") || s.includes("E")) {
-    // fallback (no debería ocurrir con estos rangos)
-    s = n.toFixed(decimals)
-  }
+  if (s.includes("e") || s.includes("E")) s = n.toFixed(decimals)
   if (!s.includes(".")) return s
   const [a, b] = s.split(".")
   return `${a}{,}${b}`
 }
 
-function tFracTex(numTex: string, denTex: string) {
+function fracTex(numTex: string, denTex: string) {
   return `t = \\frac{${numTex}}{${denTex}}`
 }
 
+function yearsTex(value: number) {
+  return `t \\approx ${texDecComma(value, 2)}\\ \\text{años}`
+}
+
 /* =========================
-   GENERADOR (tipo imagen)
-   Tema: modelo exponencial P(t)=P0 e^{kt}
+   GENERADOR
 ========================= */
 
 type Scenario = ReturnType<typeof generateScenario>
@@ -65,88 +68,115 @@ type Scenario = ReturnType<typeof generateScenario>
 function generateScenario() {
   for (let tries = 0; tries < 250; tries++) {
     const P0 = choice([30000, 40000, 50000, 60000, 70000, 80000, 90000])
-    const ratio = choice([1.2, 1.25, 1.3, 1.4, 1.5, 1.6, 1.75, 1.8])
+    const ratio = choice([1.2, 1.25, 1.3, 1.4, 1.5, 1.6, 1.75, 1.8, 2, 2.25])
     const Pt = Math.round(P0 * ratio)
-
     const k = choice([0.01, 0.02, 0.03, 0.04, 0.05, 0.06])
+    const promptStyle = choice(["directo", "modelo", "objetivo"] as const)
+    const answerStyle = choice(["ratio", "quotient", "approx"] as const)
 
-    // evita casos raros (por si acaso)
-    if (Pt <= P0) continue
-    if (ratio <= 1) continue
+    if (Pt <= P0 || ratio <= 1) continue
+
+    const approxYears = Math.log(ratio) / k
 
     return {
       P0,
       Pt,
       ratio,
       k,
+      promptStyle,
+      answerStyle,
       P0Tex: texThousands(P0),
       PtTex: texThousands(Pt),
       ratioTex: texDecComma(ratio, 2),
       ratioMinus1: ratio - 1,
       ratioMinus1Tex: texDecComma(ratio - 1, 2),
       kTex: texDecComma(k, 2),
+      approxYears,
+      approxYearsTex: texDecComma(approxYears, 2),
     }
   }
 
-  // fallback exactamente como la imagen
+  const ratio = 1.6
+  const k = 0.03
   return {
     P0: 50000,
     Pt: 80000,
-    ratio: 1.6,
-    k: 0.03,
+    ratio,
+    k,
+    promptStyle: "directo" as const,
+    answerStyle: "ratio" as const,
     P0Tex: texThousands(50000),
     PtTex: texThousands(80000),
     ratioTex: "1{,}6",
     ratioMinus1: 0.6,
     ratioMinus1Tex: "0{,}6",
     kTex: "0{,}03",
+    approxYears: Math.log(ratio) / k,
+    approxYearsTex: texDecComma(Math.log(ratio) / k, 2),
   }
 }
 
 /* =========================
-   OPCIONES (A–E tipo imagen)
-   Errores típicos:
-   - usar ln(ratio-1) en vez de ln(ratio)
-   - olvidar el ln
-   - olvidar dividir entre k
-   - usar ln(Pt) en vez de ln(Pt/P0)
+   OPCIONES
 ========================= */
 
+function buildCorrectValue(s: Scenario) {
+  if (s.answerStyle === "quotient") {
+    return fracTex(`\\ln\\left(\\frac{${s.PtTex}}{${s.P0Tex}}\\right)`, s.kTex)
+  }
+  if (s.answerStyle === "approx") {
+    return yearsTex(s.approxYears)
+  }
+  return fracTex(`\\ln\\left(${s.ratioTex}\\right)`, s.kTex)
+}
+
 function generateOptions(s: Scenario): Option[] {
-  const correct = tFracTex(`\\ln\\left(${s.ratioTex}\\right)`, s.kTex)
+  const correct = buildCorrectValue(s)
+  const approxWrong1 = yearsTex(s.approxYears + choice([-2.5, -1.5, 1.5, 2.5]))
+  const approxWrong2 = yearsTex(Math.log(s.ratioMinus1) / s.k)
+  const exactRatio = fracTex(`\\ln\\left(${s.ratioTex}\\right)`, s.kTex)
+  const exactQuotient = fracTex(`\\ln\\left(\\frac{${s.PtTex}}{${s.P0Tex}}\\right)`, s.kTex)
+  const wrongLnMinus1 = fracTex(`\\ln\\left(${s.ratioMinus1Tex}\\right)`, s.kTex)
+  const wrongNoLn = fracTex(`${s.ratioTex}`, s.kTex)
+  const wrongMissingDivide = `t = \\ln\\left(\\frac{${s.PtTex}}{${s.P0Tex}}\\right)`
+  const wrongLnTarget = fracTex(`\\ln\\left(${s.PtTex}\\right)`, s.kTex)
+  const wrongK = fracTex(`\\ln\\left(${s.ratioTex}\\right)`, texDecComma(s.k + choice([-0.02, -0.01, 0.01, 0.02]), 2))
 
-  const wrongLnMinus1 = tFracTex(`\\ln\\left(${s.ratioMinus1Tex}\\right)`, s.kTex) // ln(r-1)
-  const wrongNoLn = tFracTex(`${s.ratioTex}`, s.kTex) // sin ln
-  const wrongMissingDivide = `t = \\ln\\left(\\frac{${s.PtTex}}{${s.P0Tex}}\\right)` // olvida /k
-  const wrongLnTarget = tFracTex(`\\ln\\left(${s.PtTex}\\right)`, s.kTex) // ln(Pt)/k
-
-  const all = [
-    { value: correct, correct: true },
-    { value: wrongLnMinus1, correct: false },
-    { value: wrongNoLn, correct: false },
-    { value: wrongMissingDivide, correct: false },
-    { value: wrongLnTarget, correct: false },
+  const pool = [
+    exactRatio,
+    exactQuotient,
+    yearsTex(s.approxYears),
+    approxWrong1,
+    approxWrong2,
+    wrongLnMinus1,
+    wrongNoLn,
+    wrongMissingDivide,
+    wrongLnTarget,
+    wrongK,
   ]
 
-  // dedupe (por si ratio-1 da lo mismo en algún caso raro)
   const seen = new Set<string>()
   const unique: Option[] = []
-  for (const o of all) {
-    if (seen.has(o.value)) continue
-    seen.add(o.value)
-    unique.push(o)
+
+  unique.push({ value: correct, correct: true })
+  seen.add(correct)
+
+  for (const value of shuffle(pool)) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    unique.push({ value, correct: false })
+    if (unique.length === 5) break
   }
 
-  // relleno si faltara (muy raro)
   while (unique.length < 5) {
-    const extra = tFracTex(`\\ln\\left(${s.ratioTex}\\right)`, texDecComma(s.k + choice([-0.01, 0.01, 0.02]), 2))
+    const extra = yearsTex(s.approxYears + randInt(3, 6))
     if (!seen.has(extra)) {
-      unique.push({ value: extra, correct: false })
       seen.add(extra)
+      unique.push({ value: extra, correct: false })
     }
   }
 
-  return unique.sort(() => Math.random() - 0.5)
+  return shuffle(unique)
 }
 
 /* ============================================================
@@ -178,6 +208,7 @@ export default function ModeloExponencialPoblacionGame({
     const s = generateScenario()
     return {
       ...s,
+      correct: buildCorrectValue(s),
       options: generateOptions(s),
     }
   }, [nonce])
@@ -195,15 +226,18 @@ export default function ModeloExponencialPoblacionGame({
       correct: op.correct,
       answer: {
         selected: op.value,
-        correctAnswer: tFracTex(`\\ln\\left(${scenario.ratioTex}\\right)`, scenario.kTex),
+        correctAnswer: scenario.correct,
         question: {
           P0: scenario.P0,
           Pt: scenario.Pt,
           k: scenario.k,
+          promptStyle: scenario.promptStyle,
+          answerStyle: scenario.answerStyle,
         },
         computed: {
           ratio: scenario.ratio,
           ratioMinus1: scenario.ratioMinus1,
+          approxYears: scenario.approxYears,
         },
         options: scenario.options.map(o => o.value),
       },
@@ -217,14 +251,20 @@ export default function ModeloExponencialPoblacionGame({
     setNonce(n => n + 1)
   }
 
-  // TeX del enunciado (tipo imagen)
   const modelTex = String.raw`P(t)=${scenario.P0Tex}\,e^{${scenario.kTex}t}`
-
   const eqTex = String.raw`${scenario.PtTex}=${scenario.P0Tex}\,e^{${scenario.kTex}t}`
   const divTex = String.raw`\frac{${scenario.PtTex}}{${scenario.P0Tex}}=e^{${scenario.kTex}t}`
   const ratioTex = String.raw`\frac{${scenario.PtTex}}{${scenario.P0Tex}}=${scenario.ratioTex}`
   const lnTex = String.raw`\ln\left(\frac{${scenario.PtTex}}{${scenario.P0Tex}}\right)=${scenario.kTex}\,t`
   const solveTex = String.raw`t=\frac{\ln\left(\frac{${scenario.PtTex}}{${scenario.P0Tex}}\right)}{${scenario.kTex}}=\frac{\ln\left(${scenario.ratioTex}\right)}{${scenario.kTex}}`
+  const approxTex = String.raw`t\approx ${scenario.approxYearsTex}`
+
+  const promptText =
+    scenario.promptStyle === "modelo"
+      ? `Según el modelo mostrado, ¿en qué tiempo se alcanza ${scenario.PtTex} habitantes?`
+      : scenario.promptStyle === "objetivo"
+        ? `Si la población parte de ${scenario.P0Tex} habitantes, ¿cuándo llegará a ${scenario.PtTex}?`
+        : `La población de una ciudad sigue el modelo indicado. ¿Después de cuántos años alcanzará ${scenario.PtTex} habitantes?`
 
   return (
     <MathProvider>
@@ -242,7 +282,7 @@ export default function ModeloExponencialPoblacionGame({
               title="Guía paso a paso"
               steps={[
                 {
-                  title: "Plantear la ecuación con el dato pedido",
+                  title: "Plantear la ecuación",
                   detail: <span>Reemplazamos el valor objetivo en el modelo.</span>,
                   icon: Sigma,
                   content: (
@@ -255,7 +295,7 @@ export default function ModeloExponencialPoblacionGame({
                 },
                 {
                   title: "Despejar el exponencial",
-                  detail: <span>Dividimos entre {scenario.P0Tex} para dejar sola la potencia.</span>,
+                  detail: <span>Dividimos entre la población inicial para aislar la potencia.</span>,
                   icon: Divide,
                   content: (
                     <div className="space-y-3">
@@ -263,29 +303,23 @@ export default function ModeloExponencialPoblacionGame({
                       <MathTex block tex={ratioTex} />
                     </div>
                   ),
-                  tip: <span>El cociente {scenario.PtTex}/{scenario.P0Tex} es el “factor de crecimiento”.</span>,
                 },
                 {
-                  title: "Aplicar logaritmo natural y despejar t",
-                  detail: <span>Usamos ln para “bajar” el exponente.</span>,
+                  title: "Aplicar logaritmo y despejar t",
+                  detail: <span>Usamos logaritmo natural para bajar el exponente.</span>,
                   icon: ShieldCheck,
                   content: (
                     <div className="space-y-3">
                       <MathTex block tex={lnTex} />
                       <MathTex block tex={solveTex} />
+                      {scenario.answerStyle === "approx" ? <MathTex block tex={approxTex} /> : null}
                     </div>
-                  ),
-                  tip: (
-                    <span>
-                      Regla clave: si <MathTex tex={`e^{kt}=A`} />, entonces <MathTex tex={`kt=\\ln(A)`} />.
-                    </span>
                   ),
                 },
               ]}
               concluding={
                 <span>
-                  Respuesta final:{" "}
-                  <b>{tFracTex(`\\ln\\left(${scenario.ratioTex}\\right)`, scenario.kTex)}</b>.
+                  Respuesta final: <MathTex tex={scenario.correct} />.
                 </span>
               }
             />
@@ -296,13 +330,9 @@ export default function ModeloExponencialPoblacionGame({
           <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
 
           <div className="rounded-lg border bg-background p-3 space-y-2">
-            <div className="text-sm">
-              La población de una ciudad sigue el modelo:
-            </div>
+            <div className="text-sm">La población de una ciudad sigue el modelo:</div>
             <MathTex block tex={modelTex} />
-            <div className="text-sm">
-              donde <b>t</b> es el tiempo en años. ¿Cuándo alcanzará <b>{scenario.PtTex}</b> habitantes?
-            </div>
+            <div className="text-sm">{promptText}</div>
           </div>
         </div>
 

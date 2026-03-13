@@ -206,7 +206,7 @@ export default function Ej18({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej18 — Media ponderada"
+        title="Media ponderada"
         prompt="Un estudiante tiene 3 evaluaciones con pesos. Halla el promedio final (1 decimal)."
         status={engine.status}
         attempts={engine.attempts}

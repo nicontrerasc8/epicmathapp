@@ -15,18 +15,14 @@ import { SolutionBox } from "@/components/exercises/base/SolutionBox"
 import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
-/* ============================================================
-  Ej19 — Combinatoria: elegir un equipo
-  - n estudiantes, elegir k
-  - Respuesta: C(n,k)
-============================================================ */
-
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
-function choice<T>(arr: T[]) {
+
+function choice<T>(arr: readonly T[]) {
   return arr[Math.floor(Math.random() * arr.length)]
 }
+
 function shuffle<T>(arr: T[]) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -42,66 +38,123 @@ function comb(n: number, k: number) {
   let num = 1
   let den = 1
   for (let i = 1; i <= kk; i++) {
-    num *= (n - kk + i)
+    num *= n - kk + i
     den *= i
   }
   return Math.round(num / den)
 }
+
+const CONTEXTS = [
+  {
+    group: "estudiantes",
+    set: "equipo",
+    template: (n: number, k: number) =>
+      `En una clase hay ${n} estudiantes. ¿De cuántas formas se puede elegir un equipo de ${k} estudiantes?`,
+  },
+  {
+    group: "jugadores",
+    set: "delegación",
+    template: (n: number, k: number) =>
+      `Un entrenador tiene ${n} jugadores disponibles. ¿De cuántas maneras puede escoger una delegación de ${k}?`,
+  },
+  {
+    group: "libros",
+    set: "lote",
+    template: (n: number, k: number) =>
+      `En una biblioteca se seleccionan ${k} libros entre ${n} disponibles. ¿Cuántas selecciones distintas pueden hacerse?`,
+  },
+  {
+    group: "candidatos",
+    set: "comité",
+    template: (n: number, k: number) =>
+      `Hay ${n} candidatos para formar un comité de ${k} personas. ¿De cuántas formas puede integrarse?`,
+  },
+] as const
 
 type Scenario = ReturnType<typeof buildScenario>
 
 function buildScenario(exclude: string[]) {
   for (let tries = 0; tries < 700; tries++) {
     const n = randInt(8, 16)
-    const k = choice([2, 3, 4, 5])
+    const k = choice([2, 3, 4, 5] as const)
     if (k >= n) continue
 
     const correctNum = comb(n, k)
     if (correctNum <= 0) continue
 
-    const signature = `n${n}-k${k}-c${correctNum}`
+    const context = choice(CONTEXTS)
+    const signature = `${context.group}-${n}-${k}-${correctNum}`
     if (exclude.includes(signature)) continue
 
-    const correct = `${correctNum}`
-
-    // distractores:
     const perm = (() => {
-      // P(n,k) = n*(n-1)*...*(n-k+1)
       let p = 1
-      for (let i = 0; i < k; i++) p *= (n - i)
+      for (let i = 0; i < k; i++) p *= n - i
       return p
     })()
 
-    const wrong1 = `${perm}` // confunden combinaciones con permutaciones
-    const wrong2 = `${comb(n - 1, k)}` // se olvidan de alguien
-    const wrong3 = `${comb(n, k - 1)}` // cambian k
-    const wrong4 = `${Math.max(1, correctNum + choice([-10, -6, 6, 10]))}`
+    const candidates = [
+      correctNum,
+      perm,
+      comb(n - 1, k),
+      comb(n, k - 1),
+      comb(n - 1, k - 1),
+      Math.max(1, correctNum + choice([-10, -6, 6, 10, 15] as const)),
+      Math.max(1, correctNum + randInt(-18, 18)),
+    ]
 
-    const pool = shuffle([correct, wrong1, wrong2, wrong3, wrong4])
-
-    const uniq: string[] = []
-    for (const v of pool) if (!uniq.includes(v)) uniq.push(v)
-    while (uniq.length < 5) {
-      const extra = `${Math.max(1, correctNum + randInt(-15, 15))}`
-      if (!uniq.includes(extra)) uniq.push(extra)
+    const seen = new Set<number>()
+    const uniq: number[] = []
+    for (const value of shuffle(candidates)) {
+      if (seen.has(value)) continue
+      seen.add(value)
+      uniq.push(value)
     }
 
-    const options: Option[] = shuffle(uniq.slice(0, 5)).map(v => ({
-      value: v,
-      correct: v === correct,
+    while (uniq.length < 5) {
+      const extra = Math.max(1, correctNum + randInt(-25, 25))
+      if (!seen.has(extra)) {
+        seen.add(extra)
+        uniq.push(extra)
+      }
+    }
+
+    const correct = `${correctNum}`
+    const options: Option[] = shuffle(uniq.slice(0, 5)).map(value => ({
+      value: `${value}`,
+      correct: value === correctNum,
     }))
 
-    return { n, k, correctNum, correct, signature, options }
+    return {
+      n,
+      k,
+      correctNum,
+      correct,
+      signature,
+      context,
+      options,
+      prompt: context.template(n, k),
+    }
   }
 
-  const n = 10, k = 3
+  const n = 10
+  const k = 3
   const correctNum = comb(n, k)
   const correct = `${correctNum}`
+  const context = CONTEXTS[0]
   const options: Option[] = shuffle([correct, "120", "45", "210", "100"]).map(v => ({
     value: v,
     correct: v === correct,
   }))
-  return { n, k, correctNum, correct, signature: "FB19", options }
+  return {
+    n,
+    k,
+    correctNum,
+    correct,
+    signature: "FB19",
+    context,
+    options,
+    prompt: context.template(n, k),
+  }
 }
 
 export default function Ej19({
@@ -145,7 +198,7 @@ export default function Ej19({
       answer: {
         selected: op.value,
         correctAnswer: scenario.correct,
-        question: { n: scenario.n, k: scenario.k },
+        question: { n: scenario.n, k: scenario.k, context: scenario.context.group },
         computed: { combinations: scenario.correctNum },
         options: scenario.options.map(o => o.value),
       },
@@ -163,8 +216,8 @@ export default function Ej19({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej19 — Conteo (combinaciones)"
-        prompt={`En una clase hay ${scenario.n} estudiantes. ¿De cuántas formas se puede elegir un equipo de ${scenario.k} estudiantes?`}
+        title="Conteo (combinaciones)"
+        prompt={scenario.prompt}
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -179,13 +232,13 @@ export default function Ej19({
                   title: "Identificar el tipo de conteo",
                   detail: (
                     <span>
-                      Elegir un equipo no depende del orden, entonces usamos combinaciones.
+                      La selección no depende del orden, entonces usamos combinaciones.
                     </span>
                   ),
                   icon: Sigma,
                   content: (
                     <div className="space-y-3">
-                      <MathTex block tex={`\\text{Usamos }\\binom{n}{k}\\text{ porque el orden NO importa.}`} />
+                      <MathTex block tex={`\\text{Usamos }\\binom{n}{k}\\text{ porque el orden no importa.}`} />
                       <MathTex block tex={`\\binom{${scenario.n}}{${scenario.k}}`} />
                     </div>
                   ),
@@ -196,18 +249,15 @@ export default function Ej19({
                   icon: Divide,
                   content: (
                     <div className="space-y-3">
-                      <MathTex
-                        block
-                        tex={`\\binom{${scenario.n}}{${scenario.k}} = ${scenario.correct}`}
-                      />
+                      <MathTex block tex={`\\binom{${scenario.n}}{${scenario.k}} = ${scenario.correct}`} />
                     </div>
                   ),
                 },
                 {
                   title: "Respuesta",
-                  detail: <span>Formas de elegir el equipo:</span>,
+                  detail: <span>Ese es el número de formas posibles.</span>,
                   icon: ShieldCheck,
-                  content: <MathTex block tex={`${scenario.correct}`} />,
+                  content: <MathTex block tex={scenario.correct} />,
                 },
               ]}
               concluding={
@@ -233,7 +283,7 @@ export default function Ej19({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={op => <MathTex tex={op.value} />}
         />
 
         <div className="mt-6">

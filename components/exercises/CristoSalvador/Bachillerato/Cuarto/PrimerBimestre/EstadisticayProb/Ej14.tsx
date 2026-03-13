@@ -169,7 +169,7 @@ export default function Ej14({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej14 — Media con datos agrupados"
+        title="Media con datos agrupados"
         prompt="Halla la media aproximada usando marcas de clase."
         status={engine.status}
         attempts={engine.attempts}

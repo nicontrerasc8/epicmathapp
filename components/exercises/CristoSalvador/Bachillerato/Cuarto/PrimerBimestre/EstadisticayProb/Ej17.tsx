@@ -183,7 +183,7 @@ export default function Ej17({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej17 — Media aritmética"
+        title="Media aritmética"
         prompt="Halla la media aritmética del conjunto de datos (responde con 1 decimal)."
         status={engine.status}
         attempts={engine.attempts}

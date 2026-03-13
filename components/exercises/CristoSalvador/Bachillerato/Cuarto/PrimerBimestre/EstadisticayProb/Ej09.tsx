@@ -190,7 +190,7 @@ export default function Ej09({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej09 — Probabilidad simple"
+        title="Probabilidad simple"
         prompt={`En una actividad del Colegio Cristo Salvador, hay ${scenario.total} elementos en total y ${scenario.favorables} cumplen la condición. Si ${scenario.contexto}, ¿cuál es la probabilidad? (responde como fracción simplificada)`}
         status={engine.status}
         attempts={engine.attempts}

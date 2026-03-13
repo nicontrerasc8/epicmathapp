@@ -167,7 +167,7 @@ export default function Ej13({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej13 — Mediana de un conjunto de datos"
+        title="Mediana de un conjunto de datos"
         prompt="Calcula la mediana del conjunto de datos:"
         status={engine.status}
         attempts={engine.attempts}

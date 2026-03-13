@@ -180,7 +180,7 @@ export default function Ej08({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej08 — Rango"
+        title="Rango"
         prompt={`En el Colegio Cristo Salvador se registraron estos datos: ${scenario.datos.join(
           ", "
         )}. ¿Cuál es el rango?`}

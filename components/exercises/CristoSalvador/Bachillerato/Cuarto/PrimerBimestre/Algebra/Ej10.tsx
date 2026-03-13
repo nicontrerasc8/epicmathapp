@@ -19,18 +19,20 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
    HELPERS
 ========================= */
 
-function randInt(min: number, max: number) {
-  return min + Math.floor(Math.random() * (max - min + 1))
-}
 function choice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
+
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
 
 function texLn(n: number) {
   return `\\ln(${n})`
+}
+
+function texSolutions(values: number[]) {
+  return values.map(value => `x=${texLn(value)}`).join("\\ \\text{o}\\ ")
 }
 
 function texFactorFromRoot(root: number) {
@@ -50,9 +52,7 @@ function texSignedTerm(coef: number, variable?: string) {
 }
 
 /* =========================
-   GENERADOR (tema: e^{2x} - S e^x + P = 0)
-   Construimos el caso desde raíces positivas:
-   u = e^x => (u - r1)(u - r2) = 0
+   GENERADOR
 ========================= */
 
 type Scenario = ReturnType<typeof generateScenario>
@@ -74,14 +74,8 @@ function generateScenario() {
   const S = r1 + r2
   const P = r1 * r2
   const b = -S
-
-  const equationTex = `e^{2x} ${texSignedTerm(b, "e^{x}")} ${texSignedTerm(P)} = 0`
-  const validRoots = [r1, r2].filter(v => v > 0).sort((x, y) => x - y)
-  const invalidRoots = [r1, r2].filter(v => v <= 0).sort((x, y) => x - y)
-  const correct =
-    validRoots.length === 2
-      ? `x=${texLn(validRoots[0])}\\ \\text{o}\\ x=${texLn(validRoots[1])}`
-      : `x=${texLn(validRoots[0])}`
+  const validRoots = [r1, r2].filter(value => value > 0).sort((a, bSort) => a - bSort)
+  const invalidRoots = [r1, r2].filter(value => value <= 0).sort((a, bSort) => a - bSort)
 
   return {
     r1,
@@ -89,67 +83,72 @@ function generateScenario() {
     S,
     P,
     b,
-    equationTex,
+    equationTex: `e^{2x} ${texSignedTerm(b, "e^{x}")} ${texSignedTerm(P)} = 0`,
     validRoots,
     invalidRoots,
     oneInvalidRoot,
-    correct,
+    correct: texSolutions(validRoots),
   }
 }
 
 /* =========================
-   OPCIONES (A–E tipo imagen)
+   OPCIONES
 ========================= */
 
 function generateOptions(s: Scenario): Option[] {
-  const correct = s.correct
   const positiveRoot = s.validRoots[0]
   const otherRoot = s.r1 === positiveRoot ? s.r2 : s.r1
 
-  const wrongForgetLn = `x=${s.r1}\\ \\text{o}\\ x=${s.r2}`
-  const wrongProduct = `x=${texLn(s.P)}`
-  const wrongLn1 = `x=${texLn(1)}`
-  const wrongNoReal = `\\text{No tiene solución real}`
-  const wrongSingleNoLn = `x=${positiveRoot}`
-  const wrongUseBothLn = `x=${texLn(positiveRoot)}\\ \\text{o}\\ x=${texLn(otherRoot)}`
+  const positiveDistractors = [
+    `x=${s.r1}\\ \\text{o}\\ x=${s.r2}`,
+    `x=${texLn(s.P)}`,
+    `x=${texLn(s.S)}`,
+    texSolutions([s.r1, s.P]),
+    texSolutions([s.P, s.r2]),
+    texSolutions([1, s.r2]),
+    `x=${Math.min(s.r1, s.r2)}`,
+    `\\text{No tiene solución real}`,
+  ]
 
-  const all: Option[] = s.oneInvalidRoot
-    ? [
-        { value: correct, correct: true },
-        { value: wrongUseBothLn, correct: false },
-        { value: wrongSingleNoLn, correct: false },
-        { value: wrongForgetLn, correct: false },
-        { value: wrongNoReal, correct: false },
-      ]
-    : [
-        { value: correct, correct: true },
-        { value: wrongForgetLn, correct: false },
-        { value: wrongProduct, correct: false },
-        { value: wrongLn1, correct: false },
-        { value: wrongNoReal, correct: false },
-      ]
+  const invalidDistractors = [
+    `x=${positiveRoot}`,
+    `x=${s.r1}\\ \\text{o}\\ x=${s.r2}`,
+    `x=${texLn(Math.abs(otherRoot))}`,
+    texSolutions([positiveRoot, Math.abs(otherRoot)]),
+    `x=${texLn(Math.max(2, Math.abs(s.S)))}`,
+    `x=${texLn(Math.abs(s.P))}`,
+    `\\text{No tiene solución real}`,
+    texSolutions([positiveRoot, positiveRoot + 1]),
+  ]
 
-  // por si acaso, evitar duplicados (muy raro con nuestra selección)
-  const seen = new Set<string>()
-  const unique: Option[] = []
-  for (const o of all) {
-    if (seen.has(o.value)) continue
-    seen.add(o.value)
-    unique.push(o)
+  const distractorPool = s.oneInvalidRoot ? invalidDistractors : positiveDistractors
+  const seen = new Set<string>([s.correct])
+  const unique: Option[] = [{ value: s.correct, correct: true }]
+
+  for (const value of shuffle(distractorPool)) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    unique.push({ value, correct: false })
+    if (unique.length === 5) break
   }
 
-  // si por alguna razón faltara alguna, relleno con “ln(S)” típico error
   while (unique.length < 5) {
-    const extra = `x=${texLn(s.S)}`
-    if (!seen.has(extra) && extra !== correct) {
-      unique.push({ value: extra, correct: false })
-      seen.add(extra)
-    } else {
-      unique.push({ value: `x=${texLn(s.S + 1)}`, correct: false })
+    const base = Math.max(2, Math.abs(s.S) + unique.length)
+    const fallback = `x=${texLn(base)}`
+    if (!seen.has(fallback)) {
+      seen.add(fallback)
+      unique.push({ value: fallback, correct: false })
+      continue
+    }
+
+    const alt = texSolutions([positiveRoot, base])
+    if (!seen.has(alt)) {
+      seen.add(alt)
+      unique.push({ value: alt, correct: false })
     }
   }
 
-  return shuffle(unique).slice(0, 5)
+  return shuffle(unique)
 }
 
 /* ============================================================
@@ -224,6 +223,11 @@ export default function EcuacionExponencialCuadraticaGame({
     setNonce(n => n + 1)
   }
 
+  const validBackTex =
+    scenario.validRoots.length === 2
+      ? `e^x=${scenario.validRoots[0]}\\ \\text{o}\\ e^x=${scenario.validRoots[1]}`
+      : `e^x=${scenario.validRoots[0]}`
+
   return (
     <MathProvider>
       <ExerciseShell
@@ -258,19 +262,13 @@ export default function EcuacionExponencialCuadraticaGame({
                       />
                     </div>
                   ),
-                  tip: (
-                    <span>
-                      Esto transforma el problema en una ecuación cuadrática “normal”, pero en la variable{" "}
-                      <MathTex tex={`u`} />.
-                    </span>
-                  ),
                 },
                 {
-                  title: "Resolver la cuadrática (factorizando)",
+                  title: "Resolver la cuadrática",
                   detail: (
                     <span>
                       Buscamos dos números que multipliquen <MathTex tex={`P`} /> y sumen{" "}
-                      <MathTex tex={`S`} /> (puede salir una raíz negativa).
+                      <MathTex tex={`S`} />.
                     </span>
                   ),
                   icon: Divide,
@@ -287,11 +285,6 @@ export default function EcuacionExponencialCuadraticaGame({
                       <MathTex block tex={`u=${scenario.r1}\\ \\text{o}\\ u=${scenario.r2}`} />
                     </div>
                   ),
-                  tip: (
-                    <span>
-                      Aquí salió “bonito” porque el ejercicio está construido para factorizar directo.
-                    </span>
-                  ),
                 },
                 {
                   title: "Volver a x con logaritmos",
@@ -304,14 +297,9 @@ export default function EcuacionExponencialCuadraticaGame({
                   icon: ShieldCheck,
                   content: (
                     <div className="space-y-3">
-                      <MathTex
-                        block
-                        tex={`e^x=${scenario.r1}\\ \\text{o}\\ e^x=${scenario.r2}`}
-                      />
-                      <MathTex
-                        block
-                        tex={`x=${texLn(scenario.r1)}\\ \\text{o}\\ x=${texLn(scenario.r2)}`}
-                      />
+                      <MathTex block tex={`e^x=${scenario.r1}\\ \\text{o}\\ e^x=${scenario.r2}`} />
+                      <MathTex block tex={validBackTex} />
+                      <MathTex block tex={scenario.correct} />
                       {scenario.oneInvalidRoot ? (
                         <MathTex
                           block
@@ -319,13 +307,6 @@ export default function EcuacionExponencialCuadraticaGame({
                         />
                       ) : null}
                     </div>
-                  ),
-                  tip: (
-                    <span>
-                      Error típico: no revisar la condición <MathTex tex={`u=e^x\\,>\\,0`} /> o quedarse con{" "}
-                      <MathTex tex={`x=${scenario.r1}`} /> y <MathTex tex={`x=${scenario.r2}`} /> sin aplicar
-                      logaritmo.
-                    </span>
                   ),
                 },
               ]}
@@ -351,7 +332,7 @@ export default function EcuacionExponencialCuadraticaGame({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={op.value} />}
+          renderValue={op => <MathTex tex={op.value} />}
         />
 
         <div className="mt-6">

@@ -179,7 +179,7 @@ export default function Ej15({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Ej15 — Probabilidad (urna)"
+        title="Probabilidad (urna)"
         prompt={`En una urna hay ${scenario.r} rojas, ${scenario.b} azules y ${scenario.g} verdes. Si se extrae 1 bola al azar, ¿cuál es la probabilidad de que sea ${eventLabel}?`}
         status={engine.status}
         attempts={engine.attempts}
