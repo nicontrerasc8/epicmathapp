@@ -18,9 +18,11 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
-function choice<T>(arr: T[]): T {
+
+function choice<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
+
 function shuffle<T>(arr: T[]) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -31,73 +33,89 @@ function shuffle<T>(arr: T[]) {
 }
 
 type Scenario = {
+  contexto: string
   datos: number[]
   ordenados: number[]
-  mediana: string
+  medianaText: string
   correct: string
   options: Option[]
 }
 
 function median(nums: number[]) {
-  const a = [...nums].sort((x, y) => x - y)
-  const n = a.length
-  if (n % 2 === 1) return { sorted: a, med: a[Math.floor(n / 2)], medStr: String(a[Math.floor(n / 2)]) }
-  const mid1 = a[n / 2 - 1]
-  const mid2 = a[n / 2]
-  const med = (mid1 + mid2) / 2
-  const medStr = med.toFixed(1).endsWith(".0") ? String(Math.round(med)) : med.toFixed(1)
-  return { sorted: a, med, medStr, mid1, mid2 }
-}
-
-function generateScenario(): Omit<Scenario, "options"> {
-  const n = choice([5, 6, 7, 8]) // pares e impares
-  const datos = Array.from({ length: n }, () => randInt(8, 22))
-  const m = median(datos)
-
-  let medianaExplain = ""
+  const sorted = [...nums].sort((a, b) => a - b)
+  const n = sorted.length
   if (n % 2 === 1) {
-    medianaExplain = `Como hay ${n} datos (impar), la mediana es el valor central: ${m.medStr}.`
-  } else {
-    medianaExplain = `Como hay ${n} datos (par), la mediana es el promedio de los dos centrales: ${m.mid1} y ${m.mid2}.`
+    const center = sorted[Math.floor(n / 2)]
+    return { sorted, medStr: String(center), detail: `Como hay ${n} datos (impar), la mediana es el valor central: ${center}.` }
   }
 
+  const left = sorted[n / 2 - 1]
+  const right = sorted[n / 2]
+  const med = (left + right) / 2
+  const medStr = med % 1 === 0 ? String(med) : med.toFixed(1)
+  return { sorted, medStr, detail: `Como hay ${n} datos (par), la mediana es el promedio de ${left} y ${right}.` }
+}
+
+function generateBase() {
+  const n = choice([5, 6, 7, 8, 9, 10] as const)
+  const range = choice([
+    { min: 8, max: 22 },
+    { min: 10, max: 30 },
+    { min: 20, max: 45 },
+  ] as const)
+
+  const contexto = choice([
+    "tiempos (minutos) de una actividad",
+    "puntajes en una práctica",
+    "edades registradas en un grupo",
+    "distancias (km) recorridas",
+  ] as const)
+
+  const datos = Array.from({ length: n }, () => randInt(range.min, range.max))
+  const m = median(datos)
   return {
+    contexto,
     datos,
     ordenados: m.sorted,
-    mediana: medianaExplain,
+    medianaText: m.detail,
     correct: m.medStr,
   }
 }
 
-function generateOptions(s: Omit<Scenario, "options">): Option[] {
-  const correct = s.correct
-  const sorted = s.ordenados
+function generateOptions(base: Omit<Scenario, "options">): Option[] {
+  const sorted = base.ordenados
   const n = sorted.length
+  const correct = base.correct
+  const asNum = Number(correct)
 
-  const wrong1 = String(sorted[0]) // mínimo
-  const wrong2 = String(sorted[n - 1]) // máximo
+  const wrongMin = sorted[0]
+  const wrongMax = sorted[n - 1]
+  const wrongUnsortedMiddle = base.datos[Math.floor(n / 2)]
+  const wrongCenterOnly = n % 2 === 0 ? sorted[n / 2] : sorted[Math.floor(n / 2)] + 1
+  const wrongNeighbor = asNum + choice([-2, -1, 1, 2] as const)
 
-  // errores típicos: tomar "del medio" sin ordenar / tomar uno de los dos centrales mal
-  const wrong3 = String(s.datos[Math.floor(n / 2)])
-  const wrong4 = n % 2 === 0 ? String(sorted[n / 2]) : String(sorted[Math.floor(n / 2)] + 1)
+  const candidates = [asNum, wrongMin, wrongMax, wrongUnsortedMiddle, wrongCenterOnly, wrongNeighbor]
+  const seen = new Set<number>()
+  const unique: number[] = []
 
-  const all: Option[] = shuffle([
-    { value: correct, correct: true },
-    { value: wrong1, correct: false },
-    { value: wrong2, correct: false },
-    { value: wrong3, correct: false },
-    { value: wrong4, correct: false },
-  ])
-
-  const seen = new Set<string>()
-  const unique: Option[] = []
-  for (const o of all) {
-    if (seen.has(o.value)) continue
-    seen.add(o.value)
-    unique.push(o)
+  for (const value of shuffle(candidates)) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    unique.push(value)
   }
-  while (unique.length < 5) unique.push({ value: String(randInt(8, 22)), correct: false })
-  return unique
+
+  while (unique.length < 5) {
+    const extra = randInt(sorted[0], sorted[n - 1] + 3)
+    if (!seen.has(extra)) {
+      seen.add(extra)
+      unique.push(extra)
+    }
+  }
+
+  return shuffle(unique.slice(0, 5)).map(value => ({
+    value: value % 1 === 0 ? String(value) : value.toFixed(1),
+    correct: value === asNum,
+  }))
 }
 
 export default function Ej06({
@@ -123,7 +141,7 @@ export default function Ej06({
   const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
 
   const scenario = useMemo(() => {
-    const base = generateScenario()
+    const base = generateBase()
     return { ...base, options: generateOptions(base) }
   }, [nonce])
 
@@ -139,7 +157,7 @@ export default function Ej06({
       answer: {
         selected: op.value,
         correctAnswer: scenario.correct,
-        question: { datos: scenario.datos },
+        question: { contexto: scenario.contexto, datos: scenario.datos },
         computed: { ordenados: scenario.ordenados },
         options: scenario.options.map(o => o.value),
       },
@@ -159,7 +177,7 @@ export default function Ej06({
     steps: [
       {
         title: "Ordenar los datos",
-        detail: <span>La mediana se encuentra con los datos ordenados de menor a mayor.</span>,
+        detail: <span>La mediana siempre se calcula con la lista ordenada de menor a mayor.</span>,
         icon: Sigma,
         content: (
           <div className="rounded-lg border bg-background p-3 space-y-2">
@@ -167,23 +185,21 @@ export default function Ej06({
             <div>Ordenados: <b>{scenario.ordenados.join(", ")}</b></div>
           </div>
         ),
-        tip: <span>Si no ordenas, puedes elegir un “centro” incorrecto.</span>,
       },
       {
-        title: "Tomar el/los valor(es) central(es)",
-        detail: <span>Si n es impar: un centro. Si n es par: promedio de dos centros.</span>,
+        title: "Tomar el valor central",
+        detail: <span>Si hay cantidad impar, es un solo valor; si hay par, es el promedio de dos valores centrales.</span>,
         icon: Divide,
         content: (
           <div className="rounded-lg border bg-background p-3 space-y-2">
-            <div>{scenario.mediana}</div>
+            <div>{scenario.medianaText}</div>
             <div>Mediana = <b>{scenario.correct}</b></div>
           </div>
         ),
-        tip: <span>Centro significa “misma cantidad a la izquierda y a la derecha”.</span>,
       },
       {
         title: "Conclusión",
-        detail: <span>La mediana divide el conjunto en dos mitades.</span>,
+        detail: <span>Esa mediana divide el conjunto en dos mitades.</span>,
         icon: ShieldCheck,
         content: (
           <div className="rounded-lg border bg-background p-3">
@@ -199,9 +215,7 @@ export default function Ej06({
     <MathProvider>
       <ExerciseShell
         title="Mediana"
-        prompt={`En el Colegio Cristo Salvador se registraron ${n} valores: ${scenario.datos.join(
-          ", "
-        )}. ¿Cuál es la mediana?`}
+        prompt={`En el Colegio Cristo Salvador se registraron ${n} valores de ${scenario.contexto}: ${scenario.datos.join(", ")}. ¿Cuál es la mediana?`}
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -223,7 +237,7 @@ export default function Ej06({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <span>{op.value}</span>}
+          renderValue={op => <span>{op.value}</span>}
         />
 
         <div className="mt-6">

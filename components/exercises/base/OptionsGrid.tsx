@@ -28,13 +28,13 @@ export function OptionsGrid({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {options.map((op) => {
+      {options.map((op, index) => {
         const isSelected = selectedValue === op.value
         const showCorrect = status !== "idle" && op.correct
         const showWrong = status === "revealed" && isSelected && !op.correct
         return (
           <motion.button
-            key={op.value}
+            key={`${op.value}-${index}`}
             type="button"
             disabled={!canAnswer}
             onClick={() => onSelect(op)}

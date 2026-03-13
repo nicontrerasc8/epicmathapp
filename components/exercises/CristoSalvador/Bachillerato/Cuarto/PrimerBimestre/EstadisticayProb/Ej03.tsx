@@ -15,15 +15,14 @@ import { SolutionBox } from "@/components/exercises/base/SolutionBox"
 import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
-/* =========================
-   HELPERS
-========================= */
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
-function choice<T>(arr: T[]): T {
+
+function choice<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
+
 function shuffle<T>(arr: T[]) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -32,16 +31,19 @@ function shuffle<T>(arr: T[]) {
   }
   return a
 }
+
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n))
 }
 
 type Row = { categoria: string; f: number }
+
 type Scenario = {
   tema: string
   rows: Row[]
   ask: string
   correct: string
+  answerType: "frequency" | "category"
   options: Option[]
 }
 
@@ -49,60 +51,96 @@ const TEMAS = [
   { tema: "medio de transporte", cats: ["a pie", "bus", "auto", "bicicleta"] },
   { tema: "deporte favorito", cats: ["fútbol", "vóley", "básquet", "natación"] },
   { tema: "color preferido", cats: ["azul", "rojo", "verde", "negro"] },
-]
+  { tema: "fruta favorita", cats: ["manzana", "pera", "uva", "plátano"] },
+] as const
+
+function uniqueFrequencies() {
+  const values = new Set<number>()
+  while (values.size < 4) values.add(randInt(6, 20))
+  return shuffle(Array.from(values))
+}
 
 function generateScenario(): Omit<Scenario, "options"> {
   const t = choice(TEMAS)
-  const cats = shuffle(t.cats)
+  const cats = shuffle([...t.cats])
+  const freqs = uniqueFrequencies()
 
-  // frecuencias “bonitas”
-  const f1 = randInt(6, 18)
-  const f2 = randInt(6, 18)
-  const f3 = randInt(6, 18)
-  const f4 = randInt(6, 18)
   const rows: Row[] = [
-    { categoria: cats[0], f: f1 },
-    { categoria: cats[1], f: f2 },
-    { categoria: cats[2], f: f3 },
-    { categoria: cats[3], f: f4 },
+    { categoria: cats[0], f: freqs[0] },
+    { categoria: cats[1], f: freqs[1] },
+    { categoria: cats[2], f: freqs[2] },
+    { categoria: cats[3], f: freqs[3] },
   ]
 
-  const askRow = choice(rows)
-  const ask = `¿Cuál es la frecuencia absoluta de “${askRow.categoria}”?`
-  const correct = String(askRow.f)
+  const answerType = choice(["frequency", "category"] as const)
 
-  return { tema: t.tema, rows, ask, correct }
+  if (answerType === "category") {
+    const askRow = choice(rows)
+    return {
+      tema: t.tema,
+      rows,
+      answerType,
+      ask: `¿Qué categoría tiene frecuencia absoluta ${askRow.f}?`,
+      correct: askRow.categoria,
+    }
+  }
+
+  const askRow = choice(rows)
+  return {
+    tema: t.tema,
+    rows,
+    answerType,
+    ask: `¿Cuál es la frecuencia absoluta de "${askRow.categoria}"?`,
+    correct: String(askRow.f),
+  }
 }
 
 function generateOptions(s: Omit<Scenario, "options">): Option[] {
+  if (s.answerType === "category") {
+    return shuffle(
+      s.rows.map(r => ({
+        value: r.categoria,
+        correct: r.categoria === s.correct,
+      }))
+    )
+  }
+
   const correct = s.correct
   const fs = s.rows.map(r => r.f)
   const total = fs.reduce((a, b) => a + b, 0)
   const maxF = Math.max(...fs)
+  const minF = Math.min(...fs)
 
-  const wrong1 = String(total) // confunde con total
-  const wrong2 = String(maxF) // confunde con mayor
-  const wrong3 = String(clamp(Number(correct) + randInt(1, 4), 1, 999))
-  const wrong4 = String(clamp(Number(correct) - randInt(1, 4), 1, 999))
+  const candidates = [
+    Number(correct),
+    total,
+    maxF,
+    minF,
+    clamp(Number(correct) + randInt(1, 4), 1, 999),
+    clamp(Number(correct) - randInt(1, 4), 1, 999),
+  ]
 
-  const all: Option[] = shuffle([
-    { value: correct, correct: true },
-    { value: wrong1, correct: false },
-    { value: wrong2, correct: false },
-    { value: wrong3, correct: false },
-    { value: wrong4, correct: false },
-  ])
-
-  // únicos
-  const seen = new Set<string>()
-  const unique: Option[] = []
-  for (const o of all) {
-    if (seen.has(o.value)) continue
-    seen.add(o.value)
-    unique.push(o)
+  const seen = new Set<number>()
+  const unique: number[] = []
+  for (const value of shuffle(candidates)) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    unique.push(value)
   }
-  while (unique.length < 5) unique.push({ value: String(randInt(1, 60)), correct: false })
-  return unique
+  while (unique.length < 5) {
+    const extra = randInt(1, 60)
+    if (!seen.has(extra)) {
+      seen.add(extra)
+      unique.push(extra)
+    }
+  }
+
+  return shuffle(
+    unique.slice(0, 5).map(value => ({
+      value: String(value),
+      correct: String(value) === correct,
+    }))
+  )
 }
 
 export default function Ej03({
@@ -142,7 +180,7 @@ export default function Ej03({
       answer: {
         selected: op.value,
         correctAnswer: scenario.correct,
-        question: { tema: scenario.tema, ask: scenario.ask, rows: scenario.rows },
+        question: { tema: scenario.tema, ask: scenario.ask, rows: scenario.rows, answerType: scenario.answerType },
         options: scenario.options.map(o => o.value),
       },
       timeSeconds,
@@ -161,7 +199,7 @@ export default function Ej03({
     steps: [
       {
         title: "Leer la tabla",
-        detail: <span>La frecuencia absoluta (f) es la cantidad de veces que aparece cada categoría.</span>,
+        detail: <span>La frecuencia absoluta es la cantidad que aparece junto a cada categoría.</span>,
         icon: Sigma,
         content: (
           <div className="space-y-2">
@@ -181,30 +219,29 @@ export default function Ej03({
             </div>
           </div>
         ),
-        tip: <span>“Frecuencia absoluta” = conteo directo en la tabla.</span>,
       },
       {
-        title: "Ubicar la categoría preguntada",
-        detail: <span>Buscamos el valor f que corresponde exactamente a la categoría.</span>,
+        title: "Ubicar el dato pedido",
+        detail: <span>Buscamos directamente la categoría o la frecuencia según la pregunta.</span>,
         icon: Divide,
         content: (
           <div className="rounded-lg border bg-background p-3 space-y-2">
             <div>{scenario.ask}</div>
             <div>
-              La categoría pedida aparece con frecuencia: <b>{scenario.correct}</b>
+              Respuesta: <b>{scenario.correct}</b>
             </div>
           </div>
         ),
-        tip: <span>No se suma todo: solo se lee el f de esa categoría.</span>,
+        tip: <span>No hace falta sumar todo, salvo si quieres verificar el total.</span>,
       },
       {
         title: "Verificación rápida",
-        detail: <span>Podemos sumar para saber el total, pero no es la respuesta.</span>,
+        detail: <span>El total sirve como comprobación, pero no siempre es lo que se pide.</span>,
         icon: ShieldCheck,
         content: (
           <div className="rounded-lg border bg-background p-3 space-y-1">
-            <div>Total de estudiantes registrados: <b>{total}</b></div>
-            <div>Respuesta (frecuencia pedida): <b>{scenario.correct}</b></div>
+            <div>Total registrado: <b>{total}</b></div>
+            <div>Respuesta pedida: <b>{scenario.correct}</b></div>
           </div>
         ),
       },
@@ -253,7 +290,7 @@ export default function Ej03({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <span>{op.value}</span>}
+          renderValue={op => <span>{op.value}</span>}
         />
 
         <div className="mt-6">

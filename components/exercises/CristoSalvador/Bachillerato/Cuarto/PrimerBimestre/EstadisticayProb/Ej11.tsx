@@ -15,15 +15,14 @@ import { SolutionBox } from "@/components/exercises/base/SolutionBox"
 import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
-/* =========================
-   HELPERS
-========================= */
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
-function choice<T>(arr: T[]): T {
+
+function choice<T>(arr: readonly T[]) {
   return arr[Math.floor(Math.random() * arr.length)]
 }
+
 function shuffle<T>(arr: T[]) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -33,96 +32,120 @@ function shuffle<T>(arr: T[]) {
   return a
 }
 
-/* =========================
-   ESCENARIO
-   Tabla: #Simulacros = 0,1,2,3
-   f0 conocido, F1 conocido, F2 conocido (implícito), F3 = n
-   Dado: p% tuvo al menos 2 => f2 + f3 = p*n
-   Pregunta: hallar f2
-========================= */
+function combLikeUnique(values: number[], correct: number) {
+  const seen = new Set<number>()
+  const unique: number[] = []
+  for (const value of shuffle(values.map(v => Math.max(1, v)))) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    unique.push(value)
+  }
+  while (unique.length < 5) {
+    const extra = Math.max(1, correct + randInt(-15, 15))
+    if (!seen.has(extra)) {
+      seen.add(extra)
+      unique.push(extra)
+    }
+  }
+  return shuffle(unique.slice(0, 5)).map(value => ({
+    value: String(value),
+    correct: value === correct,
+  }))
+}
+
+const CONTEXTS = [
+  { noun: "simulacros rindieron", total: "estudiantes" },
+  { noun: "talleres completaron", total: "participantes" },
+  { noun: "prácticas resolvieron", total: "alumnos" },
+  { noun: "actividades entregaron", total: "estudiantes" },
+] as const
+
 type Scenario = ReturnType<typeof generateScenario>
 
 function generateScenario() {
-  // n múltiplo de 10 para porcentajes limpios
-  const n = choice([40, 50, 60, 70, 80])
+  for (let tries = 0; tries < 800; tries++) {
+    const n = choice([40, 50, 60, 70, 80] as const)
+    const context = choice(CONTEXTS)
+    const askFor = choice(["b", "c"] as const)
+    const p = choice([50, 60, 70, 80] as const)
+    const atLeast2 = Math.round((p / 100) * n)
 
-  // f0 pequeño
-  const f0 = randInt(4, Math.max(6, Math.floor(n * 0.15)))
+    const f0 = randInt(4, Math.max(6, Math.floor(n * 0.15)))
+    const F1 = n - atLeast2
+    if (F1 <= f0 + 2) continue
 
-  // F1 (acumulada hasta 1) > f0
-  const F1 = randInt(f0 + 8, f0 + Math.floor(n * 0.35))
+    const f1 = F1 - f0
+    const f3 = randInt(6, Math.max(6, atLeast2 - 6))
+    const f2 = atLeast2 - f3
 
-  const f1 = F1 - f0
+    if (f2 <= 0) continue
+    if (f0 + f1 + f2 + f3 !== n) continue
 
-  // porcentaje de "al menos 2" => f2 + f3
-  // elegimos p que haga p*n entero (n es múltiplo de 10)
-  const p = choice([50, 60, 70, 80]) // %
-  const atLeast2 = Math.round((p / 100) * n)
+    const F0 = f0
+    const F2 = f0 + f1 + f2
+    const F3 = n
 
-  // Entonces f0 + f1 + f2 + f3 = n  y  f2 + f3 = atLeast2
-  // => f0 + f1 + atLeast2 = n  ? no necesariamente, porque atLeast2 depende del total.
-  // En realidad: f2+f3 = atLeast2, y f0+f1 = n - atLeast2.
-  // Debemos forzar coherencia: F1 = f0+f1 debe ser n - atLeast2.
-  // Ajustamos: hacemos que F1 sea exactamente n - atLeast2 para que todo cierre.
-  const F1Fixed = n - atLeast2
-  // si queda raro (negativo o muy pequeño), reintenta
-  if (F1Fixed <= f0 + 2) return generateScenario()
+    const correct = askFor === "b" ? f2 : f3
+    const distractors = [
+      askFor === "b" ? f3 : f2,
+      atLeast2,
+      F2,
+      F1,
+      correct + choice([-6, -4, 4, 6] as const),
+    ]
 
-  const f1Fixed = F1Fixed - f0
+    const options = combLikeUnique([correct, ...distractors], correct)
 
-  // ahora elegimos f3 y calculamos f2
-  const f3 = randInt(6, Math.max(6, atLeast2 - 6))
-  const f2 = atLeast2 - f3
-
-  // validaciones
-  if (f2 <= 0) return generateScenario()
-  if (f0 + f1Fixed + f2 + f3 !== n) return generateScenario()
-
-  const F0 = f0
-  const F1ok = f0 + f1Fixed
-  const F2 = f0 + f1Fixed + f2
-  const F3 = n
-
-  const correct = f2
-
-  // opciones: distractores típicos
-  const d1 = f2 + choice([-6, -4, 4, 6])
-  const d2 = f3 // confunden y ponen f3
-  const d3 = atLeast2 // confunden con el “al menos 2”
-  const d4 = F2 // confunden con acumulada
-
-  const candidates = shuffle([correct, d1, d2, d3, d4].map(x => Math.max(1, x)))
-  const uniq: number[] = []
-  for (const v of candidates) {
-    if (!uniq.includes(v)) uniq.push(v)
+    return {
+      n,
+      p,
+      f0,
+      f1,
+      f2,
+      f3,
+      F0,
+      F1,
+      F2,
+      F3,
+      atLeast2,
+      correct,
+      askFor,
+      context,
+      options,
+    }
   }
-  while (uniq.length < 5) uniq.push(correct + randInt(7, 15))
 
-  const options: Option[] = shuffle(uniq.slice(0, 5)).map(v => ({
-    value: String(v),
-    correct: v === correct,
-  }))
-
+  const n = 50
+  const p = 60
+  const atLeast2 = 30
+  const f0 = 8
+  const f1 = 12
+  const f2 = 18
+  const f3 = 12
+  const F0 = f0
+  const F1 = f0 + f1
+  const F2 = F1 + f2
+  const F3 = n
+  const correct = f2
   return {
     n,
     p,
     f0,
-    f1: f1Fixed,
+    f1,
     f2,
     f3,
     F0,
-    F1: F1ok,
+    F1,
     F2,
     F3,
     atLeast2,
     correct,
-    options,
+    askFor: "b" as const,
+    context: CONTEXTS[0],
+    options: combLikeUnique([correct, f3, atLeast2, F2, F1], correct),
   }
 }
 
-/* ============================================================
-   COMPONENTE
-============================================================ */
 export default function Ej11({
   exerciseId,
   classroomId,
@@ -161,8 +184,9 @@ export default function Ej11({
         question: {
           n: scenario.n,
           p: scenario.p,
+          askFor: scenario.askFor,
           table: {
-            simulacros: [0, 1, 2, 3],
+            items: [0, 1, 2, 3],
             f: [scenario.f0, scenario.f1, "b", "c"],
             F: [scenario.F0, scenario.F1, scenario.F2, scenario.F3],
           },
@@ -186,7 +210,7 @@ export default function Ej11({
 
   const tableTex = `
 \\begin{array}{c|c|c}
-\\text{Simulacros} & f & F \\\\ \\hline
+\\text{Cantidad} & f & F \\\\ \\hline
 0 & ${scenario.f0} & ${scenario.F0} \\\\
 1 & a & ${scenario.F1} \\\\
 2 & b & ${scenario.F2} \\\\
@@ -194,15 +218,21 @@ export default function Ej11({
 \\end{array}
 `
 
+  const askedTex = scenario.askFor === "b" ? "b" : "c"
+  const solveTex =
+    scenario.askFor === "b"
+      ? `b = ${scenario.atLeast2} - ${scenario.f3} = ${scenario.f2}`
+      : `c = ${scenario.atLeast2} - ${scenario.f2} = ${scenario.f3}`
+
   return (
     <MathProvider>
       <ExerciseShell
         title="Frecuencia y tabla acumulada"
         prompt={
           <>
-            En un grupo de <b>{scenario.n}</b> estudiantes se registró cuántos simulacros rindieron.
+            En un grupo de <b>{scenario.n}</b> {scenario.context.total} se registró cuántos {scenario.context.noun}.
             <br />
-            Sabiendo que el <b>{scenario.p}%</b> rindió <b>al menos 2</b> simulacros, halla <b>b</b>.
+            Sabiendo que el <b>{scenario.p}%</b> realizó <b>al menos 2</b>, halla <b>{askedTex}</b>.
           </>
         }
         status={engine.status}
@@ -219,7 +249,7 @@ export default function Ej11({
                   title: "Convertir el porcentaje a cantidad",
                   detail: (
                     <span>
-                      “Al menos 2” significa <b>2 o 3</b> simulacros: \(b + c\).
+                      “Al menos 2” significa 2 o 3, así que corresponde a <MathTex tex={`b+c`} />.
                     </span>
                   ),
                   icon: Sigma,
@@ -232,40 +262,34 @@ export default function Ej11({
                   ),
                 },
                 {
-                  title: "Usar la frecuencia acumulada hasta 1",
+                  title: "Usar la frecuencia acumulada",
                   detail: (
                     <span>
-                      La acumulada hasta 1 es \(F_1 = f_0 + a\). Eso representa los que hicieron <b>0 o 1</b>.
+                      La acumulada hasta 1 representa a quienes hicieron 0 o 1.
                     </span>
                   ),
                   icon: Divide,
                   content: (
                     <div className="space-y-3">
                       <MathTex block tex={`F_1 = ${scenario.F1}`} />
-                      <MathTex block tex={`F_1 = f_0 + a = ${scenario.f0} + a`} />
-                      <MathTex block tex={`\\Rightarrow\\ a = ${scenario.F1} - ${scenario.f0} = ${scenario.f1}`} />
+                      <MathTex block tex={`F_1 = ${scenario.f0} + a`} />
+                      <MathTex block tex={`a = ${scenario.F1} - ${scenario.f0} = ${scenario.f1}`} />
                     </div>
                   ),
                 },
                 {
-                  title: "Hallar b con el total",
-                  detail: (
-                    <span>
-                      Si \(b+c\) ya es {scenario.atLeast2} y elegimos \(c\) según la tabla, entonces \(b\) se despeja.
-                    </span>
-                  ),
+                  title: "Despejar el dato pedido",
+                  detail: <span>Ahora usamos <MathTex tex={`b+c=${scenario.atLeast2}`} /> para hallar {askedTex}.</span>,
                   icon: ShieldCheck,
                   content: (
                     <div className="space-y-3">
-                      <MathTex block tex={`\\text{Tabla:}`} />
                       <MathTex block tex={tableTex} />
-                      <MathTex block tex={`b + c = ${scenario.atLeast2}`} />
-                      <MathTex block tex={`b = ${scenario.atLeast2} - c = ${scenario.atLeast2} - ${scenario.f3} = ${scenario.f2}`} />
+                      <MathTex block tex={solveTex} />
                     </div>
                   ),
                 },
               ]}
-              concluding={<span>Respuesta final: <b>b = {scenario.correct}</b>.</span>}
+              concluding={<span>Respuesta final: <b>{askedTex} = {scenario.correct}</b>.</span>}
             />
           </SolutionBox>
         }
@@ -283,7 +307,7 @@ export default function Ej11({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <span className="font-semibold">{op.value}</span>}
+          renderValue={op => <span className="font-semibold">{op.value}</span>}
         />
 
         <div className="mt-6">

@@ -15,145 +15,124 @@ import { SolutionBox } from "@/components/exercises/base/SolutionBox"
 import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
 import { DetailedExplanation } from "@/components/exercises/base/DetailedExplanation"
 
-/* =========================
-   HELPERS
-========================= */
-
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
-function choice<T>(arr: T[]) {
+
+function choice<T>(arr: readonly T[]): T {
   return arr[randInt(0, arr.length - 1)]
 }
+
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
 
-/* =========================
-   VARIACIONES DE CONTEXTO
-========================= */
+type Context = { label: string; site: string }
+type Concept = "region" | "border" | "vertex" | "triangulation" | "facility"
 
-const CONTEXTS = [
-  {
-    label: "residuos tóxicos",
-    site: "foco contaminante",
-  },
-  {
-    label: "servicios públicos",
-    site: "centro de atención",
-  },
-  {
-    label: "planificación urbana",
-    site: "hospital",
-  },
-  {
-    label: "zonas de emergencia",
-    site: "estación de bomberos",
-  },
+const CONTEXTS: Context[] = [
+  { label: "residuos toxicos", site: "foco contaminante" },
+  { label: "servicios publicos", site: "centro de atencion" },
+  { label: "planificacion urbana", site: "hospital" },
+  { label: "zonas de emergencia", site: "estacion de bomberos" },
+  { label: "distribucion logistica", site: "centro de entrega" },
 ]
 
-const PROMPT_TEMPLATES = [
-  `En el problema de "{label}", si tres sitios forman un triángulo, el diagrama de Voronoi permite:`,
-  `En un caso de "{label}", cuando tres {site}s forman un triángulo, Voronoi se usa para:`,
-  `Para modelar "{label}", si tres puntos de referencia forman un triángulo, Voronoi sirve para:`,
-  `En "{label}", al trabajar con tres {site}s no colineales, el diagrama de Voronoi ayuda a:`,
-  `Aplicado a "{label}", el diagrama de Voronoi con tres sitios en triángulo permite:`,
-  `Si en "{label}" se tienen tres {site}s que forman un triángulo, entonces Voronoi permite:`,
-  `En la modelización de "{label}", con tres sitios en disposición triangular, se puede:`,
-  `En un escenario de "{label}", tres sitios formando triángulo implican que Voronoi permite:`,
-]
-
-const CORRECT_TEMPLATES = [
-  "Determinar la región más cercana a cada sitio e identificar un punto equidistante a los tres (circuncentro).",
-  "Particionar el plano por cercanía a cada sitio y ubicar el punto equidistante de tres sitios (circuncentro).",
-  "Asignar zonas de influencia por distancia mínima y localizar el vértice equidistante asociado al circuncentro.",
-  "Delimitar áreas de proximidad de cada sitio y encontrar el punto común equidistante cuando hay tres sitios.",
-  "Separar regiones de cercanía y reconocer el punto donde se igualan distancias a tres sitios (circuncentro).",
-  "Definir fronteras de cercanía entre sitios y ubicar el punto equidistante a los tres vértices del triángulo.",
-  "Clasificar puntos por sitio más cercano y detectar el punto de equidistancia triple en el triángulo.",
-  "Construir regiones Voronoi y hallar el punto equidistante a tres sitios correspondiente al circuncentro.",
-]
-
-const WRONG_POOL = [
-  "Maximizar ganancias del sistema.",
-  "Calcular derivadas parciales del modelo.",
-  "Resolver ecuaciones cuadráticas del contexto.",
-  "Medir volumen de sólidos geométricos.",
-  "Hallar áreas de circunferencias sin relación con cercanía.",
-  "Aplicar logaritmos para transformar unidades.",
-  "Medir dispersión estadística de datos muestrales.",
-  "Resolver límites algebraicos.",
-  "Encontrar el punto más lejano de todos los sitios.",
-  "Dividir el plano en regiones de igual área.",
-  "Ubicar el baricentro del triángulo de sitios.",
-  "Calcular la mediana de distancias entre sitios.",
-  "Determinar la pendiente máxima del terreno.",
-  "Ordenar sitios por coordenada x sin criterio de distancia.",
-  "Encontrar raíces enteras de un polinomio.",
-  "Calcular solo perímetros de triángulos.",
-  "Determinar el incentro del triángulo de sitios.",
-  "Forzar que todas las regiones tengan la misma forma.",
-  "Obtener la suma de ángulos interiores.",
-  "Modelar crecimiento exponencial de la población.",
-]
-
-function pickUnique<T>(arr: T[], count: number): T[] {
-  const unique = Array.from(new Set(arr))
-  return shuffle(unique).slice(0, count)
+const PROMPTS: Record<Concept, string[]> = {
+  region: [
+    `En "{label}", si tres sitios forman un triangulo, el diagrama de Voronoi permite:`,
+    `En un caso de "{label}" con tres {site}s no colineales, Voronoi se usa para:`,
+    `Para modelar "{label}", el diagrama de Voronoi ayuda a:`,
+  ],
+  border: [
+    `En "{label}", la frontera entre dos regiones Voronoi representa:`,
+    `Si modelas "{label}", la arista entre dos celdas Voronoi es:`,
+    `En el contexto de "{label}", un borde Voronoi se interpreta como:`,
+  ],
+  vertex: [
+    `En "{label}", cuando tres sitios forman triangulo, un vertice Voronoi identifica:`,
+    `Aplicado a "{label}", un vertice Voronoi corresponde a:`,
+    `En un esquema Voronoi para "{label}", el vertice comun describe:`,
+  ],
+  triangulation: [
+    `En "{label}", para pasar de Voronoi a Delaunay se conecta:`,
+    `En un modelo de "{label}", la triangulacion de Delaunay se obtiene al:`,
+    `Si partes de Voronoi en "{label}", Delaunay relaciona:`,
+  ],
+  facility: [
+    `En "{label}", si quieres asignar cada punto al sitio mas cercano, Voronoi sirve para:`,
+    `Para cobertura de "{label}", Voronoi permite decidir:`,
+    `En un problema de "{label}", Voronoi apoya la decision de:`,
+  ],
 }
 
-/* =========================
-   GENERADOR
-========================= */
+const CORRECTS: Record<Concept, string[]> = {
+  region: [
+    "Particionar el plano en celdas donde cada punto queda mas cerca de un sitio que de los demas.",
+    "Definir zonas de influencia por distancia minima a cada sitio.",
+    "Asignar cada punto al sitio mas cercano y separar el plano por proximidad.",
+  ],
+  border: [
+    "La mediatriz del segmento que une dos sitios, donde ambas distancias son iguales.",
+    "El conjunto de puntos equidistantes a dos sitios vecinos.",
+    "Una frontera de empate de distancia entre dos sitios.",
+  ],
+  vertex: [
+    "Un punto equidistante a tres sitios, asociado al circuncentro del triangulo.",
+    "La interseccion de mediatrices donde se igualan distancias a tres sitios.",
+    "El punto Voronoi con equidistancia triple cuando hay tres sitios no colineales.",
+  ],
+  triangulation: [
+    "Los sitios cuyas celdas Voronoi son adyacentes para formar aristas de Delaunay.",
+    "Pares de sitios con frontera Voronoi comun para construir Delaunay.",
+    "Sitios vecinos en Voronoi, obteniendo triangulos de Delaunay.",
+  ],
+  facility: [
+    "Determinar para cada ubicacion cual sitio de servicio queda mas cercano.",
+    "Asignar cobertura territorial segun distancia minima al sitio.",
+    "Delimitar zonas de atencion por proximidad al sitio mas cercano.",
+  ],
+}
+
+const WRONGS: string[] = [
+  "Maximizar ganancias sin criterio geometrico.",
+  "Calcular derivadas parciales del modelo.",
+  "Resolver ecuaciones cuadraticas del contexto.",
+  "Medir volumen de solidos geometricos.",
+  "Obtener la suma de angulos interiores del triangulo.",
+  "Ubicar siempre el baricentro como solucion de cercania.",
+  "Forzar regiones de igual area para todos los sitios.",
+  "Ordenar sitios por coordenada x sin distancias.",
+  "Calcular solo perimetros de triangulos.",
+  "Encontrar el punto mas lejano en todos los casos.",
+  "Modelar crecimiento exponencial de poblacion.",
+  "Determinar el incentro como regla universal.",
+]
 
 type Scenario = {
   question: string
   correct: string
   options: Option[]
-  explain: {
-    step1: string
-    step2: string
-    step3: string
-    conclusion: string
-  }
+  concept: Concept
 }
 
 function generateScenario(): Scenario {
   const ctx = choice(CONTEXTS)
+  const concept = choice(Object.keys(PROMPTS) as Concept[])
 
-  const question = choice(PROMPT_TEMPLATES)
+  const question = choice(PROMPTS[concept])
     .replace("{label}", ctx.label)
     .replace("{site}", ctx.site)
+  const correct = choice(CORRECTS[concept])
 
-  const correct = choice(CORRECT_TEMPLATES)
-
-  const wrongs = pickUnique(
-    WRONG_POOL.filter((w) => w !== correct),
-    4
-  )
-
+  const pool = shuffle(WRONGS.filter(w => w !== correct))
   const options: Option[] = shuffle([
     { value: correct, correct: true },
-    ...wrongs.map((w) => ({ value: w, correct: false })),
+    ...pool.slice(0, 4).map(value => ({ value, correct: false })),
   ])
 
-  const explain = {
-    step1:
-      "Un diagrama de Voronoi divide el plano en regiones donde cada punto es más cercano a un sitio específico.",
-    step2:
-      "Las fronteras son mediatrices entre pares de sitios, y su intersección genera vértices.",
-    step3:
-      "Cuando tres sitios forman un triángulo, el vértice común corresponde al punto equidistante a los tres (circuncentro).",
-    conclusion:
-      "Por ello, el diagrama permite identificar zonas de cercanía y puntos equidistantes clave.",
-  }
-
-  return { question, correct, options, explain }
+  return { question, correct, options, concept }
 }
-
-/* ============================================================
-   COMPONENTE
-============================================================ */
 
 export default function VoronoiIntegradorGame({
   exerciseId,
@@ -165,18 +144,16 @@ export default function VoronoiIntegradorGame({
   sessionId?: string
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
-  const { studentId, gami, gamiLoading, submitAttempt } =
-    useExerciseSubmission({
-      exerciseId,
-      classroomId,
-      sessionId,
-    })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
 
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
   const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
-
   const scenario = useMemo(() => generateScenario(), [nonce])
   const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
 
@@ -195,6 +172,7 @@ export default function VoronoiIntegradorGame({
         question: {
           context: "voronoi_integrador",
           prompt: scenario.question,
+          concept: scenario.concept,
         },
       },
       timeSeconds,
@@ -207,9 +185,9 @@ export default function VoronoiIntegradorGame({
     setNonce(n => n + 1)
   }
 
-  const tex1 = `\\text{Región Voronoi: puntos más cercanos a un sitio}`
-  const tex2 = `\\text{Vértice Voronoi: intersección de 3 mediatrices}`
-  const tex3 = `PA = PB = PC`
+  const tex1 = `\\text{Celda Voronoi: puntos mas cercanos a un sitio}`
+  const tex2 = `\\text{Borde Voronoi: puntos equidistantes a dos sitios}`
+  const tex3 = `\\text{Vertice Voronoi: interseccion de mediatrices}`
 
   return (
     <MathProvider>
@@ -224,36 +202,33 @@ export default function VoronoiIntegradorGame({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Explicación integradora"
+              title="Explicacion integradora"
               steps={[
                 {
-                  title: "División en regiones",
+                  title: "Division en celdas",
                   detail: (
                     <span>
-                      Cada región de Voronoi contiene puntos más cercanos a
-                      un sitio que a los demás.
+                      Cada celda agrupa puntos cuyo sitio mas cercano es el mismo.
                     </span>
                   ),
                   icon: Sigma,
                   content: <MathTex block tex={tex1} />,
                 },
                 {
-                  title: "Intersección de mediatrices",
+                  title: "Fronteras por equidistancia",
                   detail: (
                     <span>
-                      Las fronteras entre regiones se construyen con
-                      mediatrices entre pares de sitios.
+                      Las fronteras entre celdas se forman donde dos distancias se igualan.
                     </span>
                   ),
                   icon: Divide,
                   content: <MathTex block tex={tex2} />,
                 },
                 {
-                  title: "Propiedad de equidistancia",
+                  title: "Vertices y tres sitios",
                   detail: (
                     <span>
-                      El vértice común queda a la misma distancia de tres
-                      sitios cuando forman un triángulo.
+                      Un vertice Voronoi aparece cuando coinciden tres mediatrices.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -282,7 +257,7 @@ export default function VoronoiIntegradorGame({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <span className="text-sm">{op.value}</span>}
+          renderValue={op => <span className="text-sm">{op.value}</span>}
         />
 
         <div className="mt-6">

@@ -18,9 +18,11 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
-function choice<T>(arr: T[]): T {
+
+function choice<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
+
 function shuffle<T>(arr: T[]) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -29,61 +31,106 @@ function shuffle<T>(arr: T[]) {
   }
   return a
 }
+
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n))
+}
+
 function pct(n: number) {
   return `${Math.round(n)}%`
 }
 
+type AskKind = "favorables" | "no_favorables"
 type Scenario = {
   total: number
   favorables: number
+  noFavorables: number
   contexto: string
+  askKind: AskKind
+  ask: string
   correct: string
+  correctNum: number
   options: Option[]
 }
 
 function generateScenario(): Omit<Scenario, "options"> {
-  const total = randInt(25, 45)
-  const favorables = randInt(6, total - 5)
+  const total = randInt(25, 60)
+  const favorables = randInt(6, total - 6)
+  const noFavorables = total - favorables
 
   const contexto = choice([
     "prefieren recreo deportivo",
     "llegan en bus",
     "prefieren clases en la mañana",
-    "eligen fútbol en educación física",
-  ])
+    "eligen futbol en educacion fisica",
+    "participan en el club de lectura",
+    "usan bicicleta para llegar",
+  ] as const)
 
-  const rel = (favorables / total) * 100
-  const correct = pct(rel)
+  const askKind = choice(["favorables", "no_favorables"] as const)
+  const relFav = Math.round((favorables / total) * 100)
+  const relNoFav = 100 - relFav
 
-  return { total, favorables, contexto, correct }
+  const ask =
+    askKind === "favorables"
+      ? choice([
+          `¿Que porcentaje representa el grupo que ${contexto}?`,
+          `¿Cual es la frecuencia relativa (%) de quienes ${contexto}?`,
+          `¿Que porcentaje del total cumple la condicion: "${contexto}"?`,
+        ] as const)
+      : choice([
+          `¿Que porcentaje NO ${contexto}?`,
+          `¿Cual es la frecuencia relativa (%) del grupo que no cumple "${contexto}"?`,
+          `¿Que porcentaje corresponde a quienes no ${contexto}?`,
+        ] as const)
+
+  const correctNum = askKind === "favorables" ? relFav : relNoFav
+  const correct = pct(correctNum)
+
+  return { total, favorables, noFavorables, contexto, askKind, ask, correct, correctNum }
 }
 
 function generateOptions(s: Omit<Scenario, "options">): Option[] {
-  const correct = s.correct
+  const favPct = Math.round((s.favorables / s.total) * 100)
+  const noFavPct = 100 - favPct
+  const inverse = clamp(Math.round((s.total / s.favorables) * 100), 1, 99)
+  const shiftedUp = clamp(Math.round(((s.favorables + 1) / s.total) * 100), 1, 99)
+  const shiftedDown = clamp(Math.round(((s.favorables - 1) / s.total) * 100), 1, 99)
+  const wrongDen = clamp(Math.round((s.favorables / (s.total + 5)) * 100), 1, 99)
+  const randomNear = clamp(s.correctNum + choice([-8, -6, -4, 4, 6, 8] as const), 1, 99)
 
-  // errores típicos
-  const wrong1 = pct((s.total / s.favorables) * 100) // invierte
-  const wrong2 = pct(((s.favorables + 1) / s.total) * 100)
-  const wrong3 = pct(((s.favorables - 1) / s.total) * 100)
-  const wrong4 = pct((s.favorables / (s.total + 5)) * 100)
+  const candidates = [
+    s.correctNum,
+    s.askKind === "favorables" ? noFavPct : favPct,
+    inverse,
+    shiftedUp,
+    shiftedDown,
+    wrongDen,
+    randomNear,
+  ]
 
-  const all: Option[] = shuffle([
-    { value: correct, correct: true },
-    { value: wrong1, correct: false },
-    { value: wrong2, correct: false },
-    { value: wrong3, correct: false },
-    { value: wrong4, correct: false },
-  ])
-
-  const seen = new Set<string>()
-  const unique: Option[] = []
-  for (const o of all) {
-    if (seen.has(o.value)) continue
-    seen.add(o.value)
-    unique.push(o)
+  const seen = new Set<number>()
+  const unique: number[] = []
+  for (const value of shuffle(candidates)) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    unique.push(value)
   }
-  while (unique.length < 5) unique.push({ value: pct(randInt(5, 95)), correct: false })
-  return unique
+
+  while (unique.length < 5) {
+    const extra = randInt(5, 95)
+    if (!seen.has(extra)) {
+      seen.add(extra)
+      unique.push(extra)
+    }
+  }
+
+  return shuffle(
+    unique.slice(0, 5).map(value => ({
+      value: pct(value),
+      correct: value === s.correctNum,
+    }))
+  )
 }
 
 export default function Ej04({
@@ -125,7 +172,13 @@ export default function Ej04({
       answer: {
         selected: op.value,
         correctAnswer: scenario.correct,
-        question: { total: scenario.total, favorables: scenario.favorables, contexto: scenario.contexto },
+        question: {
+          total: scenario.total,
+          favorables: scenario.favorables,
+          noFavorables: scenario.noFavorables,
+          contexto: scenario.contexto,
+          askKind: scenario.askKind,
+        },
         options: scenario.options.map(o => o.value),
       },
       timeSeconds,
@@ -138,41 +191,41 @@ export default function Ej04({
     setNonce(n => n + 1)
   }
 
-  const rel = (scenario.favorables / scenario.total) * 100
+  const relFav = Math.round((scenario.favorables / scenario.total) * 100)
+  const relNoFav = 100 - relFav
 
   const explanation = {
     steps: [
       {
-        title: "Identificar total y favorables",
-        detail: <span>Para frecuencia relativa usamos: (favorables / total) × 100.</span>,
+        title: "Identificar total y grupo de interes",
+        detail: <span>Frecuencia relativa (%) = (grupo / total) x 100.</span>,
         icon: Sigma,
         content: (
           <div className="rounded-lg border bg-background p-3 space-y-1">
             <div>Total: <b>{scenario.total}</b></div>
-            <div>Favorables: <b>{scenario.favorables}</b></div>
+            <div>Grupo que cumple la condicion: <b>{scenario.favorables}</b></div>
+            <div>Grupo que no cumple: <b>{scenario.noFavorables}</b></div>
           </div>
         ),
-        tip: <span>“Favorables” es el grupo que cumple la condición.</span>,
       },
       {
-        title: "Aplicar la fórmula",
-        detail: <span>Convertimos la fracción a porcentaje multiplicando por 100.</span>,
+        title: "Aplicar la formula",
+        detail: <span>Calculamos el porcentaje segun lo que pregunta el enunciado.</span>,
         icon: Divide,
         content: (
           <div className="rounded-lg border bg-background p-3 space-y-2">
             <div>
-              Frecuencia relativa = <b>{scenario.favorables}</b> / <b>{scenario.total}</b> × 100
+              Favorables: {scenario.favorables}/{scenario.total} x 100 = <b>{relFav}%</b>
             </div>
             <div>
-              = {scenario.favorables}/{scenario.total} × 100 ≈ <b>{Math.round(rel)}%</b>
+              No favorables: {scenario.noFavorables}/{scenario.total} x 100 = <b>{relNoFav}%</b>
             </div>
           </div>
         ),
-        tip: <span>Si inviertes la fracción, el porcentaje se dispara y sale mal.</span>,
       },
       {
         title: "Conclusión",
-        detail: <span>El porcentaje representa qué parte del total cumple la condición.</span>,
+        detail: <span>Tomamos el porcentaje que corresponde al tipo de pregunta.</span>,
         icon: ShieldCheck,
         content: (
           <div className="rounded-lg border bg-background p-3">
@@ -188,7 +241,7 @@ export default function Ej04({
     <MathProvider>
       <ExerciseShell
         title="Frecuencia relativa (%)"
-        prompt={`En el Colegio Cristo Salvador, de ${scenario.total} estudiantes, ${scenario.favorables} ${scenario.contexto}. ¿Qué porcentaje representa?`}
+        prompt={`En el Colegio Cristo Salvador, de ${scenario.total} estudiantes, ${scenario.favorables} ${scenario.contexto}. ${scenario.ask}`}
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -210,7 +263,7 @@ export default function Ej04({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <span>{op.value}</span>}
+          renderValue={op => <span>{op.value}</span>}
         />
 
         <div className="mt-6">
