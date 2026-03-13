@@ -320,7 +320,7 @@ S^*=${scenario.nearest.id}(${scenario.nearest.x},${scenario.nearest.y})
           <div className="text-xs text-muted-foreground mb-2">Contexto (varia en cada intento)</div>
 
           <div className="rounded-lg border bg-background p-3 space-y-2">
-            <div className="text-sm">Sitios con mediciones (coordenadas -> valor):</div>
+            <div className="text-sm">Sitios con mediciones (coordenadas {"->"} valor):</div>
             <div className="text-sm">
               <b>{formatSites(scenario.sites)}</b>
             </div>
