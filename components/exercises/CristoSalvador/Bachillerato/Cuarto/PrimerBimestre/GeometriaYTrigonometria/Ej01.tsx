@@ -19,33 +19,77 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
    HELPERS
 ========================= */
 
+type Scenario = {
+  A: { x: number; y: number }
+  B: { x: number; y: number }
+  mid: { x: number; y: number }
+  correct: string
+  mode: "horizontal" | "vertical" | "oblique"
+  options: Option[]
+}
+
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
+}
+
+function choice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
 }
 
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
 
-/* =========================
-   GENERADOR DINÁMICO
-========================= */
-
-type Scenario = {
-  A: { x: number; y: number }
-  B: { x: number; y: number }
-  mid: { x: number; y: number }
-  correct: string
-  orientation: "horizontal" | "vertical"
-  options: Option[]
+function formatLinear(a: number, b: number, c: number) {
+  const aTerm = a === 1 ? "x" : a === -1 ? "-x" : `${a}x`
+  const bSign = b >= 0 ? "+" : "-"
+  const bAbs = Math.abs(b)
+  const bTerm = bAbs === 1 ? "y" : `${bAbs}y`
+  return `${aTerm} ${bSign} ${bTerm} = ${c}`
 }
 
-function generateScenario(): Scenario {
-  const orientation = Math.random() > 0.5 ? "horizontal" : "vertical"
+function buildOptions(correct: string, wrongs: string[]) {
+  const pool = shuffle([
+    { value: correct, correct: true },
+    ...wrongs.map((w) => ({ value: w, correct: false })),
+  ])
 
-  let A, B, mid, correct
+  const seen = new Set<string>()
+  const unique: Option[] = []
+  for (const op of pool) {
+    if (seen.has(op.value)) continue
+    seen.add(op.value)
+    unique.push(op)
+  }
 
-  if (orientation === "horizontal") {
+  while (unique.length < 5) {
+    const extra = `${choice(["x", "y"])} = ${randInt(-9, 9)}`
+    if (seen.has(extra) || extra === correct) continue
+    seen.add(extra)
+    unique.push({ value: extra, correct: false })
+  }
+
+  return shuffle(unique.slice(0, 5))
+}
+
+/* =========================
+   GENERADOR DINAMICO
+========================= */
+
+function generateScenario(previousMode?: Scenario["mode"]): Scenario {
+  const modePool: Scenario["mode"][] = previousMode
+    ? ["horizontal", "vertical", "oblique"].filter((m) => m !== previousMode) as Scenario["mode"][]
+    : ["horizontal", "vertical", "oblique"]
+
+  const mode = choice(modePool)
+
+  let A: Scenario["A"]
+  let B: Scenario["B"]
+  let mid: Scenario["mid"]
+  let correct: string
+  let options: Option[]
+
+  if (mode === "horizontal") {
     const y = randInt(-5, 8)
     const x1 = randInt(-8, 0)
     const x2 = randInt(1, 8)
@@ -55,7 +99,14 @@ function generateScenario(): Scenario {
 
     mid = { x: (x1 + x2) / 2, y }
     correct = `x = ${mid.x}`
-  } else {
+    options = buildOptions(correct, [
+      `y = ${mid.y}`,
+      `x = ${A.x}`,
+      `x = ${B.x}`,
+      `x = ${mid.y}`,
+      `y = ${A.y}`,
+    ])
+  } else if (mode === "vertical") {
     const x = randInt(-5, 8)
     const y1 = randInt(-8, 0)
     const y2 = randInt(1, 8)
@@ -65,37 +116,51 @@ function generateScenario(): Scenario {
 
     mid = { x, y: (y1 + y2) / 2 }
     correct = `y = ${mid.y}`
+    options = buildOptions(correct, [
+      `x = ${mid.x}`,
+      `y = ${A.y}`,
+      `y = ${B.y}`,
+      `y = ${mid.x}`,
+      `x = ${A.x}`,
+    ])
+  } else {
+    for (;;) {
+      const ax = randInt(-7, 5)
+      const ay = randInt(-7, 5)
+      const dx = choice([-3, -2, -1, 1, 2, 3])
+      const dy = choice([-3, -2, -1, 1, 2, 3])
+      if (dx === 0 || dy === 0) continue
+
+      const bx = ax + 2 * dx
+      const by = ay + 2 * dy
+      if (bx < -9 || bx > 9 || by < -9 || by > 9) continue
+
+      A = { x: ax, y: ay }
+      B = { x: bx, y: by }
+      mid = { x: ax + dx, y: ay + dy }
+
+      const a = dx
+      const b = dy
+      const c = a * mid.x + b * mid.y
+
+      const parallelC = dy * mid.x - dx * mid.y
+      const throughAC = a * A.x + b * A.y
+      const swappedC = a * mid.y + b * mid.x
+      const wrongSignC = -c
+
+      correct = formatLinear(a, b, c)
+      options = buildOptions(correct, [
+        formatLinear(dy, -dx, parallelC),
+        formatLinear(a, b, throughAC),
+        formatLinear(a, b, swappedC),
+        formatLinear(a, b, wrongSignC),
+        formatLinear(-a, -b, c),
+      ])
+      break
+    }
   }
 
-  const wrong1 =
-    orientation === "horizontal"
-      ? `y = ${mid.y}`
-      : `x = ${mid.x}`
-
-  const wrong2 =
-    orientation === "horizontal"
-      ? `x = ${A.x}`
-      : `y = ${A.y}`
-
-  const wrong3 =
-    orientation === "horizontal"
-      ? `x = ${B.x}`
-      : `y = ${B.y}`
-
-  const wrong4 =
-    orientation === "horizontal"
-      ? `x = ${mid.y}`
-      : `y = ${mid.x}`
-
-  const options: Option[] = shuffle([
-    { value: correct, correct: true },
-    { value: wrong1, correct: false },
-    { value: wrong2, correct: false },
-    { value: wrong3, correct: false },
-    { value: wrong4, correct: false },
-  ])
-
-  return { A, B, mid, correct, orientation, options }
+  return { A, B, mid, correct, mode, options }
 }
 
 /* ============================================================
@@ -113,22 +178,18 @@ export default function MediatrisSegmentoGame({
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
 
-  const { studentId, gami, gamiLoading, submitAttempt } =
-    useExerciseSubmission({
-      exerciseId,
-      classroomId,
-      sessionId,
-    })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
 
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
+  const [lastMode, setLastMode] = useState<Scenario["mode"] | null>(null)
 
-  const { elapsed, startedAtRef } = useExerciseTimer(
-    engine.canAnswer,
-    nonce
-  )
-
-  const scenario = useMemo(() => generateScenario(), [nonce])
+  const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
+  const scenario = useMemo(() => generateScenario(lastMode ?? undefined), [nonce, lastMode])
   const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
 
   async function pickOption(op: Option) {
@@ -146,6 +207,7 @@ export default function MediatrisSegmentoGame({
         question: {
           A: scenario.A,
           B: scenario.B,
+          mode: scenario.mode,
         },
       },
       timeSeconds,
@@ -155,8 +217,16 @@ export default function MediatrisSegmentoGame({
   function siguiente() {
     setSelected(null)
     engine.reset()
-    setNonce(n => n + 1)
+    setLastMode(scenario.mode)
+    setNonce((n) => n + 1)
   }
+
+  const promptText = choice([
+    "Cual es la ecuacion de la mediatriz?",
+    "Halla la mediatriz del segmento AB.",
+    "Selecciona la recta mediatriz correcta.",
+    "Determina la recta perpendicular por el punto medio.",
+  ])
 
   const midpointTex = `
 M\\left(\\frac{${scenario.A.x}+${scenario.B.x}}{2},\\;
@@ -166,20 +236,20 @@ M\\left(\\frac{${scenario.A.x}+${scenario.B.x}}{2},\\;
 `
 
   const orientationTex =
-    scenario.orientation === "horizontal"
+    scenario.mode === "horizontal"
       ? `y_1 = y_2 \\Rightarrow \\text{segmento horizontal} \\Rightarrow \\text{mediatriz vertical}`
-      : `x_1 = x_2 \\Rightarrow \\text{segmento vertical} \\Rightarrow \\text{mediatriz horizontal}`
+      : scenario.mode === "vertical"
+        ? `x_1 = x_2 \\Rightarrow \\text{segmento vertical} \\Rightarrow \\text{mediatriz horizontal}`
+        : `m_{AB}=\\frac{${scenario.B.y - scenario.A.y}}{${scenario.B.x - scenario.A.x}},\\;
+m_{\\perp}= -\\frac{1}{m_{AB}}`
 
-  const equationTex =
-    scenario.orientation === "horizontal"
-      ? `x = ${scenario.mid.x}`
-      : `y = ${scenario.mid.y}`
+  const equationTex = scenario.correct
 
   return (
     <MathProvider>
       <ExerciseShell
         title="Mediatriz de un segmento"
-        prompt="¿Cuál es la ecuación de la mediatriz?"
+        prompt={promptText}
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -188,36 +258,34 @@ M\\left(\\frac{${scenario.A.x}+${scenario.B.x}}{2},\\;
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Resolución paso a paso"
+              title="Resolucion paso a paso"
               steps={[
                 {
                   title: "Calcular el punto medio",
                   detail: (
                     <span>
-                      Promediamos las coordenadas de A y B para obtener el
-                      punto medio del segmento.
+                      Promediamos las coordenadas de A y B para obtener el punto medio del segmento.
                     </span>
                   ),
                   icon: Sigma,
                   content: <MathTex block tex={midpointTex} />,
                 },
                 {
-                  title: "Identificar orientación",
+                  title: "Identificar orientacion",
                   detail: (
                     <span>
-                      Si el segmento es horizontal, su mediatriz es vertical;
-                      si es vertical, su mediatriz es horizontal.
+                      En este item puede salir horizontal, vertical u oblicuo.
+                      La mediatriz siempre es perpendicular al segmento y pasa por su punto medio.
                     </span>
                   ),
                   icon: Divide,
                   content: <MathTex block tex={orientationTex} />,
                 },
                 {
-                  title: "Escribir la ecuación",
+                  title: "Escribir la ecuacion",
                   detail: (
                     <span>
-                      La mediatriz pasa por el punto medio y toma la forma
-                      correspondiente según la orientación.
+                      La mediatriz pasa por el punto medio y toma la forma correspondiente segun la orientacion.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -236,8 +304,7 @@ M\\left(\\frac{${scenario.A.x}+${scenario.B.x}}{2},\\;
         <div className="rounded-xl border bg-card p-4 mb-4">
           <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
           <div className="rounded-lg border bg-background p-3">
-            La recta pasa por los puntos{" "}
-            <b>A({scenario.A.x}, {scenario.A.y})</b> y{" "}
+            La recta pasa por los puntos <b>A({scenario.A.x}, {scenario.A.y})</b> y{" "}
             <b>B({scenario.B.x}, {scenario.B.y})</b>.
           </div>
         </div>

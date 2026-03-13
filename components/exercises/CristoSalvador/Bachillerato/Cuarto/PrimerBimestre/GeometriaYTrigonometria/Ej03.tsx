@@ -19,122 +19,128 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
    HELPERS
 ========================= */
 
+type Point = { x: number; y: number }
+type Mode = "find_midpoint" | "find_A" | "find_B"
+type Scenario = ReturnType<typeof generateScenario>
+
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
+}
+
+function choice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
 }
 
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
 
-type Scenario = ReturnType<typeof generateScenario>
-
-function midpoint(a: { x: number; y: number }, b: { x: number; y: number }) {
+function midpoint(a: Point, b: Point): Point {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
 }
 
-function isHalfInt(n: number) {
-  // enteros o .5
-  const r = Math.round(n * 2) / 2
-  return Math.abs(n - r) < 1e-9
+function pointTex(p: Point) {
+  return `(${p.x},${p.y})`
 }
 
-function formatHalfOrInt(n: number) {
-  // n será entero o x.5
-  if (Math.abs(n - Math.round(n)) < 1e-9) return `${Math.round(n)}`
-  const sign = n < 0 ? "-" : ""
-  const abs = Math.abs(n)
-  const whole = Math.floor(abs)
-  return `${sign}${whole}.5`
+function optionsFromPoint(correct: Point, wrongPoints: Point[]) {
+  const correctRaw = pointTex(correct)
+  const raw = shuffle([correct, ...wrongPoints]).map((p) => pointTex(p))
+  const seen = new Set<string>()
+  const out: Option[] = []
+
+  for (const value of raw) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    out.push({ value, correct: value === correctRaw })
+  }
+
+  while (out.length < 5) {
+    const extra = pointTex({ x: correct.x + randInt(-3, 3), y: correct.y + randInt(-3, 3) })
+    if (seen.has(extra) || extra === correctRaw) continue
+    seen.add(extra)
+    out.push({ value: extra, correct: false })
+  }
+
+  return { correctRaw, options: shuffle(out.slice(0, 5)) }
 }
 
-function scenarioPointString(x: number, y: number) {
-  // Usamos punto decimal para evitar ambigüedad con el separador de coordenadas.
-  const fx = isHalfInt(x) ? formatHalfOrInt(x) : `${x}`
-  const fy = isHalfInt(y) ? formatHalfOrInt(y) : `${y}`
-  return `(${fx},${fy})`
-}
+/* =========================
+   GENERADOR DINAMICO
+========================= */
 
 function generateScenario() {
-  // Queremos que el punto medio salga "bonito": entero o .5 (para opciones estilo (1,5))
-  for (let i = 0; i < 300; i++) {
-    const ax = randInt(-8, 8)
-    const ay = randInt(-8, 12)
+  const mode = choice<Mode>(["find_midpoint", "find_A", "find_B"])
 
-    let bx = randInt(-8, 12)
-    let by = randInt(-8, 12)
+  const a: Point = { x: randInt(-8, 8), y: randInt(-8, 12) }
+  let b: Point = { x: randInt(-8, 12), y: randInt(-8, 12) }
+  while (b.x === a.x && b.y === a.y) b = { x: randInt(-8, 12), y: randInt(-8, 12) }
 
-    // evitar que sea el mismo punto
-    if (bx === ax && by === ay) continue
+  const m = midpoint(a, b)
+  // para mantener respuestas enteras en opciones, regeneramos si midpoint no es entero
+  if (!Number.isInteger(m.x) || !Number.isInteger(m.y)) return generateScenario()
 
-    const m = midpoint({ x: ax, y: ay }, { x: bx, y: by })
-
-    // forzamos que midpoint tenga coords enteras o .5
-    if (!isHalfInt(m.x) || !isHalfInt(m.y)) continue
-
-    const correctRaw = scenarioPointString(m.x, m.y)
-
-    // generar distractores típicos
-    const wrong1 = scenarioPointString(m.x + 1, m.y) // x + 1
-    const wrong2 = scenarioPointString(m.x, m.y + 1) // y + 1
-    const wrong3 = scenarioPointString(m.x - 1, m.y) // x - 1
-    const wrong4 = scenarioPointString(m.x, m.y - 1) // y - 1
-
-    // también distractor: promedio mal hecho (sin dividir entre 2)
-    const sumWrong = scenarioPointString(ax + bx, ay + by)
-
-    // armar pool y quitar duplicados
-    const pool = shuffle([wrong1, wrong2, wrong3, wrong4, sumWrong])
-
-    const opts: Option[] = [{ value: correctRaw, correct: true }]
-    const seen = new Set<string>([correctRaw])
-
-    for (const w of pool) {
-      if (opts.length >= 5) break
-      if (seen.has(w)) continue
-      opts.push({ value: w, correct: false })
-      seen.add(w)
-    }
-
-    // si aún faltan, mete opciones cercanas aleatorias
-    while (opts.length < 5) {
-      const dx = randInt(-2, 2)
-      const dy = randInt(-2, 2)
-      const extra = scenarioPointString(m.x + dx, m.y + dy)
-      if (!seen.has(extra)) {
-        opts.push({ value: extra, correct: false })
-        seen.add(extra)
-      }
-    }
-
+  if (mode === "find_midpoint") {
+    const wrongs: Point[] = [
+      { x: m.x + 1, y: m.y },
+      { x: m.x, y: m.y + 1 },
+      { x: m.x - 1, y: m.y },
+      { x: a.x + b.x, y: a.y + b.y }, // olvidar dividir entre 2
+    ]
+    const built = optionsFromPoint(m, wrongs)
     return {
-      ax,
-      ay,
-      bx,
-      by,
-      mx: m.x,
-      my: m.y,
-      correctRaw,
-      options: shuffle(opts),
+      mode,
+      A: a,
+      B: b,
+      M: m,
+      prompt: "Cual es el punto medio del segmento AB?",
+      correctRaw: built.correctRaw,
+      options: built.options,
+      solveTex: `M=\\left(\\frac{${a.x}+${b.x}}{2},\\frac{${a.y}+${b.y}}{2}\\right)=(${m.x},${m.y})`,
     }
   }
 
-  // fallback
-  const ax = -2,
-    ay = 3,
-    bx = 4,
-    by = 7
-  const m = midpoint({ x: ax, y: ay }, { x: bx, y: by })
-  const correctRaw = scenarioPointString(m.x, m.y)
-  const options = shuffle<Option>([
-    { value: correctRaw, correct: true },
-    { value: "(2,5)", correct: false },
-    { value: "(1,4)", correct: false },
-    { value: "(3,5)", correct: false },
-    { value: "(0,5)", correct: false },
-  ])
+  if (mode === "find_A") {
+    // M y B conocidos => A = (2Mx-Bx, 2My-By)
+    const target = { x: 2 * m.x - b.x, y: 2 * m.y - b.y }
+    const wrongs: Point[] = [
+      { x: 2 * m.x + b.x, y: 2 * m.y + b.y },
+      { x: b.x, y: b.y },
+      { x: m.x, y: m.y },
+      { x: target.x + 1, y: target.y - 1 },
+    ]
+    const built = optionsFromPoint(target, wrongs)
+    return {
+      mode,
+      A: a,
+      B: b,
+      M: m,
+      prompt: "Se conoce M y B. Cual es el punto A?",
+      correctRaw: built.correctRaw,
+      options: built.options,
+      solveTex: `A=(2M_x-B_x,\\,2M_y-B_y)=(${2 * m.x}-${b.x},\\,${2 * m.y}-${b.y})=(${target.x},${target.y})`,
+    }
+  }
 
-  return { ax, ay, bx, by, mx: m.x, my: m.y, correctRaw, options }
+  // find_B
+  const target = { x: 2 * m.x - a.x, y: 2 * m.y - a.y }
+  const wrongs: Point[] = [
+    { x: 2 * m.x + a.x, y: 2 * m.y + a.y },
+    { x: a.x, y: a.y },
+    { x: m.x, y: m.y },
+    { x: target.x - 1, y: target.y + 1 },
+  ]
+  const built = optionsFromPoint(target, wrongs)
+  return {
+    mode,
+    A: a,
+    B: b,
+    M: m,
+    prompt: "Se conoce A y M. Cual es el punto B?",
+    correctRaw: built.correctRaw,
+    options: built.options,
+    solveTex: `B=(2M_x-A_x,\\,2M_y-A_y)=(${2 * m.x}-${a.x},\\,${2 * m.y}-${a.y})=(${target.x},${target.y})`,
+  }
 }
 
 /* ============================================================
@@ -152,20 +158,17 @@ export default function PuntoMedioGame({
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
 
-  const { studentId, gami, gamiLoading, submitAttempt } =
-    useExerciseSubmission({
-      exerciseId,
-      classroomId,
-      sessionId,
-    })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
 
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
   const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
-
-  const scenario = useMemo(() => generateScenario(), [nonce])
-
+  const scenario: Scenario = useMemo(() => generateScenario(), [nonce])
   const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
 
   async function pickOption(op: Option) {
@@ -181,8 +184,10 @@ export default function PuntoMedioGame({
         selected: op.value,
         correctAnswer: scenario.correctRaw,
         question: {
-          A: { x: scenario.ax, y: scenario.ay },
-          B: { x: scenario.bx, y: scenario.by },
+          mode: scenario.mode,
+          A: scenario.A,
+          B: scenario.B,
+          M: scenario.M,
         },
       },
       timeSeconds,
@@ -195,22 +200,20 @@ export default function PuntoMedioGame({
     setNonce((n) => n + 1)
   }
 
-  const formulaTex = `M = \\left(\\frac{x_1+x_2}{2},\\ \\frac{y_1+y_2}{2}\\right)`
+  const formulaTex = `M=\\left(\\frac{x_1+x_2}{2},\\frac{y_1+y_2}{2}\\right)`
 
-  const substitutionTex = `
-M = \\left(\\frac{${scenario.ax}+${scenario.bx}}{2},\\ \\frac{${scenario.ay}+${scenario.by}}{2}\\right)
-`
-
-  const calcTex = `
-M = \\left(\\frac{${scenario.ax + scenario.bx}}{2},\\ \\frac{${scenario.ay + scenario.by}}{2}\\right)
-= \\left(${scenario.mx},${scenario.my}\\right)
-`
+  const questionLine =
+    scenario.mode === "find_midpoint"
+      ? `Dados\\ A${pointTex(scenario.A)}\\ \\text{y}\\ B${pointTex(scenario.B)},\\ \\text{hallar}\\ M.`
+      : scenario.mode === "find_A"
+        ? `Dado\\ M${pointTex(scenario.M)}\\ \\text{y}\\ B${pointTex(scenario.B)},\\ \\text{hallar}\\ A.`
+        : `Dado\\ A${pointTex(scenario.A)}\\ \\text{y}\\ M${pointTex(scenario.M)},\\ \\text{hallar}\\ B.`
 
   return (
     <MathProvider>
       <ExerciseShell
-        title="Punto medio entre dos puntos"
-        prompt="¿Cuál es el punto medio?"
+        title="Punto medio y extremo faltante"
+        prompt={scenario.prompt}
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -219,37 +222,37 @@ M = \\left(\\frac{${scenario.ax + scenario.bx}}{2},\\ \\frac{${scenario.ay + sce
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Resolución paso a paso"
+              title="Resolucion paso a paso"
               steps={[
                 {
-                  title: "Usar la fórmula del punto medio",
+                  title: "Formula base",
                   detail: (
                     <span>
-                      El punto medio se obtiene promediando las coordenadas x e y.
+                      Usamos la formula de punto medio y, si falta un extremo, despejamos coordenada a coordenada.
                     </span>
                   ),
                   icon: Sigma,
                   content: <MathTex block tex={formulaTex} />,
                 },
                 {
-                  title: "Sustituir valores",
+                  title: "Sustitucion",
                   detail: (
                     <span>
-                      Reemplazamos A(x₁,y₁) y B(x₂,y₂) en la fórmula.
+                      Reemplazamos los datos del ejercicio.
                     </span>
                   ),
                   icon: Divide,
-                  content: <MathTex block tex={substitutionTex} />,
+                  content: <MathTex block tex={questionLine} />,
                 },
                 {
-                  title: "Calcular",
+                  title: "Calculo final",
                   detail: (
                     <span>
-                      Sumamos y dividimos entre 2 cada coordenada.
+                      Operamos y obtenemos el punto pedido.
                     </span>
                   ),
                   icon: ShieldCheck,
-                  content: <MathTex block tex={calcTex} />,
+                  content: <MathTex block tex={scenario.solveTex} />,
                 },
               ]}
               concluding={
@@ -263,23 +266,8 @@ M = \\left(\\frac{${scenario.ax + scenario.bx}}{2},\\ \\frac{${scenario.ay + sce
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
           <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
-
           <div className="rounded-lg border bg-background p-3 space-y-2">
-            <div className="text-sm">
-              El punto medio de{" "}
-              <b>
-                A({scenario.ax}, {scenario.ay})
-              </b>{" "}
-              y{" "}
-              <b>
-                B({scenario.bx}, {scenario.by})
-              </b>{" "}
-              es:
-            </div>
-
-            <div className="text-xs text-muted-foreground">
-              (Elige la opción correcta)
-            </div>
+            <MathTex block tex={questionLine} />
           </div>
         </div>
 
@@ -289,8 +277,6 @@ M = \\left(\\frac{${scenario.ax + scenario.bx}}{2},\\ \\frac{${scenario.ay + sce
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          // aquí tus options son strings tipo "(1,5)" como en la imagen
-          // MathTex igual lo renderiza (no requiere \\left \\right)
           renderValue={(op) => <MathTex tex={op.value} />}
         />
 

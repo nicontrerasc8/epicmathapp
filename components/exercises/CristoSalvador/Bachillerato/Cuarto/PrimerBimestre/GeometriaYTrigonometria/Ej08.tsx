@@ -22,6 +22,9 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
+function choice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
@@ -29,18 +32,41 @@ function shuffle<T>(arr: T[]) {
 type Scenario = ReturnType<typeof generateScenario>
 type Variation = ReturnType<typeof generateVariation>
 
-function area2(ax: number, ay: number, bx: number, by: number, cx: number, cy: number) {
-  // 2 * área (determinante). Si 0 => colineales
-  return ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)
-}
+type TriangleKind = "acutangulo" | "rectangulo" | "obtusangulo"
+type QuestionFamily = "name" | "property" | "location" | "application"
 
-function pickOne<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
+function area2(ax: number, ay: number, bx: number, by: number, cx: number, cy: number) {
+  // 2 * area (determinante). Si 0 => colineales
+  return ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)
 }
 
 function pickUnique(values: string[], count: number): string[] {
   const unique = Array.from(new Set(values))
   return shuffle(unique).slice(0, count)
+}
+
+function dist2(x1: number, y1: number, x2: number, y2: number) {
+  const dx = x1 - x2
+  const dy = y1 - y2
+  return dx * dx + dy * dy
+}
+
+function classifyTriangle(s: Scenario): TriangleKind {
+  const ab2 = dist2(s.ax, s.ay, s.bx, s.by)
+  const bc2 = dist2(s.bx, s.by, s.cx, s.cy)
+  const ca2 = dist2(s.cx, s.cy, s.ax, s.ay)
+  const sides = [ab2, bc2, ca2].sort((a, b) => a - b)
+  const sum = sides[0] + sides[1]
+  const longest = sides[2]
+  if (sum === longest) return "rectangulo"
+  if (sum > longest) return "acutangulo"
+  return "obtusangulo"
+}
+
+function kindLabel(kind: TriangleKind) {
+  if (kind === "rectangulo") return "rectangulo"
+  if (kind === "obtusangulo") return "obtusangulo"
+  return "acutangulo"
 }
 
 function generateScenario() {
@@ -72,73 +98,117 @@ function generateVariation(s: Scenario) {
   const b = `B(${s.bx},${s.by})`
   const c = `C(${s.cx},${s.cy})`
 
-  const promptBank = [
-    "La intersección de las mediatrices de un triángulo determina:",
-    "¿Qué punto notable se obtiene al cortar las tres mediatrices?",
-    "Si trazas las mediatrices de los tres lados, su punto común es:",
-    "El punto equidistante de los tres vértices se llama:",
-    "Las mediatrices de un triángulo concurren en:",
-    "¿Cómo se denomina el centro de la circunferencia que pasa por A, B y C?",
-    "En el triángulo, el centro de la circunferencia circunscrita es:",
-    "¿Qué nombre recibe el punto donde se cruzan las mediatrices?",
-  ]
+  const triangleKind = classifyTriangle(s)
+  const fam = choice<QuestionFamily>(["name", "property", "location", "application"])
 
   const introBank = [
-    `Considera el triángulo con vértices ${a}, ${b} y ${c}.`,
-    `Trabaja con el triángulo definido por ${a}, ${b} y ${c}.`,
-    `Sea el triángulo cuyos vértices son ${a}, ${b} y ${c}.`,
-    `En el triángulo de vértices ${a}, ${b} y ${c}, analiza sus mediatrices.`,
-    `Dado el triángulo con puntos ${a}, ${b} y ${c}, responde:`,
-    `Para el triángulo formado por ${a}, ${b} y ${c}, identifica el punto notable.`,
-    `En la figura triangular con vértices ${a}, ${b} y ${c}, se pide:`,
-    `Tomando como vértices ${a}, ${b} y ${c}, selecciona la opción correcta.`,
+    `Considera el triangulo con vertices ${a}, ${b} y ${c}.`,
+    `Trabaja con el triangulo definido por ${a}, ${b} y ${c}.`,
+    `Sea el triangulo cuyos vertices son ${a}, ${b} y ${c}.`,
+    `En el triangulo de vertices ${a}, ${b} y ${c}, responde.`,
   ]
 
-  const correctBank = [
-    "El circuncentro",
-    "Circuncentro",
-    "El centro de la circunferencia circunscrita",
-    "El punto equidistante de los tres vértices (circuncentro)",
-    "El centro del círculo que pasa por los tres vértices",
-    "El punto de concurrencia de las mediatrices: circuncentro",
-  ]
+  let prompt = ""
+  let correctText = ""
+  let wrongPool: string[] = []
 
-  const wrongBank = [
-    "El baricentro",
-    "El incentro",
-    "El ortocentro",
-    "El punto medio de un lado",
-    "La bisectriz principal",
-    "El centroide",
-    "El centro de masa del triángulo",
-    "El punto donde se cruzan las alturas",
-    "El punto donde se cruzan las medianas",
-    "El punto donde se cruzan las bisectrices",
-    "El centro del círculo inscrito",
-    "El vértice de mayor ángulo",
-    "El punto más cercano al lado mayor",
-    "El punto de pendiente nula",
-    "El centro del rectángulo envolvente",
-    "El punto de intersección de las diagonales",
-    "El centro del lado más largo",
-    "No existe un punto común",
-    "Un punto cualquiera del plano",
-  ]
+  if (fam === "name") {
+    prompt = choice([
+      "Las mediatrices de un triangulo concurren en:",
+      "El punto donde se cruzan las tres mediatrices se llama:",
+      "La interseccion de mediatrices determina:",
+    ])
+    correctText = choice([
+      "Circuncentro",
+      "El circuncentro",
+      "El centro de la circunferencia circunscrita",
+    ])
+    wrongPool = [
+      "Incentro",
+      "Baricentro",
+      "Ortocentro",
+      "El punto medio de un lado",
+      "No existe punto comun",
+      "Centroide",
+    ]
+  } else if (fam === "property") {
+    prompt = choice([
+      "La propiedad correcta del punto de interseccion de mediatrices es:",
+      "Respecto al circuncentro, se cumple que:",
+      "Si P es el circuncentro de ABC, entonces:",
+    ])
+    correctText = choice([
+      "PA = PB = PC",
+      "Es equidistante de los tres vertices",
+      "Sus distancias a A, B y C son iguales",
+    ])
+    wrongPool = [
+      "Esta a igual distancia de los tres lados",
+      "Siempre coincide con el ortocentro",
+      "Siempre coincide con el baricentro",
+      "PA + PB = PC",
+      "Solo es equidistante de dos vertices",
+      "Divide cada lado en razon 2:1",
+    ]
+  } else if (fam === "location") {
+    prompt = `Si el triangulo es ${kindLabel(triangleKind)}, la posicion del circuncentro suele estar:`
+    if (triangleKind === "acutangulo") correctText = "Dentro del triangulo"
+    else if (triangleKind === "rectangulo") correctText = "En el punto medio de la hipotenusa"
+    else correctText = "Fuera del triangulo"
+    wrongPool = [
+      "Siempre dentro del triangulo",
+      "Siempre fuera del triangulo",
+      "En el baricentro",
+      "En el incentro",
+      "Sobre cualquier mediana",
+      "En un vertice del triangulo",
+    ]
+  } else {
+    prompt = choice([
+      "Para construir la circunferencia que pasa por A, B y C, primero se debe hallar:",
+      "El centro de la circunferencia circunscrita se obtiene con:",
+      "Para ubicar el centro del circulo por tres vertices no colineales, se usan:",
+    ])
+    correctText = choice([
+      "La interseccion de dos mediatrices (equivale a las tres)",
+      "El circuncentro del triangulo",
+      "Las mediatrices de los lados del triangulo",
+    ])
+    wrongPool = [
+      "La interseccion de las bisectrices",
+      "La interseccion de las medianas",
+      "La interseccion de las alturas",
+      "La suma de longitudes de los lados",
+      "El punto medio de la base",
+      "El centro del rectangulo envolvente",
+    ]
+  }
 
-  const correctText = pickOne(correctBank)
-  const wrongChoices = pickUnique(
-    wrongBank.filter((w) => w !== correctText),
-    4
-  )
+  const wrongChoices = pickUnique(wrongPool.filter((w) => w !== correctText), 4)
+  const options: Option[] = shuffle([
+    { value: correctText, correct: true },
+    ...wrongChoices.map((value) => ({ value, correct: false })),
+  ])
+
+  const explain = {
+    step1:
+      "La mediatriz de un lado contiene los puntos que estan a igual distancia de sus extremos.",
+    step2:
+      "Al cruzar mediatrices de un triangulo aparece un punto unico ligado a la circunferencia circunscrita.",
+    step3:
+      fam === "location"
+        ? `En triangulos ${kindLabel(triangleKind)}, la ubicacion del circuncentro cambia segun el tipo del triangulo.`
+        : "Ese punto es equidistante de los tres vertices A, B y C.",
+  }
 
   return {
-    prompt: pickOne(promptBank),
-    intro: pickOne(introBank),
+    intro: choice(introBank),
+    prompt,
     correctText,
-    options: shuffle<Option>([
-      { value: correctText, correct: true },
-      ...wrongChoices.map((value) => ({ value, correct: false })),
-    ]),
+    options,
+    family: fam,
+    triangleKind,
+    explain,
   }
 }
 
@@ -190,6 +260,7 @@ export default function CircuncentroMediatricesGame({
         correctAnswer: scenario.correctText,
         question: {
           type: "interseccion_mediatrices_triangulo",
+          family: scenario.family,
           prompt: scenario.prompt,
           triangle: {
             A: { x: scenario.ax, y: scenario.ay },
@@ -208,11 +279,9 @@ export default function CircuncentroMediatricesGame({
     setNonce((n) => n + 1)
   }
 
-  const keyIdeaTex = `
-\\text{Si } P \\text{ está en la mediatriz de } \\overline{AB},\\; d(P,A)=d(P,B).
-`
+  const keyIdeaTex = `\\text{Si } P \\text{ esta en la mediatriz de } \\overline{AB},\\; d(P,A)=d(P,B).`
   const circumcenterTex = `
-\\text{La intersección de las 3 mediatrices es el } \\mathbf{circuncentro}
+\\text{La interseccion de las 3 mediatrices es el } \\mathbf{circuncentro}
 \\text{ (centro de la circunferencia circunscrita).}
 `
 
@@ -229,35 +298,32 @@ export default function CircuncentroMediatricesGame({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Explicación"
+              title="Explicacion"
               steps={[
                 {
-                  title: "Qué hace una mediatriz",
+                  title: "Que hace una mediatriz",
                   detail: (
                     <span>
-                      La mediatriz de un lado del triángulo reúne los puntos que están a igual distancia
-                      de los extremos de ese lado.
+                      {scenario.explain.step1}
                     </span>
                   ),
                   icon: Sigma,
                   content: <MathTex block tex={keyIdeaTex} />,
                 },
                 {
-                  title: "Qué pasa al cruzar las mediatrices",
+                  title: "Cruce de mediatrices",
                   detail: (
                     <span>
-                      El punto donde se intersectan las mediatrices queda a la misma distancia de los
-                      tres vértices del triángulo.
+                      {scenario.explain.step2}
                     </span>
                   ),
                   icon: Divide,
                 },
                 {
-                  title: "Conclusión",
+                  title: "Conclusion",
                   detail: (
                     <span>
-                      Ese punto es el centro de la circunferencia que pasa por los 3 vértices:
-                      el <b>circuncentro</b>.
+                      {scenario.explain.step3}
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -277,12 +343,8 @@ export default function CircuncentroMediatricesGame({
           <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
 
           <div className="rounded-lg border bg-background p-3 space-y-2">
-            <div className="text-sm">
-              {scenario.intro}
-            </div>
-            <div className="text-sm">
-              {scenario.prompt}
-            </div>
+            <div className="text-sm">{scenario.intro}</div>
+            <div className="text-sm">{scenario.prompt}</div>
           </div>
         </div>
 

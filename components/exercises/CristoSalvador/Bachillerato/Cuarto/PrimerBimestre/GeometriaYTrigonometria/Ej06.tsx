@@ -9,7 +9,7 @@ import { useExerciseTimer } from "@/lib/exercises/useExerciseTimer"
 import { computeTrophyGain, WRONG_PENALTY } from "@/lib/exercises/gamification"
 
 import { type Option, OptionsGrid } from "@/components/exercises/base/OptionsGrid"
-import { MathProvider, MathTex } from "@/components/exercises/base/MathBlock"
+import { MathProvider } from "@/components/exercises/base/MathBlock"
 import { ExerciseHud } from "@/components/exercises/base/ExerciseHud"
 import { SolutionBox } from "@/components/exercises/base/SolutionBox"
 import { ExerciseShell } from "@/components/exercises/base/ExerciseShell"
@@ -19,9 +19,10 @@ import { DetailedExplanation } from "@/components/exercises/base/DetailedExplana
    HELPERS
 ============================================================ */
 
-type Scenario = ReturnType<typeof generateScenario>
-
 type ChoiceKey = "A" | "B" | "C" | "D" | "E"
+type OptionWithLabel = Option & { label: ChoiceKey }
+type Family = "definicion" | "identificacion" | "aplicacion" | "propiedad" | "comparacion"
+type Scenario = ReturnType<typeof generateScenario>
 
 function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
@@ -31,86 +32,136 @@ function pickOne<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
+function dedupeOptions(arr: { value: string; correct: boolean }[]) {
+  const seen = new Set<string>()
+  const out: { value: string; correct: boolean }[] = []
+  for (const o of arr) {
+    if (seen.has(o.value)) continue
+    seen.add(o.value)
+    out.push(o)
+  }
+  return out
+}
+
 /* ============================================================
-   BANCO DE PREGUNTAS (mismo concepto, variantes)
-   Correcta: "Regiones equidistantes entre dos puntos"
+   BANCO DINAMICO (familias + contexto)
 ============================================================ */
 
-const QUESTION_BANK = [
-  {
-    // Variante 1 (como la imagen)
-    prompt:
-      "En modelización, las mediatrices permiten determinar:",
-    correctText: "Regiones equidistantes entre dos puntos.",
-    wrong: [
-      "Áreas máximas.",
-      "Pendientes paralelas.",
-      "Longitudes mínimas.",
-      "Triángulos rectángulos.",
-    ],
-  },
-  {
-    // Variante 2
-    prompt:
-      "¿Qué describe mejor a la mediatriz de un segmento en problemas de modelización?",
-    correctText: "El conjunto de puntos que están a la misma distancia de los extremos.",
-    wrong: [
-      "El segmento más largo dentro de una figura.",
-      "Una recta paralela al segmento.",
-      "Una recta que pasa por un extremo del segmento.",
-      "El conjunto de puntos más cercanos a un solo extremo.",
-    ],
-  },
-  {
-    // Variante 3
-    prompt:
-      "Si quieres ubicar puntos que estén igual de lejos de A y B, ¿qué usas?",
-    correctText: "La mediatriz del segmento AB.",
-    wrong: [
-      "Una recta paralela a AB.",
-      "La bisectriz de un ángulo.",
-      "La diagonal de un cuadrado.",
-      "Cualquier recta que pase por A.",
-    ],
-  },
-  {
-    // Variante 4
-    prompt:
-      "La mediatriz es útil porque permite encontrar:",
-    correctText: "Zonas donde la distancia a dos puntos es la misma.",
-    wrong: [
-      "Zonas de área máxima.",
-      "Zonas con pendiente cero.",
-      "Zonas con mínima longitud.",
-      "Zonas con triángulos rectángulos.",
-    ],
-  },
+const CONTEXTS = [
+  "ubicacion de un punto de atencion",
+  "distribucion de servicios de emergencia",
+  "planificacion de rutas escolares",
+  "cobertura de centros de salud",
+  "asignacion de zonas logisticas",
+  "diseno de puntos de abastecimiento",
 ]
 
-function generateScenario() {
-  const q = pickOne(QUESTION_BANK)
+const WRONG_POOL = [
+  "Maximizar el area de una region.",
+  "Encontrar la recta paralela al segmento.",
+  "Ubicar el punto medio de un lado cualquiera.",
+  "Calcular la bisectriz de un angulo sin relacion con AB.",
+  "Determinar el punto mas cercano a un solo extremo.",
+  "Obtener una recta que pase por A sin condicion adicional.",
+  "Buscar pendientes nulas.",
+  "Encontrar el baricentro del triangulo.",
+  "Minimizar longitudes de forma global.",
+  "Determinar una diagonal equivalente.",
+  "Dividir en regiones de igual area.",
+  "Escoger un punto aleatorio del plano.",
+]
 
-  // Construimos opciones A–E y mezclamos el orden
-  const all = shuffle([
-    { text: q.correctText, correct: true },
-    ...q.wrong.map((t) => ({ text: t, correct: false })),
-  ]).slice(0, 5)
+function buildOptions(correctText: string, wrongs: string[]): OptionWithLabel[] {
+  let raw = dedupeOptions(
+    shuffle([
+      { value: correctText, correct: true },
+      ...wrongs.map((w) => ({ value: w, correct: false })),
+    ])
+  )
 
-  // Etiquetar A..E (solo para guardar/analítica si quieres)
+  while (raw.length < 5) {
+    const extra = pickOne(WRONG_POOL)
+    if (extra === correctText || raw.some((r) => r.value === extra)) continue
+    raw.push({ value: extra, correct: false })
+  }
+
+  raw = shuffle(raw.slice(0, 5))
   const labels: ChoiceKey[] = ["A", "B", "C", "D", "E"]
-  const options = all.map((o, idx) => ({
-    value: o.text,
-    correct: o.correct,
-    label: labels[idx],
-  }))
+  return raw.map((r, idx) => ({ ...r, label: labels[idx] }))
+}
 
+function generateScenario() {
+  const context = pickOne(CONTEXTS)
+  const family = pickOne<Family>([
+    "definicion",
+    "identificacion",
+    "aplicacion",
+    "propiedad",
+    "comparacion",
+  ])
+
+  let prompt = ""
+  let correctText = ""
+  let wrongs: string[] = []
+
+  if (family === "definicion") {
+    prompt = `En ${context}, la mediatriz de un segmento AB se interpreta como:`
+    correctText = "El conjunto de puntos equidistantes de A y B."
+    wrongs = [
+      "Una recta paralela a AB.",
+      "Una recta que solo pasa por A.",
+      "La suma de distancias minima a todo punto.",
+      "La region mas cercana a A.",
+    ]
+  } else if (family === "identificacion") {
+    prompt = `Si necesitas puntos a la misma distancia de dos ubicaciones en ${context}, debes usar:`
+    correctText = "La mediatriz del segmento que une ambas ubicaciones."
+    wrongs = [
+      "La diagonal principal del plano.",
+      "La bisectriz de cualquier angulo.",
+      "Una recta horizontal por el punto medio.",
+      "Una recta vertical por un extremo.",
+    ]
+  } else if (family === "aplicacion") {
+    prompt = `En ${context}, la utilidad principal de la mediatriz es:`
+    correctText = "Delimitar una frontera de igual distancia entre dos puntos de referencia."
+    wrongs = [
+      "Maximizar el area de atencion de un punto.",
+      "Anular pendientes en todo el mapa.",
+      "Asegurar que todas las regiones tengan igual perimetro.",
+      "Calcular solo longitudes minimas.",
+    ]
+  } else if (family === "propiedad") {
+    prompt = `¿Que propiedad SI cumple todo punto P sobre la mediatriz del segmento AB (contexto: ${context})?`
+    correctText = "PA = PB"
+    wrongs = [
+      "PA + PB = AB",
+      "PA = AB",
+      "PB = AB",
+      "PA = 2PB",
+    ]
+  } else {
+    prompt = `Comparando conceptos en ${context}, la mediatriz se diferencia porque:`
+    correctText = "Es perpendicular al segmento y pasa por su punto medio."
+    wrongs = [
+      "Parte un angulo en dos angulos iguales.",
+      "Une un vertice con el punto medio del lado opuesto.",
+      "Pasa por un vertice y es perpendicular al lado opuesto.",
+      "Une dos vertices no consecutivos de un poligono.",
+    ]
+  }
+
+  const mixedWrongs = shuffle([...wrongs, ...WRONG_POOL]).filter((w) => w !== correctText)
+  const options = buildOptions(correctText, mixedWrongs.slice(0, 4))
   const correct = options.find((o) => o.correct)!
 
   return {
-    prompt: q.prompt,
+    prompt,
     options,
-    correctText: correct.value,
+    correctText,
     correctLabel: correct.label,
+    family,
+    context,
   }
 }
 
@@ -129,27 +180,23 @@ export default function MediatrizModelizacionGame({
 }) {
   const engine = useExerciseEngine({ maxAttempts: 1 })
 
-  const { studentId, gami, gamiLoading, submitAttempt } =
-    useExerciseSubmission({
-      exerciseId,
-      classroomId,
-      sessionId,
-    })
+  const { studentId, gami, gamiLoading, submitAttempt } = useExerciseSubmission({
+    exerciseId,
+    classroomId,
+    sessionId,
+  })
 
   const [nonce, setNonce] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
   const { elapsed, startedAtRef } = useExerciseTimer(engine.canAnswer, nonce)
-
   const scenario: Scenario = useMemo(() => generateScenario(), [nonce])
-
   const trophyPreview = useMemo(() => computeTrophyGain(elapsed), [elapsed])
 
   async function pickOption(op: Option) {
     if (!engine.canAnswer) return
 
     const timeSeconds = (Date.now() - startedAtRef.current) / 1000
-
     setSelected(op.value)
     engine.submit(op.correct)
 
@@ -159,6 +206,8 @@ export default function MediatrizModelizacionGame({
         selected: op.value,
         correctAnswer: scenario.correctText,
         question: {
+          family: scenario.family,
+          context: scenario.context,
           prompt: scenario.prompt,
           options: scenario.options.map((o) => ({
             label: o.label,
@@ -177,17 +226,14 @@ export default function MediatrizModelizacionGame({
     setNonce((n) => n + 1)
   }
 
-  // Para mostrar A) B) C) ... como la foto
-  function renderOptionLabel(op: (Option & { label?: string }) | any) {
-    const label = op.label ? `${op.label}) ` : ""
-    // OJO: MathTex lo usamos para consistencia visual, pero aquí es texto normal.
-    return <span className="text-sm">{label}{op.value}</span>
+  function renderOptionLabel(op: OptionWithLabel) {
+    return <span className="text-sm">{op.label}) {op.value}</span>
   }
 
   return (
     <MathProvider>
       <ExerciseShell
-        title="Mediatriz en modelización"
+        title="Mediatriz en modelizacion"
         prompt={scenario.prompt}
         status={engine.status}
         attempts={engine.attempts}
@@ -197,37 +243,34 @@ export default function MediatrizModelizacionGame({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Explicación"
+              title="Explicacion"
               steps={[
                 {
                   title: "Idea clave",
                   detail: (
                     <span>
-                      La <b>mediatriz</b> de un segmento es la recta que lo corta
-                      en su <b>punto medio</b> y es <b>perpendicular</b> a él.
+                      La <b>mediatriz</b> de un segmento es la recta que lo corta en su <b>punto medio</b> y
+                      es <b>perpendicular</b> a el.
                     </span>
                   ),
                   icon: Sigma,
                   content: (
                     <div className="text-sm text-muted-foreground">
-                      Eso implica que cualquier punto sobre la mediatriz está
-                      a la misma distancia de los dos extremos del segmento.
+                      Todo punto sobre la mediatriz queda a igual distancia de los extremos del segmento.
                     </div>
                   ),
                 },
                 {
-                  title: "Interpretación en modelización",
+                  title: "Uso en modelizacion",
                   detail: (
                     <span>
-                      Se usa para encontrar <b>regiones/puntos equidistantes</b>{" "}
-                      entre dos ubicaciones (por ejemplo, dos puntos A y B).
+                      Se usa para describir fronteras de <b>equidistancia</b> entre dos referencias.
                     </span>
                   ),
                   icon: Divide,
                   content: (
                     <div className="rounded-lg border bg-background p-3 text-sm">
-                      Conclusión: la mediatriz determina el conjunto de puntos
-                      donde la distancia a A y a B es la misma.
+                      En este item el contexto es: <b>{scenario.context}</b>.
                     </div>
                   ),
                 },
@@ -235,8 +278,7 @@ export default function MediatrizModelizacionGame({
                   title: "Respuesta",
                   detail: (
                     <span>
-                      La opción correcta es la que menciona{" "}
-                      <b>equidistancia</b>.
+                      La opcion correcta es la que expresa la idea de equidistancia o su propiedad equivalente.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -258,19 +300,18 @@ export default function MediatrizModelizacionGame({
       >
         <div className="rounded-xl border bg-card p-4 mb-4">
           <div className="text-xs text-muted-foreground mb-2">Pregunta</div>
-
           <div className="rounded-lg border bg-background p-3 space-y-2">
             <div className="text-sm">{scenario.prompt}</div>
           </div>
         </div>
 
         <OptionsGrid
-          options={scenario.options as any}
+          options={scenario.options}
           selectedValue={selected}
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op: any) => renderOptionLabel(op)}
+          renderValue={(op) => renderOptionLabel(op as OptionWithLabel)}
         />
 
         <div className="mt-6">
