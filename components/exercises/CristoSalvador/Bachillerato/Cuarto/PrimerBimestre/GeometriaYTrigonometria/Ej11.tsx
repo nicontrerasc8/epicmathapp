@@ -31,93 +31,97 @@ function shuffle<T>(arr: T[]) {
   return [...arr].sort(() => Math.random() - 0.5)
 }
 
-type Scenario = ReturnType<typeof generateScenario>
+function buildUniqueOptions(correct: string, candidates: string[]): Option[] {
+  const uniqueDistractors = Array.from(
+    new Set(candidates.filter(candidate => candidate !== correct))
+  )
 
-/* =========================
-   GENERACIÓN (muchas variaciones)
-========================= */
-
-const siteSynonyms = [
-  "sitio",
-  "punto sitio",
-  "sitio generador",
-  "punto de sitio",
-]
-
-const diagramSynonyms = [
-  "diagrama de Voronoi",
-  "teselación de Voronoi",
-  "partición de Voronoi",
-]
-
-const questionTemplates = [
-  (d: string, s: string) => `En un ${d}, un “${s}” es:`,
-  (d: string, s: string) => `En un ${d}, ¿qué significa “${s}”?`,
-  (d: string, s: string) => `En un ${d}, el término “${s}” se refiere a:`,
-  (d: string, s: string) => `Si hablamos de un ${d}, un “${s}” corresponde a:`,
-  (d: string, s: string) => `En geometría computacional, en un ${d}, un “${s}” es:`,
-]
-
-const explanationTemplates = [
-  () =>
-    "En Voronoi, los sitios son los puntos que “generan” las regiones: cada celda contiene los puntos más cercanos a un sitio.",
-  () =>
-    "Un sitio es un punto generador: a partir de esos puntos se construyen las celdas (regiones) del diagrama.",
-  () =>
-    "Los sitios son los puntos de referencia. El diagrama separa el plano según cuál sitio queda más cerca.",
-]
-
-function generateScenario() {
-  const d = choice(diagramSynonyms)
-  const s = choice(siteSynonyms)
-  const prompt = choice(questionTemplates)(d, s)
-
-  // Respuesta correcta fija (concepto)
-  const correct = "Un punto generador"
-
-  // Banco de distractores (varía el set)
-  const distractorBank = [
-    "Una arista",
-    "Un vértice",
-    "Una celda",
-    "Una pendiente",
-    "Una bisectriz",
-    "Un segmento",
-    "Un polígono",
-    "Una región frontera",
-    "Una circunferencia",
-  ]
-
-  // Elegir 4 distractores aleatorios sin repetir
-  const distractors = shuffle(distractorBank)
-    .filter((x) => x !== correct)
-    .slice(0, 4)
-
-  const options: Option[] = shuffle([
+  return shuffle([
     { value: correct, correct: true },
-    ...distractors.map((v) => ({ value: v, correct: false })),
+    ...uniqueDistractors.slice(0, 4).map(value => ({ value, correct: false })),
+  ])
+}
+
+type Scenario = {
+  prompt: string
+  correct: string
+  options: Option[]
+  explanation: string
+  exampleSet: string
+  concept: string
+}
+
+function generateScenario(): Scenario {
+  const exampleSet = choice([
+    "S = {A, B, C}",
+    "S = {P1, P2, P3}",
+    "S = {S1, S2, S3, S4}",
   ])
 
-  // Variación de explicación
-  const explanation = choice(explanationTemplates)()
-
-  // Para dar “mini ejemplo” de sitios (sin dibujar)
-  const sampleSites = [
-    `S = {A, B, C}`,
-    `S = {P_1, P_2, P_3}`,
-    `S = {S_1, S_2, S_3, S_4}`,
+  const variants: Scenario[] = [
+    {
+      prompt: 'En geometria computacional, en una particion de Voronoi, un "sitio" es:',
+      correct: "Un punto generador",
+      options: buildUniqueOptions("Un punto generador", [
+        "Un segmento",
+        "Un poligono",
+        "Una bisectriz",
+        "Una region frontera",
+        "Una arista cerrada",
+      ]),
+      explanation:
+        "En Voronoi, los sitios son los puntos de partida que generan las regiones del diagrama.",
+      exampleSet,
+      concept: "sitio",
+    },
+    {
+      prompt: "En un diagrama de Voronoi, que objeto genera cada celda?",
+      correct: "Un sitio o punto generador",
+      options: buildUniqueOptions("Un sitio o punto generador", [
+        "Una arista del borde",
+        "Una mediatriz infinita",
+        "Un poligono aleatorio",
+        "Un vertice de interseccion",
+        "Una circunferencia exterior",
+      ]),
+      explanation:
+        "Cada celda se asocia a un sitio: contiene los puntos del plano mas cercanos a ese generador.",
+      exampleSet,
+      concept: "generacion_de_celdas",
+    },
+    {
+      prompt: "Una celda de Voronoi representa principalmente:",
+      correct: "La region de puntos mas cercanos a un sitio",
+      options: buildUniqueOptions("La region de puntos mas cercanos a un sitio", [
+        "La region de puntos mas lejanos al sitio",
+        "El conjunto de todos los vertices",
+        "La interseccion de todas las mediatrices",
+        "Una zona equidistante a todos los sitios",
+        "El promedio de las coordenadas",
+      ]),
+      explanation:
+        "La definicion de celda se basa en proximidad: agrupa los puntos cuyo sitio mas cercano es el mismo.",
+      exampleSet,
+      concept: "celda",
+    },
+    {
+      prompt: 'Cuando se habla de "punto generador" en Voronoi, se refiere a:',
+      correct: "Un sitio que sirve como referencia de distancia",
+      options: buildUniqueOptions("Un sitio que sirve como referencia de distancia", [
+        "Una frontera entre dos celdas",
+        "Un punto equidistante a tres sitios",
+        "La diagonal principal del diagrama",
+        "El centro geometrico del plano",
+        "Una recta tangente",
+      ]),
+      explanation:
+        "El generador es el sitio desde el cual se comparan distancias para decidir a que celda pertenece cada punto.",
+      exampleSet,
+      concept: "punto_generador",
+    },
   ]
-  const exampleSet = choice(sampleSites)
 
-  return {
-    diagramName: d,
-    siteWord: s,
-    prompt,
-    correct,
-    options,
-    explanation,
-    exampleSet,
-  }
+  return choice(variants)
 }
 
 /* ============================================================
@@ -164,9 +168,9 @@ export default function VoronoiSitioConceptGame({
         selected: op.value,
         correctAnswer: scenario.correct,
         question: {
-          diagram: scenario.diagramName,
-          siteTerm: scenario.siteWord,
+          concept: scenario.concept,
           prompt: scenario.prompt,
+          exampleSet: scenario.exampleSet,
         },
       },
       timeSeconds,
@@ -179,15 +183,14 @@ export default function VoronoiSitioConceptGame({
     setNonce((n) => n + 1)
   }
 
-  // MathTex: solo para resaltar términos, sin hacer diagrama
   const keyIdeaTex = `\\text{Sitio} = \\text{punto generador}`
   const exampleTex = `S = \\{\\text{puntos generadores}\\}`
 
   return (
     <MathProvider>
       <ExerciseShell
-        title='Conceptos de Voronoi: “sitio”'
-        prompt="Selecciona la definición correcta"
+        title='Conceptos de Voronoi: "sitio"'
+        prompt="Selecciona la definicion correcta"
         status={engine.status}
         attempts={engine.attempts}
         maxAttempts={engine.maxAttempts}
@@ -196,29 +199,29 @@ export default function VoronoiSitioConceptGame({
         solution={
           <SolutionBox>
             <DetailedExplanation
-              title="Explicación"
+              title="Explicacion"
               steps={[
                 {
                   title: "Idea clave",
                   detail: (
                     <span>
-                      En Voronoi, un “sitio” es el punto que genera una región.
+                      En Voronoi, los sitios y las celdas se entienden a partir de comparaciones de distancia.
                     </span>
                   ),
                   icon: Sigma,
                   content: <MathTex block tex={keyIdeaTex} />,
                 },
                 {
-                  title: "¿Por qué?",
+                  title: "Relacion correcta",
                   detail: <span>{scenario.explanation}</span>,
                   icon: Divide,
                   content: <MathTex block tex={exampleTex} />,
                 },
                 {
-                  title: "Conclusión",
+                  title: "Conclusion",
                   detail: (
                     <span>
-                      Por eso, la respuesta correcta es <b>{scenario.correct}</b>.
+                      La respuesta correcta para esta pregunta es <b>{scenario.correct}</b>.
                     </span>
                   ),
                   icon: ShieldCheck,
@@ -252,7 +255,11 @@ export default function VoronoiSitioConceptGame({
           status={engine.status}
           canAnswer={engine.canAnswer}
           onSelect={pickOption}
-          renderValue={(op) => <MathTex tex={`\\text{${op.value}}`} />}
+          renderValue={(op) => (
+            <span className="block whitespace-normal break-words text-base leading-relaxed">
+              {op.value}
+            </span>
+          )}
         />
 
         <div className="mt-6">
