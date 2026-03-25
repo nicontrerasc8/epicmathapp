@@ -3,190 +3,91 @@
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
-import {
-  PageHeader,
-  DataTable,
-  RowActionsMenu,
-  StatusBadge,
-  type ColumnDef,
-} from "@/components/dashboard/core"
+import { PageHeader, RowActionsMenu, StatusBadge } from "@/components/dashboard/core"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-
-/* =========================
-   Types
-========================= */
-interface ClassroomExercise {
-  id: string
-  active: boolean
-  exercise: {
-    id: string
-    exercise_type: string
-    description: string | null
-  } | null
-}
-
-interface ExerciseOption {
-  id: string
-  exercise_type: string
-  description: string | null
-}
-
-type ImportMappingItem = {
-  id: string
-  description: string
-  importPath: string
-}
 
 type Message = {
   type: "success" | "error"
   text: string
 }
 
-const pageSizeOptions = [10, 20, 50, 100]
+type ExerciseRow = {
+  id: string
+  active: boolean
+  exercise: {
+    id: string
+    exercise_type: string
+    block?: string | null
+    description: string | null
+    component_key?: string | null
+  } | null
+}
 
-/* =========================
-   Table columns
-========================= */
-const columns: ColumnDef<ClassroomExercise>[] = [
-  {
-    key: "exercise",
-    header: "Ejercicio",
-    render: (_, row) => (
-      <div>
-        <div className="font-medium">
-          {row.exercise?.description || row.exercise?.id || "Sin descripción"}
-        </div>
-        <div className="text-xs font-mono text-muted-foreground select-all">
-          ID: {row.exercise?.id || "Sin ID"}
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {row.exercise?.exercise_type || "Sin tipo"}
-        </div>
-      </div>
-    ),
-  },
-  {
-    key: "active",
-    header: "Estado",
-    render: (val) => <StatusBadge active={val} />,
-  },
-]
+type ExerciseOption = {
+  id: string
+  exercise_type: string
+  block?: string | null
+  description: string | null
+  component_key?: string | null
+}
 
-/* =========================
-   Page
-========================= */
+type GroupedExercise = {
+  theme: string
+  block: string
+  rows: ExerciseRow[]
+}
+
 export default function ClassroomExercisesPage() {
   const params = useParams()
   const classroomId = params.classroomId as string
 
   const [loading, setLoading] = useState(true)
-  const [exercises, setExercises] = useState<ClassroomExercise[]>([])
-  const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([])
   const [message, setMessage] = useState<Message | null>(null)
-  const [selectedAssignedIds, setSelectedAssignedIds] = useState<string[]>([])
-  const [editingExercise, setEditingExercise] = useState<ClassroomExercise | null>(null)
-  const [editingDescription, setEditingDescription] = useState("")
-  const [savingEdit, setSavingEdit] = useState(false)
-
-  const [search, setSearch] = useState("")
-  const [tableExerciseType, setTableExerciseType] = useState("")
-  const [pageSize, setPageSize] = useState(pageSizeOptions[0])
-  const [page, setPage] = useState(1)
+  const [exercises, setExercises] = useState<ExerciseRow[]>([])
+  const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([])
 
   const [institutionId, setInstitutionId] = useState<string | null>(null)
   const [classroomGrade, setClassroomGrade] = useState<string | null>(null)
   const [classroomAcademicYear, setClassroomAcademicYear] = useState<number | null>(null)
   const [replicatingGrade, setReplicatingGrade] = useState(false)
 
-  /* ---------- form state ---------- */
-  const [form, setForm] = useState({
-    active: true,
-  })
-  const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([])
-  const [selectedExerciseType, setSelectedExerciseType] = useState("")
+  const [search, setSearch] = useState("")
+  const [tableExerciseType, setTableExerciseType] = useState("")
+  const [tableBlock, setTableBlock] = useState("")
+  const [selectedAssignedIds, setSelectedAssignedIds] = useState<string[]>([])
+
+  const [editingExercise, setEditingExercise] = useState<ExerciseRow | null>(null)
+  const [editingDescription, setEditingDescription] = useState("")
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const [createMode, setCreateMode] = useState(false)
   const [assignToGrade, setAssignToGrade] = useState(false)
-
+  const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([])
+  const [selectedExerciseType, setSelectedExerciseType] = useState("")
+  const [selectedExerciseBlock, setSelectedExerciseBlock] = useState("")
   const [newExercise, setNewExercise] = useState({
     exercise_type: "",
     custom_type: "",
+    block: "",
+    custom_block: "",
+    component_key: "",
     descriptionsText: "",
   })
-  const [importMappings, setImportMappings] = useState<ImportMappingItem[]>([])
 
-  /* =========================
-     Data loading
-  ========================= */
-  useEffect(() => {
+  const loadClassroomMeta = async () => {
     const supabase = createClient()
+    const { data } = await supabase
+      .from("edu_classrooms")
+      .select("institution_id, grade, academic_year")
+      .eq("id", classroomId)
+      .single()
 
-    const fetchClassroomInstitution = async () => {
-      const { data } = await supabase
-        .from("edu_classrooms")
-        .select("institution_id, grade, academic_year")
-        .eq("id", classroomId)
-        .single()
-
-      if (data?.institution_id) {
-        setInstitutionId(data.institution_id)
-      }
-      if (data?.grade) {
-        setClassroomGrade(data.grade)
-      }
-      if (typeof data?.academic_year === "number") {
-        setClassroomAcademicYear(data.academic_year)
-      }
-    }
-
-    const fetchExercises = async () => {
-      const { data } = await supabase
-        .from("edu_exercise_assignments")
-        .select(`
-          id,
-          active,
-          exercise:edu_exercises ( id, exercise_type, description )
-        `)
-        .eq("classroom_id", classroomId)
-
-      if (data) {
-        setExercises(
-          data.map((e: any) => ({
-            id: e.id,
-            active: e.active,
-            exercise: e.exercise,
-          }))
-        )
-      }
-      setLoading(false)
-    }
-
-    fetchClassroomInstitution()
-    fetchExercises()
-  }, [classroomId])
-
-  /* =========================
-     Fetch exercise options (by institution)
-  ========================= */
-  useEffect(() => {
-    if (!institutionId) return
-    const supabase = createClient()
-
-    const fetchExerciseOptions = async () => {
-      const { data } = await supabase
-        .from("edu_exercises")
-        .select("id, exercise_type, description")
-        .eq("active", true)
-        .eq("institution_id", institutionId)
-        .order("created_at", { ascending: false })
-
-      if (data) setExerciseOptions(data)
-    }
-
-    fetchExerciseOptions()
-  }, [institutionId])
+    setInstitutionId(data?.institution_id ?? null)
+    setClassroomGrade(data?.grade ?? null)
+    setClassroomAcademicYear(typeof data?.academic_year === "number" ? data.academic_year : null)
+  }
 
   const refreshExercises = async () => {
     const supabase = createClient()
@@ -195,77 +96,106 @@ export default function ClassroomExercisesPage() {
       .select(`
         id,
         active,
-        exercise:edu_exercises ( id, exercise_type, description )
+        exercise:edu_exercises ( id, exercise_type, block, description, component_key )
       `)
       .eq("classroom_id", classroomId)
 
     if (data) {
       setExercises(
-        data.map((e: any) => ({
-          id: e.id,
-          active: e.active,
-          exercise: e.exercise,
+        data.map((row: any) => ({
+          id: row.id,
+          active: Boolean(row.active),
+          exercise: Array.isArray(row.exercise) ? row.exercise[0] ?? null : row.exercise,
         }))
       )
     }
   }
 
-  const refreshExerciseOptions = async () => {
-    if (!institutionId) return
+  const refreshExerciseOptions = async (nextInstitutionId = institutionId) => {
+    if (!nextInstitutionId) return
+
     const supabase = createClient()
     const { data } = await supabase
       .from("edu_exercises")
-      .select("id, exercise_type, description")
+      .select("id, exercise_type, block, description, component_key")
       .eq("active", true)
-      .eq("institution_id", institutionId)
-      .order("created_at", { ascending: false })
+      .eq("institution_id", nextInstitutionId)
+      .order("exercise_type", { ascending: true })
+      .order("block", { ascending: true })
+      .order("description", { ascending: true })
 
     if (data) setExerciseOptions(data)
   }
 
-  const openEditExercise = (row: ClassroomExercise) => {
-    setEditingExercise(row)
-    setEditingDescription(row.exercise?.description || "")
-    setMessage(null)
-  }
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      await loadClassroomMeta()
+      await refreshExercises()
+      setLoading(false)
+    }
 
-  const closeEditExercise = () => {
-    if (savingEdit) return
-    setEditingExercise(null)
-    setEditingDescription("")
-  }
+    load()
+  }, [classroomId])
 
-  const resetEditExercise = () => {
-    setEditingExercise(null)
-    setEditingDescription("")
-  }
-
-  const exerciseTypeOptions = useMemo(() => {
-    const set = new Set(
-      exerciseOptions
-        .map((e) => e.exercise_type?.trim())
-        .filter((t): t is string => Boolean(t))
-    )
-    return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [exerciseOptions])
+  useEffect(() => {
+    if (!institutionId) return
+    refreshExerciseOptions(institutionId)
+  }, [institutionId])
 
   const assignedExerciseTypeOptions = useMemo(() => {
-    const set = new Set(
+    const values = new Set(
       exercises
-        .map((e) => e.exercise?.exercise_type?.trim())
-        .filter((t): t is string => Boolean(t))
+        .map((row) => row.exercise?.exercise_type?.trim())
+        .filter((value): value is string => Boolean(value))
     )
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }))
+
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }))
   }, [exercises])
 
-  const filteredExerciseOptions = useMemo(() => {
-    if (!selectedExerciseType) return exerciseOptions
-    return exerciseOptions.filter((e) => e.exercise_type === selectedExerciseType)
+  const exerciseTypeOptions = useMemo(() => {
+    const values = new Set(
+      exerciseOptions
+        .map((row) => row.exercise_type?.trim())
+        .filter((value): value is string => Boolean(value))
+    )
+
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }))
+  }, [exerciseOptions])
+
+  const assignedBlockOptions = useMemo(() => {
+    const values = new Set(
+      exercises
+        .filter((row) => !tableExerciseType || row.exercise?.exercise_type === tableExerciseType)
+        .map((row) => row.exercise?.block?.trim())
+        .filter((value): value is string => Boolean(value))
+    )
+
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }))
+  }, [exercises, tableExerciseType])
+
+  const exerciseBlockOptions = useMemo(() => {
+    const values = new Set(
+      exerciseOptions
+        .filter((row) => !selectedExerciseType || row.exercise_type === selectedExerciseType)
+        .map((row) => row.block?.trim())
+        .filter((value): value is string => Boolean(value))
+    )
+
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }))
   }, [exerciseOptions, selectedExerciseType])
 
+  const filteredExerciseOptions = useMemo(() => {
+    return exerciseOptions.filter((row) => {
+      const matchesType = !selectedExerciseType || row.exercise_type === selectedExerciseType
+      const matchesBlock = !selectedExerciseBlock || row.block === selectedExerciseBlock
+      return matchesType && matchesBlock
+    })
+  }, [exerciseOptions, selectedExerciseType, selectedExerciseBlock])
+
   const filteredExerciseIds = useMemo(
-    () => filteredExerciseOptions.map((e) => e.id),
-    [filteredExerciseOptions],
+    () => filteredExerciseOptions.map((row) => row.id),
+    [filteredExerciseOptions]
   )
 
   const allFilteredSelected = useMemo(() => {
@@ -287,108 +217,77 @@ export default function ClassroomExercisesPage() {
         for (const id of filteredExerciseIds) merged.add(id)
         return Array.from(merged)
       }
+
       const filteredSet = new Set(filteredExerciseIds)
       return prev.filter((id) => !filteredSet.has(id))
     })
   }
 
-  const mappingText = useMemo(() => {
-    if (importMappings.length === 0) return ""
-    const oneLine = (s?: string) => (s || "Sin descripción").replace(/\s+/g, " ").trim()
-    return importMappings
-      .map(
-        (m) =>
-          `"${m.id}": () => import("${m.importPath || "./ruta/Componente"}"), // ${oneLine(m.description)}`
-      )
-      .join("\n")
-  }, [importMappings])
-
-  const downloadTextFile = (filename: string, content: string) => {
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-
-  const toDefaultImportPath = (exerciseType: string) => {
-    const slug = exerciseType
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, "")
-      .replace(/[^a-z0-9/_-]/g, "")
-    return `./${slug || "carpeta"}/Componente`
-  }
-
-  const tableMappings = useMemo<ImportMappingItem[]>(() => {
-    const map = new Map<string, ImportMappingItem>()
-    for (const row of exercises) {
-      const ex = row.exercise
-      if (!ex?.id) continue
-      if (map.has(ex.id)) continue
-      map.set(ex.id, {
-        id: ex.id,
-        description: ex.description || ex.id,
-        importPath: toDefaultImportPath(ex.exercise_type || "carpeta"),
-      })
-    }
-    return Array.from(map.values())
-  }, [exercises])
-
-  const tableMappingText = useMemo(() => {
-    if (tableMappings.length === 0) return ""
-    const oneLine = (s?: string) => (s || "Sin descripción").replace(/\s+/g, " ").trim()
-    return tableMappings
-      .map(
-        (m) =>
-          `"${m.id}": () => import("${m.importPath}"), // ${oneLine(m.description)}`
-      )
-      .join("\n")
-  }, [tableMappings])
-
-  /* =========================
-     Filtering & paging
-  ========================= */
-  useEffect(() => setPage(1), [search, tableExerciseType, pageSize])
-
   const filteredExercises = useMemo(() => {
-    const needle = search.toLowerCase().trim()
-    const byType = !tableExerciseType
-      ? exercises
-      : exercises.filter((r) => (r.exercise?.exercise_type ?? "") === tableExerciseType)
+    const needle = search.trim().toLowerCase()
 
-    const base = !needle
-      ? byType
-      : byType.filter((r) => {
-          const d = r.exercise?.description ?? ""
-          const t = r.exercise?.exercise_type ?? ""
-          const i = r.exercise?.id ?? ""
-          return (
-            d.toLowerCase().includes(needle) ||
-            t.toLowerCase().includes(needle) ||
-            i.toLowerCase().includes(needle)
-          )
-        })
+    return exercises.filter((row) => {
+      const theme = row.exercise?.exercise_type ?? ""
+      const block = row.exercise?.block ?? ""
+      const description = row.exercise?.description ?? ""
+      const id = row.exercise?.id ?? ""
 
-    return [...base].sort((a, b) => {
-      const labelA = (a.exercise?.description || a.exercise?.id || "").trim()
-      const labelB = (b.exercise?.description || b.exercise?.id || "").trim()
-      return labelA.localeCompare(labelB, "es", { sensitivity: "base" })
+      const matchesTheme = !tableExerciseType || theme === tableExerciseType
+      const matchesBlock = !tableBlock || block === tableBlock
+      const matchesSearch =
+        !needle ||
+        theme.toLowerCase().includes(needle) ||
+        block.toLowerCase().includes(needle) ||
+        description.toLowerCase().includes(needle) ||
+        id.toLowerCase().includes(needle)
+
+      return matchesTheme && matchesBlock && matchesSearch
     })
-  }, [exercises, search, tableExerciseType])
+  }, [exercises, search, tableExerciseType, tableBlock])
 
-  const pagedExercises = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return filteredExercises.slice(start, start + pageSize)
-  }, [filteredExercises, page, pageSize])
+  const groupedExercises = useMemo((): GroupedExercise[] => {
+    const grouped = new Map<string, ExerciseRow[]>()
 
-  /* =========================
-     Submit handler
-  ========================= */
+    for (const row of filteredExercises) {
+      const theme = row.exercise?.exercise_type?.trim() || "Sin tipo"
+      const block = row.exercise?.block?.trim() || "Sin bloque"
+      const key = `${theme}|||${block}`
+      if (!grouped.has(key)) grouped.set(key, [])
+      grouped.get(key)!.push(row)
+    }
+
+    return Array.from(grouped.entries())
+      .map(([key, rows]) => {
+        const [theme, block] = key.split("|||")
+        return {
+          theme,
+          block,
+          rows: [...rows].sort((a, b) => {
+          const labelA = (a.exercise?.description || a.exercise?.id || "").trim()
+          const labelB = (b.exercise?.description || b.exercise?.id || "").trim()
+          return labelA.localeCompare(labelB, "es", { sensitivity: "base" })
+          }),
+        }
+      })
+      .sort((a, b) => {
+        const byTheme = a.theme.localeCompare(b.theme, "es", { sensitivity: "base" })
+        if (byTheme !== 0) return byTheme
+        return a.block.localeCompare(b.block, "es", { sensitivity: "base" })
+      })
+  }, [filteredExercises])
+
+  const openEditExercise = (row: ExerciseRow) => {
+    setEditingExercise(row)
+    setEditingDescription(row.exercise?.description || "")
+    setMessage(null)
+  }
+
+  const closeEditExercise = () => {
+    if (savingEdit) return
+    setEditingExercise(null)
+    setEditingDescription("")
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
@@ -397,22 +296,26 @@ export default function ClassroomExercisesPage() {
     let exerciseIds: string[] = []
     let targetClassroomIds: string[] = [classroomId]
 
-    /* ---- create many exercises ---- */
     if (createMode) {
       const typeToUse =
         newExercise.exercise_type === "__custom__"
           ? newExercise.custom_type.trim()
-          : newExercise.exercise_type
+          : newExercise.exercise_type.trim()
 
+      const componentKey = newExercise.component_key.trim()
+      const block =
+        newExercise.block === "__custom__"
+          ? newExercise.custom_block.trim()
+          : newExercise.block.trim()
       const descriptions = newExercise.descriptionsText
         .split("\n")
-        .map((l) => l.trim())
+        .map((line) => line.trim())
         .filter(Boolean)
 
-      if (!typeToUse || descriptions.length === 0) {
+      if (!typeToUse || !block || !componentKey || descriptions.length === 0) {
         setMessage({
           type: "error",
-          text: "Define un tipo (existente o nuevo) y al menos una descripción (una por línea).",
+          text: "Define tema, block, component_key y al menos una descripción.",
         })
         return
       }
@@ -421,26 +324,26 @@ export default function ClassroomExercisesPage() {
         id: crypto.randomUUID(),
         description,
         exercise_type: typeToUse,
+        block,
+        component_key: componentKey,
         institution_id: institutionId,
         active: true,
       }))
 
-      const { error } = await supabase
-        .from("edu_exercises")
-        .insert(payload)
+      const { error } = await supabase.from("edu_exercises").insert(payload)
 
       if (error) {
-        setMessage({ type: "error", text: "No se pudieron crear los ejercicios." })
+        setMessage({ type: "error", text: error.message || "No se pudieron crear los ejercicios." })
         return
       }
 
-      // Conserva exactamente el orden de creación (mismo orden de líneas ingresadas).
-      exerciseIds = payload.map((p) => p.id)
+      exerciseIds = payload.map((row) => row.id)
     } else {
       if (selectedExerciseIds.length === 0) {
         setMessage({ type: "error", text: "Selecciona al menos un ejercicio." })
         return
       }
+
       exerciseIds = selectedExerciseIds
     }
 
@@ -453,7 +356,7 @@ export default function ClassroomExercisesPage() {
         return
       }
 
-      const { data: classroomsByGrade, error: classroomsByGradeError } = await supabase
+      const { data, error } = await supabase
         .from("edu_classrooms")
         .select("id")
         .eq("institution_id", institutionId)
@@ -461,25 +364,26 @@ export default function ClassroomExercisesPage() {
         .eq("academic_year", classroomAcademicYear)
         .eq("active", true)
 
-      if (classroomsByGradeError) {
-        setMessage({ type: "error", text: classroomsByGradeError.message })
+      if (error) {
+        setMessage({ type: "error", text: error.message })
         return
       }
 
-      const ids = (classroomsByGrade ?? []).map((c: any) => c.id).filter(Boolean)
+      const ids = (data ?? []).map((row: any) => row.id).filter(Boolean)
       if (ids.length === 0) {
         setMessage({ type: "error", text: "No hay salones activos del mismo grado." })
         return
       }
+
       targetClassroomIds = ids
     }
 
-    /* ---- RPC (for each exercise) ---- */
     for (const exerciseId of exerciseIds) {
       const { error } = await supabase.rpc("assign_exercise_to_classrooms", {
         p_exercise_id: exerciseId,
         p_classroom_ids: targetClassroomIds,
       })
+
       if (error) {
         setMessage({ type: "error", text: error.message })
         return
@@ -487,37 +391,7 @@ export default function ClassroomExercisesPage() {
     }
 
     await refreshExercises()
-    if (createMode) {
-      const { data } = await supabase
-        .from("edu_exercises")
-        .select("id, exercise_type, description")
-        .eq("active", true)
-        .eq("institution_id", institutionId)
-        .order("created_at", { ascending: false })
-      if (data) setExerciseOptions(data)
-    }
-
-    const typeForMappings =
-      createMode
-        ? (newExercise.exercise_type === "__custom__"
-            ? newExercise.custom_type.trim()
-            : newExercise.exercise_type)
-        : selectedExerciseType
-
-    const createdMappingItems: ImportMappingItem[] = exerciseIds.map((id) => ({
-      id,
-      description: createMode ? "Nuevo ejercicio" : (exerciseOptions.find((e) => e.id === id)?.description || "Ejercicio"),
-      importPath: toDefaultImportPath(typeForMappings || "carpeta"),
-    }))
-
-    setImportMappings(createdMappingItems)
-
-    if (createMode && createdMappingItems.length > 0) {
-      const autoText = createdMappingItems
-        .map((m) => `"${m.id}": () => import("${m.importPath}"),`)
-        .join("\n")
-      downloadTextFile(`exercise-imports-${new Date().toISOString().slice(0, 10)}.txt`, autoText)
-    }
+    await refreshExerciseOptions()
 
     setMessage({
       type: "success",
@@ -525,46 +399,23 @@ export default function ClassroomExercisesPage() {
         ? `Se asignaron ${exerciseIds.length} ejercicio(s) en ${targetClassroomIds.length} aula(s) del mismo grado.`
         : `Se asignaron ${exerciseIds.length} ejercicio(s) correctamente.`,
     })
-    setForm({ active: true })
+
     setSelectedExerciseIds([])
-    setNewExercise({ exercise_type: "", custom_type: "", descriptionsText: "" })
     setAssignToGrade(false)
     setCreateMode(false)
-  }
-
-  const handleReplicateToSameGrade = async () => {
-    const sourceAssignments = exercises
-      .map((row) => ({
-        exerciseId: row.exercise?.id || "",
-        active: row.active,
-      }))
-      .filter((row) => Boolean(row.exerciseId))
-
-    await replicateAssignmentsToSameGrade(
-      sourceAssignments,
-      "Se copiarán todas las asignaciones de esta aula a los demás salones del mismo grado. ¿Continuar?",
-    )
-  }
-
-  const handleReplicateSelectedToSameGrade = async () => {
-    const selectedSet = new Set(selectedAssignedIds)
-    const sourceAssignments = exercises
-      .filter((row) => selectedSet.has(row.id))
-      .map((row) => ({
-        exerciseId: row.exercise?.id || "",
-        active: row.active,
-      }))
-      .filter((row) => Boolean(row.exerciseId))
-
-    await replicateAssignmentsToSameGrade(
-      sourceAssignments,
-      `Se copiarán ${sourceAssignments.length} asignaciones seleccionadas a los demás salones del mismo grado. ¿Continuar?`,
-    )
+    setNewExercise({
+      exercise_type: "",
+      custom_type: "",
+      block: "",
+      custom_block: "",
+      component_key: "",
+      descriptionsText: "",
+    })
   }
 
   const replicateAssignmentsToSameGrade = async (
     sourceAssignments: { exerciseId: string; active: boolean }[],
-    confirmText: string,
+    confirmText: string
   ) => {
     if (!institutionId || !classroomGrade || classroomAcademicYear == null) {
       setMessage({
@@ -588,8 +439,9 @@ export default function ClassroomExercisesPage() {
     const supabase = createClient()
     setReplicatingGrade(true)
     setMessage(null)
+
     try {
-      const { data: targetClassrooms, error: targetsError } = await supabase
+      const { data, error } = await supabase
         .from("edu_classrooms")
         .select("id")
         .eq("institution_id", institutionId)
@@ -598,12 +450,12 @@ export default function ClassroomExercisesPage() {
         .neq("id", classroomId)
         .eq("active", true)
 
-      if (targetsError) {
-        setMessage({ type: "error", text: targetsError.message })
+      if (error) {
+        setMessage({ type: "error", text: error.message })
         return
       }
 
-      const targetIds = (targetClassrooms ?? []).map((c: any) => c.id).filter(Boolean)
+      const targetIds = (data ?? []).map((row: any) => row.id).filter(Boolean)
       if (targetIds.length === 0) {
         setMessage({
           type: "error",
@@ -617,6 +469,7 @@ export default function ClassroomExercisesPage() {
           p_exercise_id: row.exerciseId,
           p_classroom_ids: targetIds,
         })
+
         if (assignError) {
           setMessage({ type: "error", text: assignError.message })
           return
@@ -628,6 +481,7 @@ export default function ClassroomExercisesPage() {
             .update({ active: false })
             .in("classroom_id", targetIds)
             .eq("exercise_id", row.exerciseId)
+
           if (inactiveError) {
             setMessage({ type: "error", text: inactiveError.message })
             return
@@ -643,6 +497,36 @@ export default function ClassroomExercisesPage() {
     } finally {
       setReplicatingGrade(false)
     }
+  }
+
+  const handleReplicateToSameGrade = async () => {
+    const sourceAssignments = exercises
+      .map((row) => ({
+        exerciseId: row.exercise?.id || "",
+        active: row.active,
+      }))
+      .filter((row) => Boolean(row.exerciseId))
+
+    await replicateAssignmentsToSameGrade(
+      sourceAssignments,
+      "Se copiarán todas las asignaciones de esta aula a los demás salones del mismo grado. ¿Continuar?"
+    )
+  }
+
+  const handleReplicateSelectedToSameGrade = async () => {
+    const selectedSet = new Set(selectedAssignedIds)
+    const sourceAssignments = exercises
+      .filter((row) => selectedSet.has(row.id))
+      .map((row) => ({
+        exerciseId: row.exercise?.id || "",
+        active: row.active,
+      }))
+      .filter((row) => Boolean(row.exerciseId))
+
+    await replicateAssignmentsToSameGrade(
+      sourceAssignments,
+      `Se copiarán ${sourceAssignments.length} asignaciones seleccionadas a los demás salones del mismo grado. ¿Continuar?`
+    )
   }
 
   const handleSaveExerciseName = async () => {
@@ -662,6 +546,7 @@ export default function ClassroomExercisesPage() {
     const supabase = createClient()
     setSavingEdit(true)
     setMessage(null)
+
     try {
       const { error } = await supabase
         .from("edu_exercises")
@@ -675,21 +560,14 @@ export default function ClassroomExercisesPage() {
 
       await refreshExercises()
       await refreshExerciseOptions()
-      setImportMappings((prev) =>
-        prev.map((item) =>
-          item.id === exerciseId ? { ...item, description } : item
-        )
-      )
       setMessage({ type: "success", text: "Nombre del ejercicio actualizado." })
-      resetEditExercise()
+      setEditingExercise(null)
+      setEditingDescription("")
     } finally {
       setSavingEdit(false)
     }
   }
 
-  /* =========================
-     Render
-  ========================= */
   return (
     <div className="space-y-6">
       <PageHeader
@@ -703,252 +581,297 @@ export default function ClassroomExercisesPage() {
       />
 
       <div className="grid gap-6">
-        {/* TABLE */}
-        <div className="order-2 space-y-3">
-          <div className="flex gap-3 items-center">
+        <div className="space-y-3 rounded-xl border bg-card p-4">
+          <div className="flex flex-wrap items-center gap-3">
             <Input
-              placeholder="Buscar ejercicio..."
+              placeholder="Buscar por tema, nombre o ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
 
             <select
               value={tableExerciseType}
-              onChange={(e) => setTableExerciseType(e.target.value)}
-              className="h-9 rounded-md border px-2 text-sm bg-white"
+              onChange={(e) => {
+                setTableExerciseType(e.target.value)
+                setTableBlock("")
+              }}
+              className="h-10 rounded-md border px-3 text-sm bg-white"
             >
-              <option value="">Todos los tipos</option>
+              <option value="">Todos los temas</option>
               {assignedExerciseTypeOptions.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
+                <option key={type} value={type}>
+                  {type}
+                </option>
+                ))}
+              </select>
 
             <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="h-9 rounded-md border px-2 text-sm bg-white"
+              value={tableBlock}
+              onChange={(e) => setTableBlock(e.target.value)}
+              className="h-10 rounded-md border px-3 text-sm bg-white"
             >
-              {pageSizeOptions.map((s) => (
-                <option key={s} value={s}>{s}</option>
+              <option value="">Todos los blocks</option>
+              {assignedBlockOptions.map((block) => (
+                <option key={block} value={block}>
+                  {block}
+                </option>
               ))}
             </select>
           </div>
 
-          <DataTable
-            columns={columns}
-            data={pagedExercises}
-            loading={loading}
-            selectable
-            onSelectionChange={setSelectedAssignedIds}
-            pagination={{ page, pageSize, total: filteredExercises.length }}
-            onPageChange={setPage}
-            emptyState={{
-              title: "Ejercicios",
-              description: "No hay ejercicios asignados.",
-            }}
-            rowActions={(row) => (
-              <RowActionsMenu
-                actions={[
-                  {
-                    label: "Editar nombre",
-                    onClick: () => openEditExercise(row),
-                  },
-                  {
-                    label: row.active ? "Desactivar" : "Activar",
-                    onClick: async () => {
-                      const supabase = createClient()
-                      await supabase
-                        .from("edu_exercise_assignments")
-                        .update({ active: !row.active })
-                        .eq("id", row.id)
-                      refreshExercises()
-                    },
-                  },
-                  {
-                    label: "Eliminar",
-                    variant: "destructive",
-                    onClick: async () => {
-                      const supabase = createClient()
-                      await supabase
-                        .from("edu_exercise_assignments")
-                        .delete()
-                        .eq("id", row.id)
-                      refreshExercises()
-                    },
-                  },
-                ]}
-              />
-            )}
-          />
+          {loading ? (
+            <div className="rounded-md border p-4 text-sm text-muted-foreground">
+              Cargando ejercicios...
+            </div>
+          ) : groupedExercises.length === 0 ? (
+            <div className="rounded-md border p-4 text-sm text-muted-foreground">
+              No hay ejercicios asignados con ese filtro.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {groupedExercises.map((group) => (
+                <div key={group.theme} className="rounded-lg border">
+                  <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
+                    <div>
+                      <div className="text-sm font-semibold">{group.theme}</div>
+                      <div className="text-xs font-medium text-foreground/80">{group.block}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {group.rows.length} ejercicio(s)
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="divide-y">
+                    {group.rows.map((row) => (
+                      <div key={row.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                        <label className="flex items-start gap-3">
+                          <Checkbox
+                            checked={selectedAssignedIds.includes(row.id)}
+                            onCheckedChange={(checked) => {
+                              const next = Boolean(checked)
+                              setSelectedAssignedIds((prev) =>
+                                next ? [...prev, row.id] : prev.filter((id) => id !== row.id)
+                              )
+                            }}
+                          />
+                          <div>
+                            <div className="font-medium">
+                              {row.exercise?.description || row.exercise?.id || "Sin descripción"}
+                            </div>
+                            <div className="text-xs font-mono text-muted-foreground select-all">
+                              ID: {row.exercise?.id || "Sin ID"}
+                            </div>
+                            {row.exercise?.block && (
+                              <div className="text-xs text-muted-foreground">
+                                block: {row.exercise.block}
+                              </div>
+                            )}
+                            {row.exercise?.component_key && (
+                              <div className="text-xs text-muted-foreground">
+                                component_key: {row.exercise.component_key}
+                              </div>
+                            )}
+                          </div>
+                        </label>
+
+                        <div className="flex items-center gap-3">
+                          <StatusBadge active={row.active} />
+                          <RowActionsMenu
+                            actions={[
+                              {
+                                label: "Editar nombre",
+                                onClick: () => openEditExercise(row),
+                              },
+                              {
+                                label: row.active ? "Desactivar" : "Activar",
+                                onClick: async () => {
+                                  const supabase = createClient()
+                                  await supabase
+                                    .from("edu_exercise_assignments")
+                                    .update({ active: !row.active })
+                                    .eq("id", row.id)
+                                  refreshExercises()
+                                },
+                              },
+                              {
+                                label: "Eliminar",
+                                variant: "destructive",
+                                onClick: async () => {
+                                  const supabase = createClient()
+                                  await supabase
+                                    .from("edu_exercise_assignments")
+                                    .delete()
+                                    .eq("id", row.id)
+                                  refreshExercises()
+                                },
+                              },
+                            ]}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* FORM */}
-        <form onSubmit={handleSubmit} className="order-1 space-y-4 rounded-xl border bg-card p-4">
+        <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border bg-card p-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-medium">Asignar ejercicio</div>
+            <div className="text-sm font-medium">Asignar ejercicios por tema</div>
             <Button
               type="button"
               size="sm"
               variant="secondary"
-              onClick={() => setCreateMode((s) => !s)}
+              onClick={() => setCreateMode((state) => !state)}
             >
               {createMode ? "Usar existente" : "Crear nuevo"}
             </Button>
           </div>
 
-          <div className="rounded-md border p-3 space-y-2">
-            <div className="text-xs text-muted-foreground">
-              Exportar mapeo para <code>components/exercises/index.tsx</code>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!mappingText}
-                onClick={async () => {
-                  if (!mappingText) return
-                  await navigator.clipboard.writeText(mappingText)
-                  setMessage({ type: "success", text: "Mapeo copiado al portapapeles." })
-                }}
-              >
-                Copiar mapeo
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!mappingText}
-                onClick={() => {
-                  if (!mappingText) return
-                  downloadTextFile(
-                    `exercise-imports-${new Date().toISOString().slice(0, 10)}.txt`,
-                    mappingText
-                  )
-                }}
-              >
-                Descargar TXT
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!tableMappingText}
-                onClick={async () => {
-                  if (!tableMappingText) return
-                  await navigator.clipboard.writeText(tableMappingText)
-                  setMessage({ type: "success", text: "Mapeo desde tabla copiado al portapapeles." })
-                }}
-              >
-                Copiar desde tabla
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!tableMappingText}
-                onClick={() => {
-                  if (!tableMappingText) return
-                  downloadTextFile(
-                    `exercise-imports-table-${new Date().toISOString().slice(0, 10)}.txt`,
-                    tableMappingText
-                  )
-                }}
-              >
-                Descargar TXT (tabla)
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!tableMappings.length}
-                onClick={() => setImportMappings(tableMappings)}
-              >
-                Cargar tabla abajo
-              </Button>
-            </div>
-          </div>
-
           {createMode ? (
-            <>
+            <div className="space-y-3">
               <select
                 value={newExercise.exercise_type}
                 onChange={(e) =>
-                  setNewExercise((s) => ({
-                    ...s,
+                  setNewExercise((state) => ({
+                    ...state,
                     exercise_type: e.target.value,
-                    custom_type: e.target.value === "__custom__" ? s.custom_type : "",
+                    custom_type: e.target.value === "__custom__" ? state.custom_type : "",
                   }))
                 }
                 className="h-10 rounded-md border px-3 text-sm bg-white"
               >
-                <option value="">Selecciona un tipo</option>
-                {exerciseTypeOptions.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                <option value="">Selecciona un tema</option>
+                {exerciseTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
                 ))}
-                <option value="__custom__">+ Crear tipo nuevo</option>
+                <option value="__custom__">+ Crear tema nuevo</option>
               </select>
+
               {newExercise.exercise_type === "__custom__" && (
                 <Input
-                  placeholder="Nuevo tipo (ej: Funciones avanzadas)"
+                  placeholder="Nuevo tema"
                   value={newExercise.custom_type}
                   onChange={(e) =>
-                    setNewExercise((s) => ({ ...s, custom_type: e.target.value }))
+                    setNewExercise((state) => ({ ...state, custom_type: e.target.value }))
                   }
                 />
               )}
-              <textarea
-                placeholder={"Nuevas descripciones (una por línea)\nEjercicio 1...\nEjercicio 2..."}
-                value={newExercise.descriptionsText}
-                onChange={(e) =>
-                  setNewExercise((s) => ({ ...s, descriptionsText: e.target.value }))
-                }
-                className="min-h-[120px] rounded-md border px-3 py-2 text-sm bg-white"
-              />
-            </>
-          ) : (
-            <div className="space-y-2">
+
               <select
-                value={selectedExerciseType}
-                onChange={(e) => setSelectedExerciseType(e.target.value)}
+                value={newExercise.block}
+                onChange={(e) =>
+                  setNewExercise((state) => ({
+                    ...state,
+                    block: e.target.value,
+                    custom_block: e.target.value === "__custom__" ? state.custom_block : "",
+                  }))
+                }
                 className="h-10 rounded-md border px-3 text-sm bg-white"
               >
-                <option value="">Todos los tipos</option>
-                {exerciseTypeOptions.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                <option value="">Selecciona un block</option>
+                {exerciseBlockOptions.map((block) => (
+                  <option key={block} value={block}>
+                    {block}
+                  </option>
+                ))}
+                <option value="__custom__">+ Crear block nuevo</option>
+              </select>
+
+              {newExercise.block === "__custom__" && (
+                <Input
+                  placeholder="Nuevo block. Ej: Ecuación de la recta"
+                  value={newExercise.custom_block}
+                  onChange={(e) =>
+                    setNewExercise((state) => ({ ...state, custom_block: e.target.value }))
+                  }
+                />
+              )}
+
+              <Input
+                placeholder="component_key. Ej: cristo/algebra/ej17"
+                value={newExercise.component_key}
+                onChange={(e) =>
+                  setNewExercise((state) => ({ ...state, component_key: e.target.value }))
+                }
+              />
+
+              <textarea
+                placeholder={"Descripciones, una por línea\nEj17 - Error porcentual\nEj18 - Error porcentual"}
+                value={newExercise.descriptionsText}
+                onChange={(e) =>
+                  setNewExercise((state) => ({ ...state, descriptionsText: e.target.value }))
+                }
+                className="min-h-[140px] rounded-md border px-3 py-2 text-sm bg-white"
+              />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <select
+                value={selectedExerciseType}
+                onChange={(e) => {
+                  setSelectedExerciseType(e.target.value)
+                  setSelectedExerciseBlock("")
+                }}
+                className="h-10 rounded-md border px-3 text-sm bg-white"
+              >
+                <option value="">Todos los temas</option>
+                {exerciseTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
                 ))}
               </select>
+
+              <select
+                value={selectedExerciseBlock}
+                onChange={(e) => setSelectedExerciseBlock(e.target.value)}
+                className="h-10 rounded-md border px-3 text-sm bg-white"
+              >
+                <option value="">Todos los blocks</option>
+                {exerciseBlockOptions.map((block) => (
+                  <option key={block} value={block}>
+                    {block}
+                  </option>
+                ))}
+              </select>
+
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
-                  checked={
-                    allFilteredSelected
-                      ? true
-                      : someFilteredSelected
-                        ? "indeterminate"
-                        : false
-                  }
-                  onCheckedChange={(v) => toggleSelectAllFiltered(Boolean(v))}
+                  checked={allFilteredSelected ? true : someFilteredSelected ? "indeterminate" : false}
+                  onCheckedChange={(value) => toggleSelectAllFiltered(Boolean(value))}
                   disabled={filteredExerciseOptions.length === 0}
                 />
                 Seleccionar todos ({filteredExerciseOptions.length})
               </label>
-              <div className="max-h-56 overflow-auto rounded-md border p-2 space-y-2">
-                {filteredExerciseOptions.map((e) => (
-                  <label key={e.id} className="flex items-start gap-2 text-sm">
+
+              <div className="max-h-64 overflow-auto rounded-md border p-2 space-y-2">
+                {filteredExerciseOptions.map((row) => (
+                  <label key={row.id} className="flex items-start gap-2 text-sm">
                     <Checkbox
-                      checked={selectedExerciseIds.includes(e.id)}
-                      onCheckedChange={(v) => {
-                        const checked = Boolean(v)
+                      checked={selectedExerciseIds.includes(row.id)}
+                      onCheckedChange={(value) => {
+                        const checked = Boolean(value)
                         setSelectedExerciseIds((prev) =>
-                          checked ? [...prev, e.id] : prev.filter((id) => id !== e.id)
+                          checked ? [...prev, row.id] : prev.filter((id) => id !== row.id)
                         )
                       }}
                     />
                     <span>
-                      {(e.description || e.id) + " — " + e.exercise_type}
+                      {(row.description || row.id) + " — " + row.exercise_type}
+                      {row.block ? ` — ${row.block}` : ""}
+                      {row.component_key ? ` — ${row.component_key}` : ""}
                     </span>
                   </label>
                 ))}
+
                 {filteredExerciseOptions.length === 0 && (
                   <div className="text-xs text-muted-foreground">
-                    No hay ejercicios para este tipo.
+                    No hay ejercicios para ese tema.
                   </div>
                 )}
               </div>
@@ -957,18 +880,8 @@ export default function ClassroomExercisesPage() {
 
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
-              checked={form.active}
-              onCheckedChange={(v) =>
-                setForm((s) => ({ ...s, active: Boolean(v) }))
-              }
-            />
-            Activo
-          </label>
-
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
               checked={assignToGrade}
-              onCheckedChange={(v) => setAssignToGrade(Boolean(v))}
+              onCheckedChange={(value) => setAssignToGrade(Boolean(value))}
             />
             Asignar a todos los salones del mismo grado
           </label>
@@ -976,7 +889,7 @@ export default function ClassroomExercisesPage() {
           <div className="rounded-md border p-3 space-y-2">
             <div className="text-sm font-medium">Copiar asignaciones actuales</div>
             <div className="text-xs text-muted-foreground">
-              Copia todos los ejercicios ya asignados en esta aula a los demás salones del mismo grado.
+              Replica estas asignaciones en los demás salones del mismo grado.
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -985,7 +898,7 @@ export default function ClassroomExercisesPage() {
                 onClick={handleReplicateToSameGrade}
                 disabled={replicatingGrade || exercises.length === 0}
               >
-                {replicatingGrade ? "Copiando..." : "Copiar todo a salones del mismo grado"}
+                {replicatingGrade ? "Copiando..." : "Copiar todo"}
               </Button>
               <Button
                 type="button"
@@ -1012,37 +925,6 @@ export default function ClassroomExercisesPage() {
             </div>
           )}
 
-          {importMappings.length > 0 && (
-            <div className="space-y-3 rounded-md border p-3">
-              <div className="text-sm font-medium">
-                Mapeo para <code>components/exercises/index.tsx</code>
-              </div>
-              <div className="max-h-48 overflow-auto space-y-2">
-                {importMappings.map((m) => (
-                  <div key={m.id} className="grid gap-2">
-                    <div className="text-xs text-muted-foreground font-mono select-all">
-                      {m.id}
-                    </div>
-                    <Input
-                      value={m.importPath}
-                      onChange={(e) =>
-                        setImportMappings((prev) =>
-                          prev.map((x) => (x.id === m.id ? { ...x, importPath: e.target.value } : x))
-                        )
-                      }
-                      placeholder="./carpeta/Componente"
-                    />
-                  </div>
-                ))}
-              </div>
-              <textarea
-                readOnly
-                value={mappingText}
-                className="min-h-[120px] w-full rounded-md border bg-muted/20 p-2 text-xs font-mono"
-              />
-            </div>
-          )}
-
           <Button type="submit">Guardar</Button>
         </form>
       </div>
@@ -1061,11 +943,22 @@ export default function ClassroomExercisesPage() {
                 Cerrar
               </Button>
             </div>
+
             <div className="space-y-4 px-5 py-4">
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">
-                  Tipo: {editingExercise.exercise?.exercise_type || "Sin tipo"}
+                  Tema: {editingExercise.exercise?.exercise_type || "Sin tipo"}
                 </div>
+                {editingExercise.exercise?.block && (
+                  <div className="text-sm text-muted-foreground">
+                    Block: {editingExercise.exercise.block}
+                  </div>
+                )}
+                {editingExercise.exercise?.component_key && (
+                  <div className="text-sm text-muted-foreground">
+                    component_key: {editingExercise.exercise.component_key}
+                  </div>
+                )}
                 <Input
                   value={editingDescription}
                   onChange={(e) => setEditingDescription(e.target.value)}
@@ -1073,6 +966,7 @@ export default function ClassroomExercisesPage() {
                   disabled={savingEdit}
                 />
               </div>
+
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={closeEditExercise} disabled={savingEdit}>
                   Cancelar

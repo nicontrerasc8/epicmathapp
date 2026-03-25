@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 export type ExerciseStatus = 'idle' | 'ok' | 'revealed'
 
 type Props = {
-  title: string
+  title?: string
   prompt: any
   status: ExerciseStatus
   attempts: number
@@ -18,7 +18,6 @@ type Props = {
 }
 
 export function ExerciseShell({
-  title,
   prompt,
   status,
   attempts,
@@ -40,8 +39,6 @@ export function ExerciseShell({
           'radial-gradient(ellipse at top, rgba(59,130,246,.08), transparent 40%), radial-gradient(ellipse at bottom, rgba(250,204,21,.08), transparent 40%)',
       }}
     >
-      <h1 className="text-2xl font-bold mb-4 text-center">{title}</h1>
-
       <div className="mx-auto max-w-3xl bg-card rounded-2xl shadow p-6 space-y-6">
         {/* Prompt */}
         <p className="text-lg text-center whitespace-pre-line">

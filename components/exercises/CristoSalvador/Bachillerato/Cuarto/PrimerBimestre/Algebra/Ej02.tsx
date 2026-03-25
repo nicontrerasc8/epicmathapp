@@ -219,7 +219,7 @@ export default function NotacionCientificaPregunta2Game({
   return (
     <MathProvider>
       <ExerciseShell
-        title="Operaciones con números de la forma a×10^k - Pregunta 2"
+        title="Ejercicio 2"
         prompt="El valor de la expresión, expresado en notación científica, es:"
         status={engine.status}
         attempts={engine.attempts}

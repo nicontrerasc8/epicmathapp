@@ -1,13 +1,22 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
+import {
+  BookOpen,
+  Brain,
+  Rocket,
+  Sparkles,
+  Star,
+  Target,
+  Trophy,
+  Zap,
+} from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { fetchStudentSession } from '@/lib/student-session-client'
 import type { StudentSessionData } from '@/lib/student-session-client'
-import Link from 'next/link'
-import { motion } from 'framer-motion'
 import { useInstitution } from '@/components/institution-provider'
-import { Rocket, Star, Sparkles, Trophy, Zap, Target, BookOpen, Brain } from 'lucide-react'
 
 type AssignmentRow = {
   id: string
@@ -15,7 +24,7 @@ type AssignmentRow = {
   edu_exercises: {
     id: string
     exercise_type: string
-    description: string | null
+    block: string | null
   }
 }
 
@@ -42,7 +51,7 @@ const FloatingIcon = ({ Icon, delay }: { Icon: any; delay: number }) => (
       top: `${Math.random() * 100}%`,
     }}
   >
-    <Icon className="w-8 h-8 text-blue-400" />
+    <Icon className="h-8 w-8 text-blue-400" />
   </motion.div>
 )
 
@@ -80,7 +89,7 @@ export default function StudentDashboardPage() {
           edu_exercises!inner (
             id,
             exercise_type,
-            description
+            block
           )
         `)
         .eq('classroom_id', studentSession.classroom_id)
@@ -102,8 +111,8 @@ export default function StudentDashboardPage() {
 
   const sortedAssignments = useMemo(() => {
     return [...assignments].sort((a, b) => {
-      const labelA = a.edu_exercises?.description || a.edu_exercises?.id || a.exercise_id
-      const labelB = b.edu_exercises?.description || b.edu_exercises?.id || b.exercise_id
+      const labelA = a.edu_exercises?.block || a.edu_exercises?.id || a.exercise_id
+      const labelB = b.edu_exercises?.block || b.edu_exercises?.id || b.exercise_id
       return labelA.localeCompare(labelB)
     })
   }, [assignments])
@@ -112,14 +121,14 @@ export default function StudentDashboardPage() {
     const uniqueTypes = new Set(
       assignments
         .map((a) => a.edu_exercises?.exercise_type)
-        .filter((t): t is string => Boolean(t))
+        .filter((t): t is string => Boolean(t)),
     )
     return Array.from(uniqueTypes).sort((a, b) => a.localeCompare(b))
   }, [assignments])
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-green-50 to-blue-50 overflow-hidden relative">
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-blue-50 via-green-50 to-blue-50">
         {[...Array(8)].map((_, i) => (
           <motion.div
             key={i}
@@ -139,12 +148,12 @@ export default function StudentDashboardPage() {
               top: `${Math.random() * 100}%`,
             }}
           >
-            <Star className="w-6 h-6 text-blue-400" />
+            <Star className="h-6 w-6 text-blue-400" />
           </motion.div>
         ))}
 
         <motion.div
-          className="text-center space-y-6 relative z-10"
+          className="relative z-10 space-y-6 text-center"
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5 }}
@@ -160,7 +169,7 @@ export default function StudentDashboardPage() {
               ease: 'easeInOut',
             }}
           >
-            <Rocket className="w-24 h-24 mx-auto text-blue-600" />
+            <Rocket className="mx-auto h-24 w-24 text-blue-600" />
           </motion.div>
           <motion.div
             className="space-y-2"
@@ -168,11 +177,9 @@ export default function StudentDashboardPage() {
             transition={{ duration: 1.8, repeat: Infinity }}
           >
             <p className="text-3xl font-black text-slate-900">
-              ¡Preparando tu misión! 
+              Preparando tu misión
             </p>
-            <p className="text-slate-600 text-sm">
-              Cargando ejercicios...
-            </p>
+            <p className="text-sm text-slate-600">Cargando ejercicios...</p>
           </motion.div>
         </motion.div>
       </div>
@@ -180,8 +187,8 @@ export default function StudentDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-blue-50 relative overflow-hidden">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-green-50 to-blue-50">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <FloatingIcon Icon={Rocket} delay={0} />
         <FloatingIcon Icon={Star} delay={1.2} />
         <FloatingIcon Icon={Sparkles} delay={2.4} />
@@ -191,26 +198,20 @@ export default function StudentDashboardPage() {
       </div>
 
       <div className="relative z-10 px-6 py-10 sm:py-16">
-        <div className="max-w-7xl mx-auto space-y-12">
+        <div className="mx-auto max-w-7xl space-y-12">
           <motion.header
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.6, type: 'spring' }}
-            className="text-center space-y-6"
+            className="space-y-6 text-center"
           >
             <motion.div
-              animate={{
-                rotate: [0, 1, -1, 0],
-              }}
-              transition={{
-                duration: 4,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
+              animate={{ rotate: [0, 1, -1, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
               className="inline-block"
             >
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black bg-gradient-to-r from-blue-600 via-green-600 to-blue-600 bg-clip-text text-transparent">
-                ¡Tus Juegos de Matemática!
+              <h1 className="bg-gradient-to-r from-blue-600 via-green-600 to-blue-600 bg-clip-text text-5xl font-black text-transparent sm:text-6xl lg:text-7xl">
+                Tus Juegos de Matemática
               </h1>
             </motion.div>
           </motion.header>
@@ -225,7 +226,7 @@ export default function StudentDashboardPage() {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: 'spring', bounce: 0.4 }}
-                className="text-center py-20 bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-blue-200 shadow-lg"
+                className="rounded-3xl border-2 border-blue-200 bg-white/80 py-20 text-center shadow-lg backdrop-blur-sm"
               >
                 <motion.div
                   animate={{
@@ -237,21 +238,27 @@ export default function StudentDashboardPage() {
                     scale: { duration: 2, repeat: Infinity },
                   }}
                 >
-                  <Star className="w-24 h-24 mx-auto text-blue-400 mb-6" />
+                  <Star className="mx-auto mb-6 h-24 w-24 text-blue-400" />
                 </motion.div>
-                <p className="text-2xl font-bold text-slate-900 mb-2">
-                  �Aún no hay misiones disponibles! ??
+                <p className="mb-2 text-2xl font-bold text-slate-900">
+                  Aún no hay misiones disponibles
                 </p>
                 <p className="text-slate-600">
-                  Tu docente pronto agregará ejercicios incre�bles
+                  Tu docente pronto agregará ejercicios.
                 </p>
               </motion.div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {exerciseTypes.map((topic, index) => {
-                  const topicCount = sortedAssignments.filter(
-                    (assignment) => assignment.edu_exercises?.exercise_type === topic
-                  ).length
+                  const topicAssignments = sortedAssignments.filter(
+                    (assignment) => assignment.edu_exercises?.exercise_type === topic,
+                  )
+                  const topicCount = topicAssignments.length
+                  const topicThemeCount = new Set(
+                    topicAssignments
+                      .map((assignment) => assignment.edu_exercises?.block)
+                      .filter((value): value is string => Boolean(value)),
+                  ).size
                   const Icon = icons[index % icons.length]
                   const topicHref = classroomId
                     ? `/student/play/${classroomId}/${encodeURIComponent(topic)}`
@@ -273,17 +280,17 @@ export default function StudentDashboardPage() {
                     >
                       <Link
                         href={topicHref}
-                        className="block relative bg-white rounded-2xl p-6 border-2 border-blue-200 hover:border-blue-400 transition-all overflow-hidden shadow-xl text-left"
+                        className="block overflow-hidden rounded-2xl border-2 border-blue-200 bg-white p-6 text-left shadow-xl transition-all hover:border-blue-400"
                       >
-                        <div className="relative z-10 space-y-4">
-                          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-100 to-green-100 rounded-xl flex items-center justify-center border-2 border-blue-300">
-                            <Icon className="w-10 h-10 text-blue-600" />
+                        <div className="space-y-4">
+                          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-xl border-2 border-blue-300 bg-gradient-to-br from-blue-100 to-green-100">
+                            <Icon className="h-10 w-10 text-blue-600" />
                           </div>
-                          <h3 className="font-bold text-lg text-center text-slate-900 line-clamp-2 min-h-[3.5rem]">
+                          <h3 className="line-clamp-2 min-h-[3.5rem] text-center text-lg font-bold text-slate-900">
                             {topic}
                           </h3>
                           <p className="text-center text-sm text-slate-600">
-                            {topicCount} ejercicio{topicCount === 1 ? '' : 's'}
+                            {topicThemeCount} tema{topicThemeCount === 1 ? '' : 's'} · {topicCount} ejercicio{topicCount === 1 ? '' : 's'}
                           </p>
                         </div>
                       </Link>
@@ -298,21 +305,21 @@ export default function StudentDashboardPage() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.9 }}
-            className="text-center py-12 space-y-4"
+            className="space-y-4 py-12 text-center"
           >
             <motion.div
               animate={{ scale: [1, 1.05, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="inline-flex items-center gap-3 bg-white/80 border-2 border-blue-300 rounded-full px-8 py-4 shadow-lg"
+              className="inline-flex items-center gap-3 rounded-full border-2 border-blue-300 bg-white/80 px-8 py-4 shadow-lg"
             >
-              <Trophy className="w-6 h-6 text-blue-600" />
+              <Trophy className="h-6 w-6 text-blue-600" />
               <p className="text-xl font-black text-slate-900">
-                Sigue asi, vas muy bien!
+                Sigue así, vas muy bien
               </p>
-              <Sparkles className="w-6 h-6 text-green-500" />
+              <Sparkles className="h-6 w-6 text-green-500" />
             </motion.div>
-            <p className="text-sm text-slate-600 tracking-wide">
-              Cada ejercicio te acerca más a tu meta ?
+            <p className="text-sm tracking-wide text-slate-600">
+              Cada ejercicio te acerca más a tu meta.
             </p>
           </motion.div>
         </div>

@@ -17,6 +17,7 @@ type ExerciseComponentProps = {
   classroomId: string
   studentId?: string
   sessionId?: string
+  displayTitle?: string
 }
 
 /* =============================
@@ -197,6 +198,7 @@ export const ExerciseRegistry = ({
   classroomId,
   studentId,
   sessionId,
+  displayTitle,
 }: ExerciseComponentProps) => {
   const router = useRouter()
 
@@ -443,6 +445,11 @@ export const ExerciseRegistry = ({
           </div>
         ) : (
           <div className="rounded-2xl border bg-card p-6 shadow-sm">
+            <div className="mb-4 border-b pb-4">
+              <h2 className="text-xl font-semibold text-foreground">
+                {displayTitle ?? 'Ejercicio'}
+              </h2>
+            </div>
             <ExerciseComponent
               exerciseId={exerciseId}
               classroomId={classroomId}
