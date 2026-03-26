@@ -18,6 +18,7 @@ type ExerciseComponentProps = {
   studentId?: string
   sessionId?: string
   displayTitle?: string
+  previewMode?: boolean
 }
 
 /* =============================
@@ -199,6 +200,7 @@ export const ExerciseRegistry = ({
   studentId,
   sessionId,
   displayTitle,
+  previewMode = false,
 }: ExerciseComponentProps) => {
   const router = useRouter()
 
@@ -372,66 +374,68 @@ export const ExerciseRegistry = ({
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-background to-muted">
+    <div
+      className={previewMode ? "relative" : "relative min-h-screen bg-gradient-to-br from-background to-muted"}
+    >
 
-      {/* ðŸ”™ Sticky Header */}
-      <div className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <button
-            type="button"
-            onClick={handleGoBack}
-            className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted transition"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Volver
-          </button>
-
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-        
-            <Link
-              href={`/student/play/${exerciseId}/scoreboard`}
-              className="inline-flex items-center gap-1 rounded-full border border-black/30 bg-white/5 text-black px-3 py-1 text-xs font-semibold uppercase"
+      {!previewMode && (
+        <div className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+            <button
+              type="button"
+              onClick={handleGoBack}
+              className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted transition"
             >
-              <Trophy className="h-3.5 w-3.5 text-amber-300" />
-              Tabla de trofeos
-            </Link>
+              <ArrowLeft className="h-4 w-4" />
+              Volver
+            </button>
+
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <Link
+                href={`/student/play/${exerciseId}/scoreboard`}
+                className="inline-flex items-center gap-1 rounded-full border border-black/30 bg-white/5 text-black px-3 py-1 text-xs font-semibold uppercase"
+              >
+                <Trophy className="h-3.5 w-3.5 text-amber-300" />
+                Tabla de trofeos
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* ðŸŽ® CONTENIDO */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="mx-auto max-w-6xl px-4 py-8"
+        className={previewMode ? "px-0 py-0" : "mx-auto max-w-6xl px-4 py-8"}
       >
-        <div className="mb-6 rounded-2xl border border-white/10 bg-card p-6 shadow-lg shadow-black/5 backdrop-blur">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-semibold">Comentarios del docente</h2>
-    
+        {!previewMode && (
+          <div className="mb-6 rounded-2xl border border-white/10 bg-card p-6 shadow-lg shadow-black/5 backdrop-blur">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold">Comentarios del docente</h2>
+                </div>
+
+                <p className="text-sm text-muted-foreground">{previewMetaLabel}</p>
+                {previewExcerpt && (
+                  <p className="text-sm text-foreground leading-relaxed">
+                    {previewExcerpt}
+                  </p>
+                )}
               </div>
 
-              <p className="text-sm text-muted-foreground">{previewMetaLabel}</p>
-              {previewExcerpt && (
-                <p className="text-sm text-foreground leading-relaxed">
-                  {previewExcerpt}
-                </p>
-              )}
+              <button
+                type="button"
+                onClick={() => setIsFeedbackModalOpen(true)}
+                className="inline-flex items-center gap-2 self-start rounded-full border border-transparent bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-2 text-xs font-semibold uppercase text-white shadow-lg shadow-emerald-500/40 transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span>Ver comentarios</span>
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setIsFeedbackModalOpen(true)}
-              className="inline-flex items-center gap-2 self-start rounded-full border border-transparent bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-2 text-xs font-semibold uppercase text-white shadow-lg shadow-emerald-500/40 transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
-            >
-              <MessageCircle className="h-4 w-4" />
-              <span>Ver comentarios</span>
-            </button>
           </div>
-        </div>
+        )}
         {!ExerciseComponent ? (
           <div className="flex flex-col items-center justify-center rounded-xl border bg-card p-10 text-center">
             <Gamepad2 className="h-10 w-10 text-muted-foreground mb-4" />
@@ -449,17 +453,24 @@ export const ExerciseRegistry = ({
               <h2 className="text-xl font-semibold text-foreground">
                 {displayTitle ?? 'Ejercicio'}
               </h2>
+              {previewMode && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Vista previa solo lectura. Esta vista muestra el ejercicio como lo verá el estudiante.
+                </p>
+              )}
             </div>
-            <ExerciseComponent
-              exerciseId={exerciseId}
-              classroomId={classroomId}
-              studentId={studentId}
-              sessionId={sessionId}
-            />
+            <div className={previewMode ? "pointer-events-none select-none" : undefined}>
+              <ExerciseComponent
+                exerciseId={exerciseId}
+                classroomId={classroomId}
+                studentId={studentId}
+                sessionId={sessionId}
+              />
+            </div>
           </div>
         )}
       </motion.div>
-      {isFeedbackModalOpen && (
+      {!previewMode && isFeedbackModalOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

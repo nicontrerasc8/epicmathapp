@@ -315,11 +315,7 @@ export default function ThemeExercisesPage() {
             })}
           </div>
 
-          {studentId && (
-            <p className="mt-4 text-xs text-slate-500">
-              Alumno activo: {studentId.slice(0, 8)}...
-            </p>
-          )}
+     
         </div>
       </div>
     </div>

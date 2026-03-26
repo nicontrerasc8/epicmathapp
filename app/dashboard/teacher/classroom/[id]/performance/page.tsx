@@ -3,466 +3,160 @@
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
-import { PageHeader, ChartCard, BarChart, DoughnutChart, chartColors } from "@/components/dashboard/core"
+import { PageHeader } from "@/components/dashboard/core"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { useInstitution } from "@/components/institution-provider"
 import {
-  Trophy,
-  Flame,
-  Users,
-  Target,
-  CheckCircle2,
-  XCircle,
-  Clock,
+  AlertTriangle,
   BookOpenCheck,
-  Search,
-  ArrowUpDown,
-  Activity,
-  ChevronLeft,
-  ChevronRight,
-  FileSpreadsheet,
   Brain,
-  X as XIcon,
+  CheckCircle2,
+  Clock3,
+  Search,
+  Users,
 } from "lucide-react"
-
-/* =========================
-   TYPES
-========================= */
+import { cn } from "@/lib/utils"
 
 type AttemptRow = {
   student_id: string
   exercise_id: string
   correct: boolean
-  time_seconds: number | null
   created_at: string
-}
-
-type GamRow = {
-  student_id: string
-  exercise_id: string
-  attempts: number | null
-  correct_attempts: number | null
-  wrong_attempts: number | null
-  trophies: number | null
-  streak: number | null
-  last_played_at: string | null
-  updated_at: string | null
-}
-
-type AdnRow = {
-  student_id: string
-  classroom_id: string
-  ritmo: string
-  tolerancia_error: string
-  persistencia: string
-  uso_pistas: string
-  reaccion_feedback: string
-  estilo_aprendizaje: string
-  total_attempts: number
-  total_correct: number
-  total_wrong: number
-  avg_time_seconds: number | null
-  wrong_rate: number | null
-  streak: number | null
-  trophies: number | null
-  hints_used: number
-  skips: number
-  abandons: number
-  feedback_views: number
 }
 
 type StudentRow = {
   student_id: string
   name: string
-  attempts_30d: number
-  correct_30d: number
-  incorrect_30d: number
-  accuracy_30d: number
-  last_attempt_30d: string | null
-  avg_time_s_30d: number | null
-  trophies: number
-  best_streak: number
-  last_played_at: string | null
-
-  // ✅ ADN
-  adn?: {
-    estilo: string
-    ritmo: string
-    persistencia: string
-    uso_pistas: string
-    tolerancia_error: string
-    reaccion_feedback: string
-    total_attempts: number
-  } | null
 }
 
-type ExerciseRow = {
+type AssignmentRow = {
+  assignment_id: string
   exercise_id: string
+  active: boolean
+  order: number
   label: string
   type: string
-  attempts_30d: number
-  correct_30d: number
-  incorrect_30d: number
-  accuracy_30d: number
-  students_30d: number
-  avg_time_s_30d: number | null
-  trophies: number
-  best_streak: number
-  last_played_at: string | null
 }
 
-type ExerciseMetaRow = {
-  id: string
-  description: string | null
-  exercise_type: string | null
+type CellAggregate = {
+  attempts: number
+  correctAttempts: number
+  lastAttempt: string | null
 }
 
-type SortKeyStudents =
-  | "accuracy"
-  | "attempts"
-  | "correct"
-  | "incorrect"
-  | "avg_time"
-  | "trophies"
-  | "streak"
-  | "last"
-type SortKeyExercises =
-  | "attempts"
-  | "accuracy"
-  | "students"
-  | "avg_time"
-  | "trophies"
-  | "streak"
-  | "last"
+type CellState = "green" | "blue" | "yellow" | "red"
 
-type TimeFilter = "all" | "7d" | "30d" | "custom"
+type AssignmentStatusFilter = "all" | "active" | "inactive"
 
-/* =========================
-   HELPERS
-========================= */
-
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n))
+function formatDate(value: string | null) {
+  if (!value) return "Sin intentos"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "Sin intentos"
+  return date.toLocaleDateString("es-PE")
 }
 
-function formatDate(d: string | null) {
-  if (!d) return "—"
-  const dt = new Date(d)
-  if (Number.isNaN(dt.getTime())) return "—"
-  return dt.toLocaleDateString()
+function buildCellState(cell: CellAggregate | undefined): CellState {
+  const attempts = cell?.attempts ?? 0
+  const correctAttempts = cell?.correctAttempts ?? 0
+
+  if (correctAttempts > 0) return "green"
+  if (attempts === 0) return "yellow"
+  if (attempts >= 3) return "red"
+  return "blue"
 }
 
-function formatTimeSeconds(avg: number | null) {
-  if (avg == null || Number.isNaN(avg)) return "—"
-  const s = Math.round(avg)
-  if (s < 60) return `${s}s`
-  const m = Math.floor(s / 60)
-  const r = s % 60
-  return `${m}m ${r}s`
+function getCellClasses(state: CellState) {
+  if (state === "green") {
+    return "border-emerald-300 bg-emerald-500/20 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200"
+  }
+  if (state === "blue") {
+    return "border-sky-300 bg-sky-500/20 text-sky-900 dark:border-sky-800 dark:bg-sky-500/20 dark:text-sky-200"
+  }
+  if (state === "red") {
+    return "border-rose-300 bg-rose-500/20 text-rose-900 dark:border-rose-800 dark:bg-rose-500/20 dark:text-rose-200"
+  }
+  return "border-amber-300 bg-amber-500/20 text-amber-900 dark:border-amber-800 dark:bg-amber-500/20 dark:text-amber-200"
 }
 
-function badgeVariantFromAccuracy(acc: number) {
-  if (acc >= 80) return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/20"
-  if (acc >= 60) return "bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/20"
-  return "bg-rose-500/15 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/20"
+function getCellLabel(state: CellState, cell: CellAggregate | undefined) {
+  const attempts = cell?.attempts ?? 0
+  const correctAttempts = cell?.correctAttempts ?? 0
+
+  if (state === "green") return `OK ${correctAttempts}`
+  if (state === "red") return `${Math.min(attempts, 3)}/3`
+  if (state === "blue") return `${attempts}/3`
+  return "0/3"
 }
 
-function ProgressBar({ value, height = "h-2" }: { value: number; height?: string }) {
-  const v = clamp(value, 0, 100)
-  const colorClass =
-    v >= 80
-      ? "bg-gradient-to-r from-emerald-500 to-emerald-600"
-      : v >= 60
-      ? "bg-gradient-to-r from-amber-500 to-amber-600"
-      : "bg-gradient-to-r from-rose-500 to-rose-600"
-
-  return (
-    <div className={`${height} w-full rounded-full bg-muted overflow-hidden`}>
-      <div className={`h-full rounded-full transition-all duration-500 ${colorClass}`} style={{ width: `${v}%` }} />
-    </div>
-  )
+function getCellDescription(state: CellState) {
+  if (state === "green") return "Resuelto"
+  if (state === "blue") return "En proceso"
+  if (state === "red") return "Agotado"
+  return "Sin iniciar"
 }
 
-function Segmented({
-  value,
-  onChange,
-  options,
+function StatusLegendItem({
+  colorClass,
+  title,
+  description,
 }: {
-  value: string
-  onChange: (v: string) => void
-  options: { value: string; label: string; icon?: any }[]
+  colorClass: string
+  title: string
+  description: string
 }) {
   return (
-    <div className="inline-flex rounded-2xl border bg-card p-1 shadow-sm">
-      {options.map((o) => {
-        const active = o.value === value
-        const Icon = o.icon
-        return (
-          <button
-            key={o.value}
-            onClick={() => onChange(o.value)}
-            className={[
-              "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
-              active ? "bg-foreground text-background shadow-md" : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-            ].join(" ")}
-          >
-            {Icon ? <Icon className="h-4 w-4" /> : null}
-            {o.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-/* =========================
-   ADN BADGES
-========================= */
-
-function styleBadge(estilo: string) {
-  const s = (estilo || "").toLowerCase()
-  if (s.includes("impuls")) return "bg-fuchsia-600 text-white ring-2 ring-fuchsia-500/60"
-  if (s.includes("pens")) return "bg-sky-600 text-white ring-2 ring-sky-500/60"
-  if (s.includes("expl")) return "bg-emerald-600 text-white ring-2 ring-emerald-500/60"
-  if (s.includes("caut")) return "bg-amber-600 text-white ring-2 ring-amber-500/60"
-  if (s.includes("obser")) return "bg-slate-700 text-white ring-2 ring-slate-500/50"
-  return "bg-indigo-600 text-white ring-2 ring-indigo-500/60"
-}
-
-function labelStyle(estilo: string) {
-  const s = (estilo || "").toLowerCase()
-  if (s.includes("impuls")) return "⚡ Impulsivo"
-  if (s.includes("pens")) return "🐢 Pensador"
-  if (s.includes("expl")) return "🦊 Explorador"
-  if (s.includes("caut")) return "🐼 Cauteloso"
-  if (s.includes("obser")) return "👀 En observación"
-  return "🧠 Equilibrado"
-}
-
-function labelTrait(key: string, val: string) {
-  const k = key.toLowerCase()
-  const v = (val || "").toLowerCase()
-
-  const prettyKey =
-    k === "ritmo"
-      ? "Ritmo"
-      : k === "persistencia"
-      ? "Persistencia"
-      : k === "uso_pistas"
-      ? "Uso de pistas"
-      : k === "tolerancia_error"
-      ? "Tolerancia al error"
-      : k === "reaccion_feedback"
-      ? "Reacción al feedback"
-      : key
-
-  const prettyVal =
-    v === "rápido"
-      ? "Rápido"
-      : v === "lento"
-      ? "Lento"
-      : v === "medio"
-      ? "Medio"
-      : v === "alta"
-      ? "Alta"
-      : v === "media"
-      ? "Media"
-      : v === "baja"
-      ? "Baja"
-      : v === "independiente"
-      ? "Independiente"
-      : v === "equilibrado"
-      ? "Equilibrado"
-      : v === "dependiente"
-      ? "Dependiente"
-      : v === "ignora"
-      ? "Ignora"
-      : v === "mejora"
-      ? "Mejora"
-      : v === "neutro"
-      ? "Neutro"
-      : v === "desconocido"
-      ? "Desconocido"
-      : val
-
-  return `${prettyKey}: ${prettyVal}`
-}
-
-const ADN_PROFILE_ORDER = ["explorador", "equilibrado", "pensador", "cauteloso", "impulsivo", "en_observacion"] as const
-type AdnProfileKey = (typeof ADN_PROFILE_ORDER)[number]
-const ADN_PROFILE_LABELS: Record<AdnProfileKey, string> = {
-  explorador: "🦊 Explorador",
-  equilibrado: "🧠 Equilibrado",
-  pensador: "🐢 Pensador",
-  cauteloso: "🐼 Cauteloso",
-  impulsivo: "⚡ Impulsivo",
-  en_observacion: "👀 Observación",
-}
-const ADN_PROFILE_COLOR_MAP: Record<AdnProfileKey, string> = {
-  explorador: chartColors.secondary,
-  equilibrado: chartColors.primary,
-  pensador: chartColors.accent,
-  cauteloso: chartColors.destructive,
-  impulsivo: chartColors.secondaryLight,
-  en_observacion: chartColors.muted,
-}
-
-function AdnPill({ adn }: { adn?: StudentRow["adn"] | null }) {
-  if (!adn) {
-    return (
-      <span className="inline-flex items-center gap-2 rounded-full bg-slate-700 text-white px-4 py-1.5 text-sm font-black shadow-md ring-2 ring-slate-500/50">
-        <Brain className="h-4 w-4" />
-        👀 En observación
-      </span>
-    )
-  }
-
-  return (
-    <span
-      className={["inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-black shadow-md", styleBadge(adn.estilo)].join(" ")}
-      title={[
-        labelTrait("ritmo", adn.ritmo),
-        labelTrait("persistencia", adn.persistencia),
-        labelTrait("uso_pistas", adn.uso_pistas),
-        labelTrait("tolerancia_error", adn.tolerancia_error),
-        labelTrait("reaccion_feedback", adn.reaccion_feedback),
-      ].join(" • ")}
-    >
-      <Brain className="h-4 w-4" />
-      {labelStyle(adn.estilo)}
-    </span>
-  )
-}
-
-/* =========================
-   MULTISELECT (simple)
-========================= */
-
-function MultiSelect({
-  label,
-  options,
-  value,
-  onChange,
-  placeholder = "Seleccionar...",
-}: {
-  label: string
-  options: { value: string; label: string }[]
-  value: string[]
-  onChange: (v: string[]) => void
-  placeholder?: string
-}) {
-  const selected = useMemo(() => new Set(value), [value])
-
-  const toggle = (v: string) => {
-    const next = new Set(selected)
-    if (next.has(v)) next.delete(v)
-    else next.add(v)
-    onChange(Array.from(next))
-  }
-
-  const clear = () => onChange([])
-
-  return (
-    <div className="rounded-2xl border bg-background p-3 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
-        {value.length > 0 ? (
-          <button
-            onClick={clear}
-            className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40"
-          >
-            <XIcon className="h-3.5 w-3.5" />
-            Limpiar
-          </button>
-        ) : null}
+    <div className="flex items-center gap-3 rounded-2xl border bg-card px-4 py-3 shadow-sm">
+      <div className={cn("h-4 w-4 rounded-full", colorClass)} />
+      <div>
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-xs text-muted-foreground">{description}</div>
       </div>
+    </div>
+  )
+}
 
-      {options.length === 0 ? (
-        <div className="mt-2 text-sm text-muted-foreground">Sin opciones</div>
-      ) : (
-        <div className="mt-2 max-h-44 overflow-auto pr-1 space-y-1">
-          {options.map((o) => {
-            const active = selected.has(o.value)
-            return (
-              <button
-                key={o.value}
-                type="button"
-                onClick={() => toggle(o.value)}
-                className={[
-                  "w-full text-left rounded-xl px-3 py-2 text-sm transition-all border",
-                  active
-                    ? "bg-foreground text-background border-foreground shadow-sm"
-                    : "bg-background text-foreground border-border hover:bg-muted/40",
-                ].join(" ")}
-                title={o.label}
-              >
-                <span className="font-semibold">{active ? "✓ " : ""}</span>
-                {o.label || placeholder}
-              </button>
-            )
-          })}
+function SummaryCard({
+  icon: Icon,
+  title,
+  value,
+  tone,
+}: {
+  icon: typeof Users
+  title: string
+  value: number
+  tone: string
+}) {
+  return (
+    <div className="rounded-2xl border bg-card p-4 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className={cn("rounded-xl p-2", tone)}>
+          <Icon className="h-5 w-5" />
         </div>
-      )}
-
-      <div className="mt-2 text-xs text-muted-foreground">
-        {value.length === 0 ? "Sin filtros" : `${value.length} seleccionado(s)`}
+        <div>
+          <div className="text-2xl font-bold">{value}</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">{title}</div>
+        </div>
       </div>
     </div>
   )
 }
-
-function toISODateOnly(d: Date) {
-  // YYYY-MM-DD (para inputs type="date")
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
-
-function startOfDayISO(dateStr: string) {
-  // dateStr: YYYY-MM-DD
-  return new Date(`${dateStr}T00:00:00.000Z`).toISOString()
-}
-function endOfDayISO(dateStr: string) {
-  // dateStr: YYYY-MM-DD
-  return new Date(`${dateStr}T23:59:59.999Z`).toISOString()
-}
-
-/* =========================
-   PAGE
-========================= */
 
 export default function PerformancePage() {
   const params = useParams() as { id?: string }
   const classroomId = params?.id
+  const router = useRouter()
   const institution = useInstitution()
   const supabase = useMemo(() => createClient(), [])
-  const router = useRouter()
 
   const [loading, setLoading] = useState(true)
-
-  // Raw aggregates (respecting filters below)
+  const [classroomLabel, setClassroomLabel] = useState("Aula")
   const [students, setStudents] = useState<StudentRow[]>([])
-  const [exercises, setExercises] = useState<ExerciseRow[]>([])
-  const [exporting, setExporting] = useState(false)
-
-  const [tab, setTab] = useState<"students" | "exercises">("students")
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([])
+  const [attemptMap, setAttemptMap] = useState<Map<string, Map<string, CellAggregate>>>(new Map())
   const [query, setQuery] = useState("")
-  const [sortStudents, setSortStudents] = useState<SortKeyStudents>("accuracy")
-  const [sortExercises, setSortExercises] = useState<SortKeyExercises>("attempts")
-  const [descending, setDescending] = useState(true)
-  const [currentChartIndex, setCurrentChartIndex] = useState(0)
-
-  // ✅ Assignment (activo/inactivo)
-  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<"all" | "active" | "inactive">("all")
-
-  // ✅ NEW: time + exercise_type + exercise filters (apply to charts & tables)
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all")
-  const [customFrom, setCustomFrom] = useState<string>(() => toISODateOnly(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)))
-  const [customTo, setCustomTo] = useState<string>(() => toISODateOnly(new Date()))
-  const [selectedExerciseTypes, setSelectedExerciseTypes] = useState<string[]>([])
-
-  // Options for filters
-  const [exerciseTypeOptions, setExerciseTypeOptions] = useState<{ value: string; label: string }[]>([])
+  const [selectedType, setSelectedType] = useState("all")
+  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<AssignmentStatusFilter>("active")
 
   useEffect(() => {
     if (!classroomId) return
@@ -470,1346 +164,487 @@ export default function PerformancePage() {
     const load = async () => {
       setLoading(true)
 
-      // ---------------------------
-      // 1) Members (students)
-      // ---------------------------
-      let membersQuery = supabase
-        .from("edu_classroom_members")
-        .select(`
-          edu_institution_members!inner (
-            profile_id,
-            active,
-            role,
-            institution_id,
-            edu_profiles ( first_name, last_name )
-          )
-        `)
-        .eq("classroom_id", classroomId)
-        .eq("edu_institution_members.role", "student")
-        .eq("edu_institution_members.active", true)
-
-      if (institution?.id) membersQuery = membersQuery.eq("edu_institution_members.institution_id", institution.id)
-
-      // ---------------------------
-      // 2) Assignments (to know exercise list)
-      // ---------------------------
-      const assignmentsQuery = supabase
-        .from("edu_exercise_assignments")
-        .select("active, exercise:edu_exercises ( id, description, exercise_type )")
-        .eq("classroom_id", classroomId)
-
-      // ---------------------------
-      // 3) ADN view
-      // ---------------------------
-      const adnQuery = supabase
-        .from("edu_student_learning_adn_view")
-        .select(
-          "student_id, classroom_id, ritmo, tolerancia_error, persistencia, uso_pistas, reaccion_feedback, estilo_aprendizaje, total_attempts"
-        )
-        .eq("classroom_id", classroomId)
-
       const [
-        { data: members, error: membersErr },
-        { data: assignments, error: assErr },
-        { data: adnRows, error: adnErr },
-      ] = await Promise.all([membersQuery, assignmentsQuery, adnQuery])
+        { data: classroom },
+        { data: members, error: membersError },
+        { data: assignmentRows, error: assignmentsError },
+      ] = await Promise.all([
+        supabase.from("edu_classrooms").select("grade, section").eq("id", classroomId).single(),
+        supabase
+          .from("edu_classroom_members")
+          .select(`
+            edu_institution_members!inner (
+              profile_id,
+              active,
+              role,
+              institution_id,
+              edu_profiles ( first_name, last_name )
+            )
+          `)
+          .eq("classroom_id", classroomId)
+          .eq("edu_institution_members.role", "student")
+          .eq("edu_institution_members.active", true),
+        supabase
+          .from("edu_exercise_assignments")
+          .select(`
+            id,
+            active,
+            order,
+            created_at,
+            exercise:edu_exercises ( id, block, exercise_type, institution_id )
+          `)
+          .eq("classroom_id", classroomId)
+          .order("order", { ascending: true })
+          .order("created_at", { ascending: true }),
+      ])
 
-      if (membersErr || assErr || adnErr) console.error({ membersErr, assErr, adnErr })
-
-      const studentIds = new Set<string>()
-      const studentNameMap = new Map<string, string>()
-
-      ;(members || []).forEach((row: any) => {
-        const member = Array.isArray(row.edu_institution_members) ? row.edu_institution_members[0] : row.edu_institution_members
-        const profile = Array.isArray(member?.edu_profiles) ? member?.edu_profiles[0] : member?.edu_profiles
-        if (member?.profile_id) {
-          studentIds.add(member.profile_id)
-          const fullName = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim()
-          studentNameMap.set(member.profile_id, fullName || member.profile_id)
-        }
-      })
-
-      // ---------------------------
-      // 4) Build assignment state + base exercise metadata
-      // ---------------------------
-      const activeAssignmentExerciseIds = new Set<string>()
-      const inactiveAssignmentExerciseIds = new Set<string>()
-      const exerciseInfo = new Map<string, { label: string; type: string }>()
-
-      ;(assignments || []).forEach((row: any) => {
-        const ex = Array.isArray(row.exercise) ? row.exercise[0] : row.exercise
-        if (!ex?.id) return
-        const isActive = row.active ?? true
-
-        if (isActive) activeAssignmentExerciseIds.add(ex.id)
-        else inactiveAssignmentExerciseIds.add(ex.id)
-
-        exerciseInfo.set(ex.id, {
-          label: ex.description || ex.id,
-          type: ex.exercise_type || "sin_tipo",
-        })
-      })
-
-      // ---------------------------
-      // 5) Attempts query with dynamic filters
-      // ---------------------------
-      let attemptsQuery = supabase
-        .from("edu_student_exercises")
-        .select("student_id, exercise_id, correct, time_seconds, created_at")
-        .eq("classroom_id", classroomId)
-
-      // time range
-      if (timeFilter === "7d") {
-        const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-        attemptsQuery = attemptsQuery.gte("created_at", since)
-      } else if (timeFilter === "30d") {
-        const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-        attemptsQuery = attemptsQuery.gte("created_at", since)
-      } else if (timeFilter === "custom" && customFrom && customTo) {
-        attemptsQuery = attemptsQuery
-          .gte("created_at", startOfDayISO(customFrom))
-          .lte("created_at", endOfDayISO(customTo))
-      }
-
-      const { data: attempts, error: attErr } = await attemptsQuery
-      if (attErr) console.error(attErr)
-
-      const attemptStudentIds = new Set<string>()
-      const attemptExerciseIds = new Set<string>()
-      ;((attempts || []) as AttemptRow[]).forEach((row) => {
-        if (row.student_id) attemptStudentIds.add(row.student_id)
-        if (row.exercise_id) attemptExerciseIds.add(row.exercise_id)
-      })
-
-      const missingStudentIds = Array.from(attemptStudentIds).filter((id) => !studentIds.has(id))
-      if (missingStudentIds.length > 0) {
-        const { data: extraProfiles, error: extraProfilesErr } = await supabase
-          .from("edu_profiles")
-          .select("id, first_name, last_name")
-          .in("id", missingStudentIds)
-
-        if (extraProfilesErr) console.error(extraProfilesErr)
-
-        ;(extraProfiles || []).forEach((profile: any) => {
-          studentIds.add(profile.id)
-          const fullName = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim()
-          studentNameMap.set(profile.id, fullName || profile.id)
-        })
-
-        missingStudentIds.forEach((id) => {
-          if (!studentNameMap.has(id)) {
-            studentIds.add(id)
-            studentNameMap.set(id, id)
-          }
-        })
-      }
-
-      const missingExerciseIds = Array.from(attemptExerciseIds).filter((id) => !exerciseInfo.has(id))
-      if (missingExerciseIds.length > 0) {
-        const { data: extraExercises, error: extraExercisesErr } = await supabase
-          .from("edu_exercises")
-          .select("id, description, exercise_type")
-          .in("id", missingExerciseIds)
-
-        if (extraExercisesErr) console.error(extraExercisesErr)
-
-        ;((extraExercises || []) as ExerciseMetaRow[]).forEach((exercise) => {
-          exerciseInfo.set(exercise.id, {
-            label: exercise.description || exercise.id,
-            type: exercise.exercise_type || "sin_tipo",
-          })
-        })
-      }
-
-      const visibleExerciseIds = new Set<string>()
-      if (assignmentStatusFilter === "all") {
-        activeAssignmentExerciseIds.forEach((id) => visibleExerciseIds.add(id))
-        inactiveAssignmentExerciseIds.forEach((id) => visibleExerciseIds.add(id))
-        attemptExerciseIds.forEach((id) => visibleExerciseIds.add(id))
-      } else if (assignmentStatusFilter === "active") {
-        activeAssignmentExerciseIds.forEach((id) => visibleExerciseIds.add(id))
-        attemptExerciseIds.forEach((id) => {
-          if (!inactiveAssignmentExerciseIds.has(id)) visibleExerciseIds.add(id)
-        })
-      } else {
-        inactiveAssignmentExerciseIds.forEach((id) => {
-          if (!activeAssignmentExerciseIds.has(id)) visibleExerciseIds.add(id)
-        })
-      }
-
-      const typeSet = new Set<string>()
-      visibleExerciseIds.forEach((id) => {
-        const info = exerciseInfo.get(id)
-        if (info?.type) typeSet.add(info.type)
-      })
-      const typeOpts = Array.from(typeSet)
-        .sort((a, b) => a.localeCompare(b))
-        .map((t) => ({ value: t, label: t }))
-
-      setExerciseTypeOptions(typeOpts)
-      setSelectedExerciseTypes((prev) => {
-        const next = prev.filter((t) => typeSet.has(t))
-        if (next.length === prev.length && next.every((value, index) => value === prev[index])) {
-          return prev
-        }
-        return next
-      })
-
-      let finalExerciseIds = new Set<string>(visibleExerciseIds)
-      if (selectedExerciseTypes.length > 0) {
-        finalExerciseIds = new Set(
-          Array.from(visibleExerciseIds).filter((id) => {
-            const info = exerciseInfo.get(id)
-            return info ? selectedExerciseTypes.includes(info.type) : false
-          }),
+      if (classroom?.grade) {
+        setClassroomLabel(
+          `${classroom.grade}${classroom.section ? ` ${classroom.section}` : ""}`.trim(),
         )
       }
 
-      if (finalExerciseIds.size === 0) {
+      if (membersError || assignmentsError) {
+        console.error({ membersError, assignmentsError })
         setStudents([])
-        setExercises([])
+        setAssignments([])
+        setAttemptMap(new Map())
         setLoading(false)
         return
       }
 
-      // ---------------------------
-      // 7) Gamification rows (match filtered exercise set + students)
-      // ---------------------------
-      let finalExerciseIdsForGam = Array.from(finalExerciseIds)
+      const nextStudents: StudentRow[] = []
+      const studentIds = new Set<string>()
 
-      let gamRows: GamRow[] = []
-      if (studentIds.size > 0 && finalExerciseIdsForGam.length > 0) {
-        const { data: gam, error: gamErr } = await supabase
-          .from("edu_student_gamification")
-          .select("student_id, exercise_id, attempts, correct_attempts, wrong_attempts, trophies, streak, last_played_at, updated_at")
-          .in("student_id", Array.from(studentIds))
-          .in("exercise_id", finalExerciseIdsForGam)
+      ;(members || []).forEach((row: any) => {
+        const member = Array.isArray(row.edu_institution_members)
+          ? row.edu_institution_members[0]
+          : row.edu_institution_members
+        const profile = Array.isArray(member?.edu_profiles)
+          ? member.edu_profiles[0]
+          : member?.edu_profiles
 
-        if (gamErr) console.error(gamErr)
-        gamRows = (gam || []) as GamRow[]
-      }
+        if (!member?.profile_id) return
+        if (institution?.id && member.institution_id !== institution.id) return
 
-      // ---------------------------
-      // 8) ADN map
-      // ---------------------------
-      const adnByStudent = new Map<string, AdnRow>()
-      ;(adnRows || []).forEach((r: any) => {
-        if (r?.student_id) adnByStudent.set(r.student_id, r as AdnRow)
-      })
-
-      // ---------------------------
-      // 9) Initialize student objects
-      // ---------------------------
-      const byStudent = new Map<string, StudentRow>()
-      studentNameMap.forEach((name, studentId) => {
-        const adn = adnByStudent.get(studentId)
-        const totalAttemptsAll = adn?.total_attempts ?? 0
-        const hasAdn = totalAttemptsAll >= 5
-
-        byStudent.set(studentId, {
-          student_id: studentId,
-          name,
-          attempts_30d: 0,
-          correct_30d: 0,
-          incorrect_30d: 0,
-          accuracy_30d: 0,
-          last_attempt_30d: null,
-          avg_time_s_30d: null,
-          trophies: 0,
-          best_streak: 0,
-          last_played_at: null,
-          adn: hasAdn && adn
-            ? {
-                estilo: adn.estilo_aprendizaje,
-                ritmo: adn.ritmo,
-                persistencia: adn.persistencia,
-                uso_pistas: adn.uso_pistas,
-                tolerancia_error: adn.tolerancia_error,
-                reaccion_feedback: adn.reaccion_feedback,
-                total_attempts: totalAttemptsAll,
-              }
-            : null,
+        studentIds.add(member.profile_id)
+        nextStudents.push({
+          student_id: member.profile_id,
+          name: `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || member.profile_id,
         })
       })
 
-      // ---------------------------
-      // 10) Aggregate attempts -> students + exercises
-      // ---------------------------
-      const byExercise = new Map<string, ExerciseRow>()
-      const attemptsArr = ((attempts || []) as AttemptRow[]).filter(
-        (row) => studentIds.has(row.student_id) && finalExerciseIds.has(row.exercise_id),
-      )
+      const nextAssignments: AssignmentRow[] = (assignmentRows || [])
+        .map((row: any) => {
+          const exercise = Array.isArray(row.exercise) ? row.exercise[0] : row.exercise
+          if (!exercise?.id) return null
+          if (
+            institution?.id &&
+            exercise.institution_id &&
+            exercise.institution_id !== institution.id
+          ) {
+            return null
+          }
 
-      for (const row of attemptsArr) {
-        const studentName = studentNameMap.get(row.student_id) || row.student_id
-        const exInfo = exerciseInfo.get(row.exercise_id) || { label: row.exercise_id, type: "sin_tipo" }
+          return {
+            assignment_id: row.id,
+            exercise_id: exercise.id,
+            active: Boolean(row.active),
+            order: Number(row.order) || 0,
+            label: exercise.block?.trim() || "Sin tema",
+            type: exercise.exercise_type?.trim() || "Sin tipo",
+          } satisfies AssignmentRow
+        })
+        .filter((row: AssignmentRow | null): row is AssignmentRow => row !== null)
 
-        const s = byStudent.get(row.student_id) || {
-          student_id: row.student_id,
-          name: studentName,
-          attempts_30d: 0,
-          correct_30d: 0,
-          incorrect_30d: 0,
-          accuracy_30d: 0,
-          last_attempt_30d: null,
-          avg_time_s_30d: null,
-          trophies: 0,
-          best_streak: 0,
-          last_played_at: null,
-          adn: null,
-        }
-
-        const e = byExercise.get(row.exercise_id) || {
-          exercise_id: row.exercise_id,
-          label: exInfo.label,
-          type: exInfo.type,
-          attempts_30d: 0,
-          correct_30d: 0,
-          incorrect_30d: 0,
-          accuracy_30d: 0,
-          students_30d: 0,
-          avg_time_s_30d: null,
-          trophies: 0,
-          best_streak: 0,
-          last_played_at: null,
-        }
-
-        s.attempts_30d += 1
-        e.attempts_30d += 1
-
-        if (row.correct) {
-          s.correct_30d += 1
-          e.correct_30d += 1
-        } else {
-          s.incorrect_30d += 1
-          e.incorrect_30d += 1
-        }
-
-        if (row.time_seconds != null) {
-          s.avg_time_s_30d =
-            s.avg_time_s_30d == null
-              ? row.time_seconds
-              : (s.avg_time_s_30d * (s.attempts_30d - 1) + row.time_seconds) / s.attempts_30d
-
-          e.avg_time_s_30d =
-            e.avg_time_s_30d == null
-              ? row.time_seconds
-              : (e.avg_time_s_30d * (e.attempts_30d - 1) + row.time_seconds) / e.attempts_30d
-        }
-
-        if (!s.last_attempt_30d || new Date(row.created_at) > new Date(s.last_attempt_30d)) {
-          s.last_attempt_30d = row.created_at
-        }
-
-        byStudent.set(row.student_id, s)
-        byExercise.set(row.exercise_id, e)
+      if (studentIds.size === 0 || nextAssignments.length === 0) {
+        setStudents(nextStudents.sort((a, b) => a.name.localeCompare(b.name)))
+        setAssignments(nextAssignments)
+        setAttemptMap(new Map())
+        setLoading(false)
+        return
       }
 
-      // unique students per exercise
-      const studentsPerExercise = new Map<string, Set<string>>()
-      for (const row of attemptsArr) {
-        const set = studentsPerExercise.get(row.exercise_id) || new Set<string>()
-        set.add(row.student_id)
-        studentsPerExercise.set(row.exercise_id, set)
-      }
-      studentsPerExercise.forEach((studentSet, exerciseId) => {
-        const e = byExercise.get(exerciseId)
-        if (e) {
-          e.students_30d = studentSet.size
-          byExercise.set(exerciseId, e)
-        }
-      })
+      const exerciseIds = Array.from(new Set(nextAssignments.map((row) => row.exercise_id)))
+      const { data: attempts, error: attemptsError } = await supabase
+        .from("edu_student_exercises")
+        .select("student_id, exercise_id, correct, created_at")
+        .eq("classroom_id", classroomId)
+        .in("student_id", Array.from(studentIds))
+        .in("exercise_id", exerciseIds)
+        .order("created_at", { ascending: true })
 
-      // ---------------------------
-      // 11) Gamification aggregates
-      // ---------------------------
-      const gamByStudent = new Map<string, { trophies: number; best_streak: number; last: string | null }>()
-      const gamByExercise = new Map<string, { trophies: number; best_streak: number; last: string | null }>()
-      for (const g of gamRows) {
-        const t = g.trophies ?? 0
-        const st = g.streak ?? 0
-        const lp = g.last_played_at || g.updated_at || null
-
-        const sAgg = gamByStudent.get(g.student_id) || { trophies: 0, best_streak: 0, last: null }
-        sAgg.trophies += t
-        sAgg.best_streak = Math.max(sAgg.best_streak, st)
-        if (lp && (!sAgg.last || new Date(lp) > new Date(sAgg.last))) sAgg.last = lp
-        gamByStudent.set(g.student_id, sAgg)
-
-        const eAgg = gamByExercise.get(g.exercise_id) || { trophies: 0, best_streak: 0, last: null }
-        eAgg.trophies += t
-        eAgg.best_streak = Math.max(eAgg.best_streak, st)
-        if (lp && (!eAgg.last || new Date(lp) > new Date(eAgg.last))) eAgg.last = lp
-        gamByExercise.set(g.exercise_id, eAgg)
+      if (attemptsError) {
+        console.error(attemptsError)
       }
 
-      // ---------------------------
-      // 12) Final lists
-      // ---------------------------
-      const studentsList = Array.from(byStudent.values()).map((s) => {
-        const acc = s.attempts_30d ? Math.round((s.correct_30d / s.attempts_30d) * 100) : 0
-        const g = gamByStudent.get(s.student_id)
-        return {
-          ...s,
-          accuracy_30d: acc,
-          trophies: g?.trophies ?? 0,
-          best_streak: g?.best_streak ?? 0,
-          last_played_at: g?.last ?? null,
+      const nextAttemptMap = new Map<string, Map<string, CellAggregate>>()
+
+      ;((attempts || []) as AttemptRow[]).forEach((row) => {
+        if (!studentIds.has(row.student_id)) return
+
+        const byExercise = nextAttemptMap.get(row.student_id) || new Map<string, CellAggregate>()
+        const current = byExercise.get(row.exercise_id) || {
+          attempts: 0,
+          correctAttempts: 0,
+          lastAttempt: null,
         }
+
+        current.attempts += 1
+        if (row.correct) current.correctAttempts += 1
+        current.lastAttempt = row.created_at
+
+        byExercise.set(row.exercise_id, current)
+        nextAttemptMap.set(row.student_id, byExercise)
       })
 
-      const exercisesList = Array.from(byExercise.values()).map((e) => {
-        const acc = e.attempts_30d ? Math.round((e.correct_30d / e.attempts_30d) * 100) : 0
-        const g = gamByExercise.get(e.exercise_id)
-        return {
-          ...e,
-          accuracy_30d: acc,
-          trophies: g?.trophies ?? 0,
-          best_streak: g?.best_streak ?? 0,
-          last_played_at: g?.last ?? null,
-        }
-      })
-
-      setStudents(studentsList)
-      setExercises(exercisesList)
+      setStudents(nextStudents.sort((a, b) => a.name.localeCompare(b.name)))
+      setAssignments(nextAssignments)
+      setAttemptMap(nextAttemptMap)
       setLoading(false)
     }
 
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    classroomId,
-    supabase,
-    institution?.id,
-    assignmentStatusFilter,
-    timeFilter,
-    customFrom,
-    customTo,
-    selectedExerciseTypes,
-  ])
+  }, [classroomId, supabase, institution?.id])
 
-  /* =========================
-     ADN distribution
-  ========================= */
+  const exerciseTypeOptions = useMemo(() => {
+    return Array.from(new Set(assignments.map((assignment) => assignment.type)))
+      .sort((a, b) => a.localeCompare(b))
+  }, [assignments])
 
-  const adnProfileDistribution = useMemo(() => {
-    const counts = ADN_PROFILE_ORDER.reduce((acc, key) => {
-      acc[key] = 0
-      return acc
-    }, {} as Record<AdnProfileKey, number>)
+  const filteredAssignments = useMemo(() => {
+    return assignments.filter((assignment) => {
+      const matchesStatus =
+        assignmentStatusFilter === "all"
+          ? true
+          : assignmentStatusFilter === "active"
+            ? assignment.active
+            : !assignment.active
 
-    students.forEach((s) => {
-      const key = ((s.adn?.estilo || "en_observacion") as AdnProfileKey).toLowerCase() as AdnProfileKey
-      counts[key] = (counts[key] ?? 0) + 1
+      const matchesType = selectedType === "all" ? true : assignment.type === selectedType
+
+      return matchesStatus && matchesType
     })
-
-    const entries = ADN_PROFILE_ORDER.map((key) => ({
-      key,
-      label: ADN_PROFILE_LABELS[key],
-      value: counts[key],
-    })).filter((entry) => entry.value > 0)
-
-    return {
-      counts,
-      entries,
-      labels: entries.map((entry) => entry.label),
-      values: entries.map((entry) => entry.value),
-    }
-  }, [students])
-
-  /* =========================
-     Totals (respect filters)
-  ========================= */
-
-  const totals = useMemo(() => {
-    const totalAttempts = students.reduce((a, s) => a + s.attempts_30d, 0)
-    const totalCorrect = students.reduce((a, s) => a + s.correct_30d, 0)
-    const totalIncorrect = students.reduce((a, s) => a + s.incorrect_30d, 0)
-    const accuracy = totalAttempts ? Math.round((totalCorrect / totalAttempts) * 100) : 0
-
-    const avgTimeAll = (() => {
-      const times = students.map((s) => s.avg_time_s_30d).filter((x): x is number => x != null)
-      if (times.length === 0) return null
-      const sum = times.reduce((a, b) => a + b, 0)
-      return sum / times.length
-    })()
-
-    const totalTrophies = students.reduce((a, s) => a + s.trophies, 0)
-    const bestStreak = students.reduce((a, s) => Math.max(a, s.best_streak), 0)
-    const adnCounts = { ...adnProfileDistribution.counts }
-
-    return {
-      totalAttempts,
-      totalCorrect,
-      totalIncorrect,
-      accuracy,
-      avgTimeAll,
-      totalTrophies,
-      bestStreak,
-      activeStudents: students.length,
-      activeExercises: exercises.length,
-      adnCounts,
-    }
-  }, [students, exercises, adnProfileDistribution])
-
-  /* =========================
-     Search + sorting
-  ========================= */
+  }, [assignments, assignmentStatusFilter, selectedType])
 
   const filteredStudents = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const base = q
-      ? students.filter((s) => s.name.toLowerCase().includes(q) || s.student_id.toLowerCase().includes(q))
-      : students
+    const needle = query.trim().toLowerCase()
+    if (!needle) return students
+    return students.filter((student) => student.name.toLowerCase().includes(needle))
+  }, [students, query])
 
-    const get = (s: StudentRow) => {
-      switch (sortStudents) {
-        case "accuracy":
-          return s.accuracy_30d
-        case "attempts":
-          return s.attempts_30d
-        case "correct":
-          return s.correct_30d
-        case "incorrect":
-          return s.incorrect_30d
-        case "avg_time":
-          return s.avg_time_s_30d ?? -1
-        case "trophies":
-          return s.trophies
-        case "streak":
-          return s.best_streak
-        case "last":
-          return s.last_attempt_30d ? new Date(s.last_attempt_30d).getTime() : 0
-        default:
-          return s.accuracy_30d
+  const matrixRows = useMemo(() => {
+    return filteredStudents.map((student) => {
+      const byExercise = attemptMap.get(student.student_id) || new Map<string, CellAggregate>()
+
+      let green = 0
+      let blue = 0
+      let yellow = 0
+      let red = 0
+
+      const cells = filteredAssignments.map((assignment) => {
+        const aggregate = byExercise.get(assignment.exercise_id)
+        const state = buildCellState(aggregate)
+
+        if (state === "green") green += 1
+        else if (state === "blue") blue += 1
+        else if (state === "yellow") yellow += 1
+        else red += 1
+
+        return {
+          assignment,
+          aggregate,
+          state,
+        }
+      })
+
+      return {
+        student,
+        cells,
+        green,
+        blue,
+        yellow,
+        red,
       }
-    }
-
-    return [...base].sort((a, b) => {
-      const va = get(a)
-      const vb = get(b)
-      const diff = va > vb ? 1 : va < vb ? -1 : 0
-      return descending ? -diff : diff
     })
-  }, [students, query, sortStudents, descending])
+  }, [filteredStudents, filteredAssignments, attemptMap])
 
-  const filteredExercises = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const base = q
-      ? exercises.filter(
-          (e) =>
-            e.label.toLowerCase().includes(q) ||
-            e.exercise_id.toLowerCase().includes(q) ||
-            e.type.toLowerCase().includes(q),
-        )
-      : exercises
+  const totals = useMemo(() => {
+    let green = 0
+    let blue = 0
+    let yellow = 0
+    let red = 0
 
-    const get = (e: ExerciseRow) => {
-      switch (sortExercises) {
-        case "attempts":
-          return e.attempts_30d
-        case "accuracy":
-          return e.accuracy_30d
-        case "students":
-          return e.students_30d
-        case "avg_time":
-          return e.avg_time_s_30d ?? -1
-        case "trophies":
-          return e.trophies
-        case "streak":
-          return e.best_streak
-        case "last":
-          return e.last_played_at ? new Date(e.last_played_at).getTime() : 0
-        default:
-          return e.attempts_30d
-      }
-    }
-
-    return [...base].sort((a, b) => {
-      const va = get(a)
-      const vb = get(b)
-      const diff = va > vb ? 1 : va < vb ? -1 : 0
-      return descending ? -diff : diff
+    matrixRows.forEach((row) => {
+      green += row.green
+      blue += row.blue
+      yellow += row.yellow
+      red += row.red
     })
-  }, [exercises, query, sortExercises, descending])
 
-  /* =========================
-     Charts (respect filters)
-  ========================= */
-
-  const studentsByAccuracy = useMemo(() => [...students].sort((a, b) => b.accuracy_30d - a.accuracy_30d), [students])
-
-  const studentAccuracyChart = useMemo(
-    () => ({
-      labels: studentsByAccuracy.map((s, index) => `${index + 1}. ${s.name.split(" ").slice(0, 2).join(" ")}`),
-      values: studentsByAccuracy.map((s) => s.accuracy_30d),
-      label: "Precisión %",
-    }),
-    [studentsByAccuracy],
-  )
-
-  const exercisesByAttempts = useMemo(() => [...exercises].sort((a, b) => b.attempts_30d - a.attempts_30d), [exercises])
-  const exercisesByAccuracy = useMemo(() => [...exercises].sort((a, b) => b.accuracy_30d - a.accuracy_30d), [exercises])
-
-  const exerciseAttemptsChart = useMemo(
-    () => ({
-      labels: exercisesByAttempts.map(
-        (e, index) => `${index + 1}. ${e.label.slice(0, 30)}${e.label.length > 30 ? "..." : ""}`,
-      ),
-      values: exercisesByAttempts.map((e) => e.attempts_30d),
-      label: "Intentos",
-    }),
-    [exercisesByAttempts],
-  )
-
-  const exerciseAccuracyChart = useMemo(
-    () => ({
-      labels: exercisesByAccuracy.map(
-        (e, index) => `${index + 1}. ${e.label.slice(0, 30)}${e.label.length > 30 ? "..." : ""}`,
-      ),
-      values: exercisesByAccuracy.map((e) => e.accuracy_30d),
-      label: "Precisión %",
-    }),
-    [exercisesByAccuracy],
-  )
-
-  const accuracyDistributionData = useMemo(() => {
-    const counts = [0, 0, 0]
-    students.forEach((s) => {
-      if (s.accuracy_30d >= 80) counts[0]++
-      else if (s.accuracy_30d >= 60) counts[1]++
-      else counts[2]++
-    })
     return {
-      labels: ["Excelente (≥80%)", "Bueno (60-79%)", "Necesita mejorar (<60%)"],
-      values: counts,
+      students: filteredStudents.length,
+      assignments: filteredAssignments.length,
+      green,
+      blue,
+      yellow,
+      red,
     }
-  }, [students])
-
-  const adnDistributionData = {
-    labels: adnProfileDistribution.labels,
-    values: adnProfileDistribution.values,
-  }
-
-  const charts = [
-    {
-      id: "student-accuracy",
-      title: "Estudiantes por Precisión",
-      subtitle: `Vista filtrada (${students.length} estudiantes)`,
-      component: <BarChart data={studentAccuracyChart} height={520} color="accent" />,
-      hasData: studentAccuracyChart.values.length > 0,
-    },
-    {
-      id: "accuracy-distribution",
-      title: "Distribución de Rendimiento",
-      subtitle: "Clasificación por nivel de precisión (según filtros)",
-      component: (
-        <div className="space-y-6">
-          <DoughnutChart
-            data={accuracyDistributionData}
-            height={420}
-            showLegend
-            colors={[chartColors.secondary, chartColors.primary, chartColors.destructive]}
-          />
-          <div className="grid grid-cols-3 gap-4 text-center text-sm">
-            <div className="rounded-xl border bg-emerald-500/5 p-4">
-              <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{accuracyDistributionData.values[0]}</div>
-              <div className="mt-1 text-xs text-muted-foreground">Excelente</div>
-            </div>
-            <div className="rounded-xl border bg-amber-500/5 p-4">
-              <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">{accuracyDistributionData.values[1]}</div>
-              <div className="mt-1 text-xs text-muted-foreground">Bueno</div>
-            </div>
-            <div className="rounded-xl border bg-rose-500/5 p-4">
-              <div className="text-3xl font-bold text-rose-600 dark:text-rose-400">{accuracyDistributionData.values[2]}</div>
-              <div className="mt-1 text-xs text-muted-foreground">A Mejorar</div>
-            </div>
-          </div>
-        </div>
-      ),
-      hasData: accuracyDistributionData.values.reduce((a, v) => a + v, 0) > 0,
-    },
-    {
-      id: "adn-distribution",
-      title: "ADN de Aprendizaje del Aula",
-      subtitle: "Distribución de perfiles (según filtros)",
-      component: (
-        <div className="space-y-6">
-          <DoughnutChart data={adnDistributionData} height={420} showLegend />
-          <div className="rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground">
-            Tip: coloca el mouse sobre el badge 🧠 del alumno para ver rasgos (ritmo, persistencia, uso de pistas, etc.).
-          </div>
-        </div>
-      ),
-      hasData: adnDistributionData.values.reduce((a, v) => a + v, 0) > 0,
-    },
-    {
-      id: "exercise-attempts",
-      title: "Ejercicios Más Practicados",
-      subtitle: `Vista filtrada (${exercises.length} ejercicios)`,
-      component: <BarChart data={exerciseAttemptsChart} height={520} color="secondary" />,
-      hasData: exerciseAttemptsChart.values.length > 0,
-    },
-    {
-      id: "exercise-accuracy",
-      title: "Ejercicios por Precisión",
-      subtitle: "Ordenados por nivel de dominio (según filtros)",
-      component: <BarChart data={exerciseAccuracyChart} height={520} color="primary" horizontal />,
-      hasData: exerciseAccuracyChart.values.length > 0,
-    },
-  ]
-
-  const currentChart = charts[currentChartIndex]
-  const nextChart = () => setCurrentChartIndex((prev) => (prev + 1) % charts.length)
-  const prevChart = () => setCurrentChartIndex((prev) => (prev - 1 + charts.length) % charts.length)
-
-  /* =========================
-     Excel export (filtered)
-  ========================= */
-
-  const handleExportToExcel = async () => {
-    setExporting(true)
-    try {
-      const XLSX = await import("xlsx")
-      const wb = XLSX.utils.book_new()
-
-      const timeLabel =
-        timeFilter === "all"
-          ? "Todo"
-          : timeFilter === "7d"
-          ? "Últimos 7 días"
-          : timeFilter === "30d"
-          ? "Últimos 30 días"
-          : `Personalizado: ${customFrom} → ${customTo}`
-
-      const summaryData = [
-        ["REPORTE DE RENDIMIENTO DEL AULA (FILTRADO)"],
-        ["Fecha de generación:", new Date().toLocaleDateString()],
-        ["Filtros:"],
-        ["- Tiempo:", timeLabel],
-        ["- Categorías:", selectedExerciseTypes.length ? selectedExerciseTypes.join(", ") : "Todos"],
-        ["- Asignaciones:", assignmentStatusFilter === "all" ? "Todos" : assignmentStatusFilter === "active" ? "Activos" : "Inactivos"],
-        [""],
-        ["RESUMEN GENERAL"],
-        ["Total de estudiantes:", totals.activeStudents],
-        ["Total de ejercicios:", totals.activeExercises],
-        ["Total de intentos:", totals.totalAttempts],
-        ["Precisión promedio:", `${totals.accuracy}%`],
-        ["Respuestas correctas:", totals.totalCorrect],
-        ["Respuestas incorrectas:", totals.totalIncorrect],
-        ["Trofeos totales:", totals.totalTrophies],
-        ["Mejor racha:", totals.bestStreak],
-        [""],
-        ["ADN DEL AULA (conteo)"],
-        ...Object.entries(totals.adnCounts).map(([k, v]) => [k, v]),
-      ]
-      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData)
-      XLSX.utils.book_append_sheet(wb, wsSummary, "Resumen")
-
-      const studentsData = [
-        ["Ranking", "Nombre", "Intentos", "Correctas", "Incorrectas", "Precisión %", "Trofeos", "Mejor Racha", "ADN", "Ritmo", "Persistencia", "Uso de pistas", "Tolerancia error", "Reacción feedback", "Último Intento"],
-        ...filteredStudents.map((s, index) => [
-          index + 1,
-          s.name,
-          s.attempts_30d,
-          s.correct_30d,
-          s.incorrect_30d,
-          s.accuracy_30d,
-          s.trophies,
-          s.best_streak,
-          s.adn?.estilo ?? "en_observacion",
-          s.adn?.ritmo ?? "",
-          s.adn?.persistencia ?? "",
-          s.adn?.uso_pistas ?? "",
-          s.adn?.tolerancia_error ?? "",
-          s.adn?.reaccion_feedback ?? "",
-          formatDate(s.last_attempt_30d),
-        ]),
-      ]
-      const wsStudents = XLSX.utils.aoa_to_sheet(studentsData)
-      XLSX.utils.book_append_sheet(wb, wsStudents, "Estudiantes")
-
-      const exercisesData = [
-        ["Ranking", "Ejercicio", "Tipo", "Intentos", "Correctas", "Incorrectas", "Precisión %", "Estudiantes", "Trofeos", "Racha"],
-        ...filteredExercises.map((e, index) => [
-          index + 1,
-          e.label,
-          e.type,
-          e.attempts_30d,
-          e.correct_30d,
-          e.incorrect_30d,
-          e.accuracy_30d,
-          e.students_30d,
-          e.trophies,
-          e.best_streak,
-        ]),
-      ]
-      const wsExercises = XLSX.utils.aoa_to_sheet(exercisesData)
-      XLSX.utils.book_append_sheet(wb, wsExercises, "Ejercicios")
-
-      XLSX.writeFile(wb, `Rendimiento_Aula_${new Date().toISOString().split("T")[0]}.xlsx`)
-    } catch (error) {
-      console.error("Error al exportar:", error)
-      alert("Hubo un error al exportar los datos")
-    } finally {
-      setExporting(false)
-    }
-  }
+  }, [filteredStudents.length, filteredAssignments.length, matrixRows])
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title="Rendimiento del Aula"
-        description="Análisis detallado de desempeño, participación, gamificación y ADN de aprendizaje."
+        description={`Vista directa por alumno y ejercicio para ${classroomLabel}`}
         breadcrumbs={[
           { label: "Mis Clases", href: "/dashboard/teacher" },
-          { label: "Aula", href: `/dashboard/teacher/classroom/${classroomId}` },
+          { label: classroomLabel, href: `/dashboard/teacher/classroom/${classroomId}` },
           { label: "Rendimiento" },
         ]}
       />
 
-      {/* Hero KPI */}
-      <div className="relative">
-        <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-background via-muted/30 to-background p-8 shadow-2xl backdrop-blur">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.1),transparent_50%)]" />
-        <div className="relative">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl border bg-background/80 p-3 shadow-lg">
-                  <Activity className="h-8 w-8 text-primary" />
-                </div>
-                <div>
-                  <div className="text-sm font-medium uppercase tracking-wider text-muted-foreground">Rendimiento General (Filtrado)</div>
-                  <div className="text-4xl font-bold tracking-tight">{totals.accuracy}% Precisión</div>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  {totals.totalCorrect} correctas
-                </span>
-                <span className="flex items-center gap-2">
-                  <XCircle className="h-4 w-4 text-rose-500" />
-                  {totals.totalIncorrect} incorrectas
-                </span>
-                <span className="flex items-center gap-2">
-                  <BookOpenCheck className="h-4 w-4" />
-                  {totals.totalAttempts} intentos totales
-                </span>
-              </div>
-            </div>
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <SummaryCard
+          icon={Users}
+          title="Estudiantes"
+          value={totals.students}
+          tone="bg-slate-500/15 text-slate-700 dark:text-slate-300"
+        />
+        <SummaryCard
+          icon={BookOpenCheck}
+          title="Ejercicios"
+          value={totals.assignments}
+          tone="bg-violet-500/15 text-violet-700 dark:text-violet-300"
+        />
+        <SummaryCard
+          icon={CheckCircle2}
+          title="Verde"
+          value={totals.green}
+          tone="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+        />
+        <SummaryCard
+          icon={Clock3}
+          title="Azul"
+          value={totals.blue}
+          tone="bg-sky-500/15 text-sky-700 dark:text-sky-300"
+        />
+        <SummaryCard
+          icon={Brain}
+          title="Amarillo"
+          value={totals.yellow}
+          tone="bg-amber-500/15 text-amber-700 dark:text-amber-300"
+        />
+        <SummaryCard
+          icon={AlertTriangle}
+          title="Rojo"
+          value={totals.red}
+          tone="bg-rose-500/15 text-rose-700 dark:text-rose-300"
+        />
+      </div>
 
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              <div className="rounded-2xl border bg-background/80 p-4 text-center shadow-lg backdrop-blur-sm">
-                <Users className="mx-auto mb-2 h-5 w-5 text-primary" />
-                <div className="text-2xl font-bold">{totals.activeStudents}</div>
-                <div className="text-xs text-muted-foreground">Estudiantes</div>
-              </div>
-              <div className="rounded-2xl border bg-background/80 p-4 text-center shadow-lg backdrop-blur-sm">
-                <BookOpenCheck className="mx-auto mb-2 h-5 w-5 text-secondary" />
-                <div className="text-2xl font-bold">{totals.activeExercises}</div>
-                <div className="text-xs text-muted-foreground">Ejercicios</div>
-              </div>
-              <div className="rounded-2xl border bg-background/80 p-4 text-center shadow-lg backdrop-blur-sm">
-                <Trophy className="mx-auto mb-2 h-5 w-5 text-amber-500" />
-                <div className="text-2xl font-bold">{totals.totalTrophies}</div>
-                <div className="text-xs text-muted-foreground">Trofeos</div>
-              </div>
-              <div className="rounded-2xl border bg-background/80 p-4 text-center shadow-lg backdrop-blur-sm">
-                <Flame className="mx-auto mb-2 h-5 w-5 text-orange-500" />
-                <div className="text-2xl font-bold">{totals.bestStreak}</div>
-                <div className="text-xs text-muted-foreground">Mejor Racha</div>
-              </div>
-            </div>
+      <div className="grid gap-3 xl:grid-cols-4">
+        <StatusLegendItem
+          colorClass="bg-emerald-500"
+          title="Verde"
+          description="El alumno ya resolvió ese ejercicio."
+        />
+        <StatusLegendItem
+          colorClass="bg-sky-500"
+          title="Azul"
+          description="Tiene intentos, pero todavía no lo resolvió."
+        />
+        <StatusLegendItem
+          colorClass="bg-amber-500"
+          title="Amarillo"
+          description="Todavía no empezó ese ejercicio."
+        />
+        <StatusLegendItem
+          colorClass="bg-rose-500"
+          title="Rojo"
+          description="Ya gastó los 3 intentos y no lo resolvió."
+        />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+        <div className="rounded-2xl border bg-card p-4 shadow-sm">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Buscar alumno
           </div>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-3">
-            {/* Time filter */}
-            <div className="rounded-2xl border bg-background/70 p-4 shadow-sm">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Filtro de tiempo</div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => {
-                    setLoading(true)
-                    setTimeFilter("all")
-                  }}
-                  className={[
-                    "rounded-xl border px-3 py-2 text-sm font-semibold",
-                    timeFilter === "all" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
-                  ].join(" ")}
-                >
-                  Todo
-                </button>
-                <button
-                  onClick={() => {
-                    setLoading(true)
-                    setTimeFilter("7d")
-                  }}
-                  className={[
-                    "rounded-xl border px-3 py-2 text-sm font-semibold",
-                    timeFilter === "7d" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
-                  ].join(" ")}
-                >
-                  7 días
-                </button>
-                <button
-                  onClick={() => {
-                    setLoading(true)
-                    setTimeFilter("30d")
-                  }}
-                  className={[
-                    "rounded-xl border px-3 py-2 text-sm font-semibold",
-                    timeFilter === "30d" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
-                  ].join(" ")}
-                >
-                  30 días
-                </button>
-                <button
-                  onClick={() => {
-                    setLoading(true)
-                    setTimeFilter("custom")
-                  }}
-                  className={[
-                    "rounded-xl border px-3 py-2 text-sm font-semibold",
-                    timeFilter === "custom" ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted/40",
-                  ].join(" ")}
-                >
-                  Personalizado
-                </button>
-              </div>
-
-              {timeFilter === "custom" ? (
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs font-semibold text-muted-foreground mb-1">Desde</div>
-                    <input
-                      type="date"
-                      value={customFrom}
-                      onChange={(e) => {
-                        setLoading(true)
-                        setCustomFrom(e.target.value)
-                      }}
-                      className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-muted-foreground mb-1">Hasta</div>
-                    <input
-                      type="date"
-                      value={customTo}
-                      onChange={(e) => {
-                        setLoading(true)
-                        setCustomTo(e.target.value)
-                      }}
-                      className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Exercise type filter */}
-            <MultiSelect
-              label="Categoría"
-              options={exerciseTypeOptions}
-              value={selectedExerciseTypes}
-              onChange={(value) => {
-                setLoading(true)
-                setSelectedExerciseTypes(value)
-              }}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Nombre del estudiante..."
             />
-
-            {/* Assignment status filter */}
-            <div className="rounded-2xl border bg-background p-3 shadow-sm">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Asignaciones</div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoading(true)
-                    setAssignmentStatusFilter("all")
-                  }}
-                  className={[
-                    "rounded-xl border px-3 py-2 text-sm font-semibold",
-                    assignmentStatusFilter === "all"
-                      ? "bg-foreground text-background border-foreground"
-                      : "bg-background hover:bg-muted/40",
-                  ].join(" ")}
-                >
-                  Todos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoading(true)
-                    setAssignmentStatusFilter("active")
-                  }}
-                  className={[
-                    "rounded-xl border px-3 py-2 text-sm font-semibold",
-                    assignmentStatusFilter === "active"
-                      ? "bg-foreground text-background border-foreground"
-                      : "bg-background hover:bg-muted/40",
-                  ].join(" ")}
-                >
-                  Activos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoading(true)
-                    setAssignmentStatusFilter("inactive")
-                  }}
-                  className={[
-                    "rounded-xl border px-3 py-2 text-sm font-semibold",
-                    assignmentStatusFilter === "inactive"
-                      ? "bg-foreground text-background border-foreground"
-                      : "bg-background hover:bg-muted/40",
-                  ].join(" ")}
-                >
-                  Inactivos
-                </button>
-              </div>
-            </div>
           </div>
         </div>
-      </div>
-      </div>
 
-      {/* Chart Carousel */}
-      <div className="relative">
-        <ChartCard title={currentChart.title} subtitle={currentChart.subtitle} className="shadow-2xl">
-          {currentChart.hasData ? (
-            <div className="relative">
-              {currentChart.component}
-              <div className="absolute left-0 right-0 top-1/2 flex -translate-y-1/2 items-center justify-between px-4 pointer-events-none">
-                <button
-                  onClick={prevChart}
-                  className="pointer-events-auto rounded-full border bg-background/90 p-3 shadow-xl transition-all hover:scale-110 hover:bg-background hover:shadow-2xl"
-                  aria-label="Gráfico anterior"
-                >
-                  <ChevronLeft className="h-6 w-6" />
-                </button>
-                <button
-                  onClick={nextChart}
-                  className="pointer-events-auto rounded-full border bg-background/90 p-3 shadow-xl transition-all hover:scale-110 hover:bg-background hover:shadow-2xl"
-                  aria-label="Siguiente gráfico"
-                >
-                  <ChevronRight className="h-6 w-6" />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex h-[520px] items-center justify-center">
-              <p className="text-sm text-muted-foreground">Sin datos disponibles</p>
-            </div>
-          )}
+        <div className="rounded-2xl border bg-card p-4 shadow-sm">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Categoría
+          </div>
+          <select
+            value={selectedType}
+            onChange={(event) => setSelectedType(event.target.value)}
+            className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+          >
+            <option value="all">Todas</option>
+            {exerciseTypeOptions.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          <div className="mt-6 flex items-center justify-center gap-2">
-            {charts.map((chart, index) => (
+        <div className="rounded-2xl border bg-card p-4 shadow-sm">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Asignaciones
+          </div>
+          <div className="flex gap-2">
+            {(["all", "active", "inactive"] as AssignmentStatusFilter[]).map((value) => (
               <button
-                key={chart.id}
-                onClick={() => setCurrentChartIndex(index)}
-                className={[
-                  "h-2 rounded-full transition-all",
-                  index === currentChartIndex ? "w-8 bg-primary" : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50",
-                ].join(" ")}
-                aria-label={`Ver ${chart.title}`}
-              />
+                key={value}
+                type="button"
+                onClick={() => setAssignmentStatusFilter(value)}
+                className={cn(
+                  "rounded-xl border px-3 py-2 text-sm font-semibold capitalize",
+                  assignmentStatusFilter === value
+                    ? "bg-foreground text-background"
+                    : "bg-background text-foreground hover:bg-muted/40",
+                )}
+              >
+                {value === "all" ? "Todos" : value === "active" ? "Activos" : "Inactivos"}
+              </button>
             ))}
           </div>
-        </ChartCard>
-      </div>
-
-   
-
-      {/* Controls */}
-      <div className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-lg md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <Segmented
-            value={tab}
-            onChange={(v) => setTab(v as any)}
-            options={[
-              { value: "students", label: "Estudiantes", icon: Users },
-              { value: "exercises", label: "Ejercicios", icon: BookOpenCheck },
-            ]}
-          />
-
-          <button
-            onClick={() => setDescending((d) => !d)}
-            className="inline-flex items-center gap-2 rounded-xl border bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:text-foreground hover:shadow-md"
-          >
-            <ArrowUpDown className="h-4 w-4" />
-            {descending ? "Descendente" : "Ascendente"}
-          </button>
-
-          {tab === "students" ? (
-            <select
-              value={sortStudents}
-              onChange={(e) => setSortStudents(e.target.value as SortKeyStudents)}
-              className="rounded-xl border bg-background px-4 py-2.5 text-sm font-medium shadow-sm transition-all hover:shadow-md"
-            >
-              <option value="accuracy">📊 Precisión</option>
-              <option value="attempts">📝 Intentos</option>
-              <option value="correct">✅ Correctas</option>
-              <option value="incorrect">❌ Incorrectas</option>
-              <option value="trophies">🏆 Trofeos</option>
-              <option value="streak">🔥 Racha</option>
-              <option value="last">📅 Último intento</option>
-            </select>
-          ) : (
-            <select
-              value={sortExercises}
-              onChange={(e) => setSortExercises(e.target.value as SortKeyExercises)}
-              className="rounded-xl border bg-background px-4 py-2.5 text-sm font-medium shadow-sm transition-all hover:shadow-md"
-            >
-              <option value="attempts">📝 Intentos</option>
-              <option value="accuracy">📊 Precisión</option>
-              <option value="students">👥 Estudiantes</option>
-              <option value="trophies">🏆 Trofeos</option>
-              <option value="streak">🔥 Racha</option>
-              <option value="last">📅 Última actividad</option>
-            </select>
-          )}
-
-          <button
-            onClick={handleExportToExcel}
-            disabled={exporting}
-            className="inline-flex items-center gap-2 rounded-xl border bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:bg-emerald-700 hover:shadow-lg disabled:opacity-50"
-          >
-            {exporting ? (
-              <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Exportando...
-              </>
-            ) : (
-              <>
-                <FileSpreadsheet className="h-4 w-4" />
-                Exportar a Excel
-              </>
-            )}
-          </button>
-        </div>
-
-        <div className="relative w-full md:max-w-sm">
-          <Search className="pointer-events-none absolute left-4 top-3 h-5 w-5 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={tab === "students" ? "Buscar estudiante..." : "Buscar ejercicio..."}
-            className="w-full rounded-xl border bg-background pl-11 pr-4 py-2.5 text-sm shadow-sm transition-all focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
-          />
         </div>
       </div>
 
-      {/* Tables */}
       {loading ? (
-        <div className="flex h-96 items-center justify-center rounded-3xl border bg-card shadow-lg">
+        <div className="flex h-80 items-center justify-center rounded-3xl border bg-card">
+          <div className="text-sm text-muted-foreground">Cargando matriz de intentos...</div>
+        </div>
+      ) : filteredAssignments.length === 0 ? (
+        <div className="flex h-80 items-center justify-center rounded-3xl border bg-card">
           <div className="text-center">
-            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <p className="text-sm text-muted-foreground">Cargando datos de rendimiento...</p>
+            <div className="text-base font-semibold">No hay ejercicios para mostrar</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              Ajusta los filtros o revisa las asignaciones del salón.
+            </div>
           </div>
         </div>
-      ) : tab === "students" ? (
-        <section className="rounded-3xl border bg-gradient-to-br from-card to-muted/20 p-1 shadow-2xl">
-          <div className="overflow-hidden rounded-3xl bg-card">
-            <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-6 py-5">
-              <div>
-                <h2 className="text-xl font-bold">Ranking de Estudiantes</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Desempeño, tiempo, gamificación y ADN de aprendizaje</p>
-              </div>
-              <div className="rounded-2xl border bg-background px-4 py-2 text-center shadow-sm">
-                <div className="text-2xl font-bold">{filteredStudents.length}</div>
-                <div className="text-xs text-muted-foreground">{filteredStudents.length === 1 ? "estudiante" : "estudiantes"}</div>
-              </div>
+      ) : filteredStudents.length === 0 ? (
+        <div className="flex h-80 items-center justify-center rounded-3xl border bg-card">
+          <div className="text-center">
+            <div className="text-base font-semibold">No hay alumnos que coincidan</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              Prueba con otra búsqueda.
             </div>
-
-            {filteredStudents.length === 0 ? (
-              <div className="flex h-96 items-center justify-center">
-                <div className="text-center">
-                  <Search className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">No hay datos disponibles o no se encontraron coincidencias</p>
-                </div>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {filteredStudents.map((s, index) => (
-                  <button
-                    key={s.student_id}
-                    type="button"
-                    onClick={() => router.push(`/dashboard/teacher/classroom/${classroomId}/performance/${s.student_id}`)}
-                    className="group w-full text-left px-6 py-5 transition-all hover:bg-primary/5 hover:border-l-4 hover:border-l-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-primary/20 bg-gradient-to-br from-primary/20 to-primary/5 text-xl font-black transition-all group-hover:scale-110 group-hover:shadow-lg group-hover:border-primary/40 group-hover:from-primary/30 group-hover:to-primary/10">
-                        {index + 1}
-                      </div>
-
-                      <div className="flex-1 space-y-4">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <div className="text-xl font-black text-foreground group-hover:text-primary transition-colors">{s.name}</div>
-                            <div className="text-sm text-primary font-semibold group-hover:underline">Ver detalle →</div>
-                          </div>
-
-                          <span
-                            className={[
-                              "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-black uppercase tracking-wide shadow-md ring-2",
-                              s.accuracy_30d >= 80
-                                ? "bg-emerald-600 text-white ring-emerald-500"
-                                : s.accuracy_30d >= 60
-                                ? "bg-amber-600 text-white ring-amber-500"
-                                : "bg-rose-600 text-white ring-rose-500",
-                            ].join(" ")}
-                          >
-                            <Target className="h-4 w-4" />
-                            {s.accuracy_30d}%
-                          </span>
-
-                          <AdnPill adn={s.adn} />
-                        </div>
-
-                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                          <div className="grid gap-3 text-sm md:grid-cols-3">
-                            <div className="flex items-center gap-2 rounded-xl border-2 border-primary/30 bg-primary/10 px-4 py-2.5 font-bold">
-                              <BookOpenCheck className="h-5 w-5 text-primary" />
-                              <span className="text-lg font-black text-primary">{s.attempts_30d}</span>
-                              <span className="text-foreground">intentos</span>
-                            </div>
-                            <div className="flex items-center gap-2 rounded-xl border-2 border-emerald-600/40 bg-emerald-600/20 px-4 py-2.5 font-bold">
-                              <CheckCircle2 className="h-5 w-5 text-emerald-700 dark:text-emerald-400" />
-                              <span className="text-lg font-black text-emerald-700 dark:text-emerald-400">{s.correct_30d}</span>
-                              <span className="text-foreground">correctas</span>
-                            </div>
-                            <div className="flex items-center gap-2 rounded-xl border-2 border-rose-600/40 bg-rose-600/20 px-4 py-2.5 font-bold">
-                              <XCircle className="h-5 w-5 text-rose-700 dark:text-rose-400" />
-                              <span className="text-lg font-black text-rose-700 dark:text-rose-400">{s.incorrect_30d}</span>
-                              <span className="text-foreground">incorrectas</span>
-                            </div>
-                          </div>
-
-                          <div className="flex gap-3">
-                            <div className="rounded-xl border-2 bg-background px-5 py-3 text-center shadow-md">
-                              <div className="text-xs font-bold text-muted-foreground uppercase">Último intento</div>
-                              <div className="mt-1 text-base font-black text-foreground">{formatDate(s.last_attempt_30d)}</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="font-bold text-foreground">Progreso de precisión</span>
-                            <span className="text-lg font-black text-foreground">{s.accuracy_30d}%</span>
-                          </div>
-                          <ProgressBar value={s.accuracy_30d} height="h-3" />
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
-        </section>
+        </div>
       ) : (
-        <section className="rounded-3xl border bg-gradient-to-br from-card to-muted/20 p-1 shadow-2xl">
-          <div className="overflow-hidden rounded-3xl bg-card">
-            <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-6 py-5">
-              <div>
-                <h2 className="text-xl font-bold">Análisis de Ejercicios</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Desempeño, participación y métricas de gamificación</p>
-              </div>
-              <div className="rounded-2xl border bg-background px-4 py-2 text-center shadow-sm">
-                <div className="text-2xl font-bold">{filteredExercises.length}</div>
-                <div className="text-xs text-muted-foreground">{filteredExercises.length === 1 ? "ejercicio" : "ejercicios"}</div>
-              </div>
+        <div className="overflow-hidden rounded-3xl border bg-card shadow-xl">
+          <div className="border-b px-6 py-4">
+            <div className="text-lg font-semibold">Matriz Alumno × Ejercicio</div>
+            <div className="text-sm text-muted-foreground">
+              Cada celda muestra el estado real del alumno en ese ejercicio, considerando el máximo de 3 intentos.
             </div>
-
-            {filteredExercises.length === 0 ? (
-              <div className="flex h-96 items-center justify-center">
-                <div className="text-center">
-                  <Search className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">No hay datos disponibles o no se encontraron coincidencias</p>
-                </div>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {filteredExercises.map((e, index) => (
-                  <div
-                    key={e.exercise_id}
-                    className="group px-6 py-5 transition-all hover:bg-gradient-to-r hover:from-muted/30 hover:to-transparent"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-secondary/10 to-secondary/5 text-lg font-bold">
-                        {index + 1}
-                      </div>
-
-                      <div className="flex-1 space-y-4">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <div className="text-lg font-bold text-foreground">{e.label}</div>
-                          <span className="inline-flex items-center rounded-full bg-muted/80 px-3 py-1 text-xs font-bold uppercase tracking-wide text-muted-foreground shadow-sm ring-1 ring-border">
-                            {e.type}
-                          </span>
-                          <span
-                            className={[
-                              "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide shadow-sm",
-                              badgeVariantFromAccuracy(e.accuracy_30d),
-                            ].join(" ")}
-                          >
-                            <Target className="h-3.5 w-3.5" />
-                            {e.accuracy_30d}%
-                          </span>
-                        </div>
-
-                        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                          <div className="flex items-center gap-2 rounded-xl border bg-muted/30 px-3 py-2">
-                            <Users className="h-4 w-4 text-primary" />
-                            <span className="font-semibold">{e.students_30d}</span>
-                            <span className="text-xs text-muted-foreground">estudiantes</span>
-                          </div>
-                          <div className="flex items-center gap-2 rounded-xl border bg-muted/30 px-3 py-2">
-                            <BookOpenCheck className="h-4 w-4 text-secondary" />
-                            <span className="font-semibold">{e.attempts_30d}</span>
-                            <span className="text-xs text-muted-foreground">intentos</span>
-                          </div>
-                          <div className="flex items-center gap-2 rounded-xl border bg-amber-500/5 px-3 py-2">
-                            <Trophy className="h-4 w-4 text-amber-600" />
-                            <span className="font-semibold">{e.trophies}</span>
-                            <span className="text-xs text-muted-foreground">trofeos</span>
-                          </div>
-                          <div className="flex items-center gap-2 rounded-xl border bg-orange-500/5 px-3 py-2">
-                            <Clock className="h-4 w-4 text-orange-600" />
-                            <span className="font-semibold">{formatTimeSeconds(e.avg_time_s_30d)}</span>
-                            <span className="text-xs text-muted-foreground">promedio</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">Nivel de dominio</span>
-                              <span className="font-bold">{e.accuracy_30d}%</span>
-                            </div>
-                            <ProgressBar value={e.accuracy_30d} height="h-2.5" />
-                          </div>
-                          {e.best_streak > 0 && (
-                            <div className="flex items-center gap-2 rounded-xl border bg-orange-500/10 px-4 py-2.5 shadow-sm">
-                              <Flame className="h-5 w-5 text-orange-600" />
-                              <div>
-                                <div className="text-lg font-bold text-orange-600">{e.best_streak}</div>
-                                <div className="text-[10px] text-muted-foreground">racha máx</div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
-        </section>
+
+          <div className="overflow-auto">
+            <table className="min-w-full border-separate border-spacing-0">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 top-0 z-20 min-w-[260px] border-b bg-card px-4 py-4 text-left">
+                    Alumno
+                  </th>
+                  {filteredAssignments.map((assignment, index) => (
+                    <th
+                      key={assignment.assignment_id}
+                      className="sticky top-0 z-10 min-w-[110px] border-b bg-card px-3 py-4 text-center align-top"
+                      title={`${assignment.type} · ${assignment.label}`}
+                    >
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Ejercicio {index + 1}
+                      </div>
+                      <div className="mt-1 line-clamp-2 text-sm font-semibold">
+                        {assignment.label}
+                      </div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">
+                        {assignment.type}
+                      </div>
+                      {!assignment.active && (
+                        <Badge variant="outline" className="mt-2 text-[10px]">
+                          Inactivo
+                        </Badge>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {matrixRows.map((row) => (
+                  <tr key={row.student.student_id}>
+                    <td className="sticky left-0 z-10 border-b bg-card px-4 py-4 align-top">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(
+                            `/dashboard/teacher/classroom/${classroomId}/performance/${row.student.student_id}`,
+                          )
+                        }
+                        className="w-full text-left"
+                      >
+                        <div className="font-semibold hover:text-primary">{row.student.name}</div>
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                          <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
+                            V {row.green}
+                          </Badge>
+                          <Badge className="bg-sky-500/15 text-sky-700 hover:bg-sky-500/15 dark:text-sky-300">
+                            A {row.blue}
+                          </Badge>
+                          <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/15 dark:text-amber-300">
+                            M {row.yellow}
+                          </Badge>
+                          <Badge className="bg-rose-500/15 text-rose-700 hover:bg-rose-500/15 dark:text-rose-300">
+                            R {row.red}
+                          </Badge>
+                        </div>
+                      </button>
+                    </td>
+
+                    {row.cells.map(({ assignment, aggregate, state }) => (
+                      <td key={`${row.student.student_id}-${assignment.assignment_id}`} className="border-b px-3 py-3">
+                        <div
+                          className={cn(
+                            "rounded-2xl border px-3 py-3 text-center shadow-sm",
+                            getCellClasses(state),
+                          )}
+                          title={`${getCellDescription(state)} · Intentos: ${aggregate?.attempts ?? 0}/3 · Último: ${formatDate(aggregate?.lastAttempt ?? null)}`}
+                        >
+                          <div className="text-xs font-semibold uppercase tracking-wide">
+                            {getCellDescription(state)}
+                          </div>
+                          <div className="mt-1 text-base font-bold">
+                            {getCellLabel(state, aggregate)}
+                          </div>
+                          <div className="mt-1 text-[11px] opacity-80">
+                            {formatDate(aggregate?.lastAttempt ?? null)}
+                          </div>
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   )

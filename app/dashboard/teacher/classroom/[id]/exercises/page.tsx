@@ -1,39 +1,31 @@
 "use client"
 
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
+import { ExerciseRegistry } from "@/components/exercises"
 import { createClient } from "@/utils/supabase/client"
-import {
-  PageHeader,
-  StatusBadge,
-  type ColumnDef,
-} from "@/components/dashboard/core"
+import { PageHeader } from "@/components/dashboard/core"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useInstitution } from "@/components/institution-provider"
 import {
-  ChevronUp,
-  ChevronDown,
-  Eye,
-  EyeOff,
-  Search,
-  GripVertical,
+  BookOpen,
   ChevronRight,
   Loader2,
-  BookOpen,
+  MonitorPlay,
   Plus,
+  Search,
+  Trash2,
   X,
-  Pencil,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Exercise = {
   id: string
   exercise_type: string
-  description: string | null
+  block: string | null
+  component_key: string | null
   institution_id: string | null
   active: boolean
 }
@@ -47,13 +39,11 @@ type ClassroomExercise = {
 }
 
 type ExerciseGroup = {
-  type: string
-  minOrder: number
+  key: string
+  title: string
   rows: ClassroomExercise[]
   collapsed: boolean
 }
-
-// ─── Available exercises modal ─────────────────────────────────────────────────
 
 function AddExercisesModal({
   classroomId,
@@ -78,38 +68,53 @@ function AddExercisesModal({
       const supabase = createClient()
       let query = supabase
         .from("edu_exercises")
-        .select("id, exercise_type, description, institution_id, active")
+        .select("id, exercise_type, block, component_key, institution_id, active")
         .eq("active", true)
 
       if (institutionId) {
         query = query.or(`institution_id.eq.${institutionId},institution_id.is.null`)
       }
 
-      const { data } = await query.order("exercise_type").order("id")
+      const { data } = await query
+        .order("exercise_type", { ascending: true })
+        .order("block", { ascending: true })
+        .order("id", { ascending: true })
+
       setExercises(data || [])
       setLoading(false)
     }
+
     load()
   }, [institutionId])
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase()
     if (!needle) return exercises
-    return exercises.filter(
-      (e) =>
-        e.description?.toLowerCase().includes(needle) ||
-        e.exercise_type.toLowerCase().includes(needle) ||
-        e.id.toLowerCase().includes(needle)
-    )
+
+    return exercises.filter((exercise) => {
+      const type = exercise.exercise_type.toLowerCase()
+      const block = (exercise.block || "").toLowerCase()
+      const componentKey = (exercise.component_key || "").toLowerCase()
+      const id = exercise.id.toLowerCase()
+
+      return (
+        type.includes(needle) ||
+        block.includes(needle) ||
+        componentKey.includes(needle) ||
+        id.includes(needle)
+      )
+    })
   }, [exercises, search])
 
   const grouped = useMemo(() => {
     const map = new Map<string, Exercise[]>()
-    for (const ex of filtered) {
-      const t = ex.exercise_type || "Sin tipo"
-      if (!map.has(t)) map.set(t, [])
-      map.get(t)!.push(ex)
+
+    for (const exercise of filtered) {
+      const groupKey = `${exercise.exercise_type}|||${exercise.block || "Sin tema"}`
+      if (!map.has(groupKey)) map.set(groupKey, [])
+      map.get(groupKey)!.push(exercise)
     }
+
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [filtered])
 
@@ -128,8 +133,7 @@ function AddExercisesModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative flex h-[80vh] w-full max-w-2xl flex-col rounded-xl border bg-background shadow-2xl">
-        {/* Header */}
+      <div className="relative flex h-[80vh] w-full max-w-3xl flex-col rounded-xl border bg-background shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-primary" />
@@ -140,20 +144,18 @@ function AddExercisesModal({
           </Button>
         </div>
 
-        {/* Search */}
         <div className="border-b px-5 py-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
-              placeholder="Buscar ejercicio..."
+              placeholder="Buscar por tipo, tema, componente o ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
         </div>
 
-        {/* List */}
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -166,49 +168,57 @@ function AddExercisesModal({
             </div>
           ) : (
             <div className="divide-y">
-              {grouped.map(([type, items]) => (
-                <div key={type}>
-                  <div className="sticky top-0 bg-muted/60 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm">
-                    {type} · {items.length}
-                  </div>
-                  {items.map((ex) => {
-                    const assigned = assignedIds.has(ex.id)
-                    return (
-                      <div
-                        key={ex.id}
-                        className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="truncate text-sm font-medium">
-                            {ex.description || ex.id}
+              {grouped.map(([groupKey, items]) => {
+                const [type, block] = groupKey.split("|||")
+
+                return (
+                  <div key={groupKey}>
+                    <div className="sticky top-0 bg-muted/60 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm">
+                      {type} · {block} · {items.length}
+                    </div>
+                    {items.map((exercise) => {
+                      const assigned = assignedIds.has(exercise.id)
+
+                      return (
+                        <div
+                          key={exercise.id}
+                          className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium">
+                              {exercise.block || "Sin tema"}
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {exercise.component_key || "Sin component_key"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">{exercise.id}</div>
                           </div>
-                          <div className="text-xs text-muted-foreground">{ex.id}</div>
+                          {assigned ? (
+                            <Badge variant="secondary" className="shrink-0 text-xs">
+                              Ya asignado
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0 gap-1"
+                              disabled={adding === exercise.id}
+                              onClick={() => assign(exercise.id)}
+                            >
+                              {adding === exercise.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Plus className="h-3 w-3" />
+                              )}
+                              Asignar
+                            </Button>
+                          )}
                         </div>
-                        {assigned ? (
-                          <Badge variant="secondary" className="text-xs shrink-0">
-                            Ya asignado
-                          </Badge>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="shrink-0 gap-1"
-                            disabled={adding === ex.id}
-                            onClick={() => assign(ex.id)}
-                          >
-                            {adding === ex.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Plus className="h-3 w-3" />
-                            )}
-                            Asignar
-                          </Button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ))}
+                      )
+                    })}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -217,115 +227,64 @@ function AddExercisesModal({
   )
 }
 
-// ─── Exercise row ──────────────────────────────────────────────────────────────
-
 function ExerciseRow({
   row,
-  isFirst,
-  isLast,
+  displayLabel,
   updatingId,
-  onToggle,
-  onEdit,
-  onMove,
-  onOrderChange,
+  onPreview,
+  onDelete,
 }: {
   row: ClassroomExercise
-  isFirst: boolean
-  isLast: boolean
+  displayLabel: string
   updatingId: string | null
-  onToggle: (row: ClassroomExercise) => void
-  onEdit: (row: ClassroomExercise) => void
-  onMove: (row: ClassroomExercise, dir: "up" | "down") => void
-  onOrderChange: (row: ClassroomExercise, value: number) => void
+  onPreview: (row: ClassroomExercise) => void
+  onDelete: (row: ClassroomExercise) => void
 }) {
   const isUpdating = updatingId === row.id
-  const [localOrder, setLocalOrder] = useState(String(row.display_order))
-
-  // Sync if parent changes
-  useEffect(() => {
-    setLocalOrder(String(row.display_order))
-  }, [row.display_order])
-
-  const commitOrder = () => {
-    const parsed = parseInt(localOrder, 10)
-    if (!isNaN(parsed) && parsed !== row.display_order) {
-      onOrderChange(row, parsed)
-    } else {
-      setLocalOrder(String(row.display_order))
-    }
-  }
 
   return (
     <div
       className={cn(
         "group flex items-center gap-3 rounded-lg border bg-card px-4 py-3 transition-all",
         isUpdating && "opacity-60",
-        !row.active && "opacity-50"
       )}
     >
-      {/* Drag handle visual */}
-      <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground/70" />
-
-      {/* Order input */}
-      <input
-        type="number"
-        className="w-12 rounded border bg-muted/30 px-1.5 py-1 text-center text-sm font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
-        value={localOrder}
-        onChange={(e) => setLocalOrder(e.target.value)}
-        onBlur={commitOrder}
-        onKeyDown={(e) => e.key === "Enter" && commitOrder()}
-        disabled={isUpdating}
-      />
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="truncate text-sm font-medium">
-            {row.exercise?.description || row.exercise?.id || "Sin descripción"}
-          </span>
-          {!row.active && (
-            <Badge variant="outline" className="text-xs shrink-0 text-muted-foreground">
-              Inactivo
-            </Badge>
-          )}
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold">{displayLabel}</span>
         </div>
-        <div className="text-xs text-muted-foreground">{row.exercise?.id}</div>
+
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         <Button
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          disabled={!!updatingId}
-          onClick={() => onEdit(row)}
-          title="Editar nombre"
+          disabled={!!updatingId || !row.exercise?.id}
+          onClick={() => onPreview(row)}
+          title="Previsualizar"
         >
-          <Pencil className="h-4 w-4" />
+          <MonitorPlay className="h-4 w-4" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
           className="h-7 w-7"
           disabled={!!updatingId}
-          onClick={() => onToggle(row)}
-          title={row.active ? "Desactivar" : "Activar"}
+          onClick={() => onDelete(row)}
+          title="Eliminar del salón"
         >
           {isUpdating ? (
             <Loader2 className="h-4 w-4 animate-spin" />
-          ) : row.active ? (
-            <EyeOff className="h-4 w-4" />
           ) : (
-            <Eye className="h-4 w-4" />
+            <Trash2 className="h-4 w-4" />
           )}
         </Button>
       </div>
     </div>
   )
 }
-
-// ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function TeacherClassroomExercisesPage() {
   const params = useParams()
@@ -340,9 +299,7 @@ export default function TeacherClassroomExercisesPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [showAddModal, setShowAddModal] = useState(false)
-  const [editingExercise, setEditingExercise] = useState<ClassroomExercise | null>(null)
-  const [editingDescription, setEditingDescription] = useState("")
-  const [savingEdit, setSavingEdit] = useState(false)
+  const [previewRow, setPreviewRow] = useState<ClassroomExercise | null>(null)
 
   const fetchData = useCallback(async () => {
     if (!classroomId) return
@@ -359,16 +316,17 @@ export default function TeacherClassroomExercisesPage() {
           active,
           created_at,
           display_order:order,
-          exercise:edu_exercises ( id, exercise_type, description, institution_id, active )
+          exercise:edu_exercises ( id, exercise_type, block, component_key, institution_id, active )
         `)
         .eq("classroom_id", classroomId)
+        .eq("active", true)
         .order("order", { ascending: true })
         .order("created_at", { ascending: false }),
     ])
 
     if (classroom?.grade) {
       setClassroomLabel(
-        `${classroom.grade}${classroom.section ? ` ${classroom.section}` : ""}`.trim()
+        `${classroom.grade}${classroom.section ? ` ${classroom.section}` : ""}`.trim(),
       )
     }
 
@@ -381,6 +339,7 @@ export default function TeacherClassroomExercisesPage() {
     const rows: ClassroomExercise[] = (assignments || [])
       .map((row: any) => {
         const exercise = Array.isArray(row.exercise) ? row.exercise[0] : row.exercise
+
         return {
           id: row.id,
           active: Boolean(row.active),
@@ -402,234 +361,106 @@ export default function TeacherClassroomExercisesPage() {
     fetchData()
   }, [fetchData])
 
-  // Auto-clear messages
   useEffect(() => {
     if (!message) return
-    const t = setTimeout(() => setMessage(null), 3500)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setMessage(null), 3500)
+    return () => clearTimeout(timer)
   }, [message])
 
-  const assignedIds = useMemo(() => new Set(exercises.map((e) => e.exercise?.id).filter(Boolean) as string[]), [exercises])
+  const assignedIds = useMemo(
+    () => new Set(exercises.map((exercise) => exercise.exercise?.id).filter(Boolean) as string[]),
+    [exercises],
+  )
 
   const filteredExercises = useMemo(() => {
     const needle = search.trim().toLowerCase()
     if (!needle) return exercises
+
     return exercises.filter((row) => {
-      const description = row.exercise?.description?.toLowerCase() || ""
       const type = row.exercise?.exercise_type?.toLowerCase() || ""
+      const block = row.exercise?.block?.toLowerCase() || ""
+      const componentKey = row.exercise?.component_key?.toLowerCase() || ""
       const id = row.exercise?.id?.toLowerCase() || ""
-      return description.includes(needle) || type.includes(needle) || id.includes(needle)
+
+      return (
+        type.includes(needle) ||
+        block.includes(needle) ||
+        componentKey.includes(needle) ||
+        id.includes(needle)
+      )
     })
   }, [exercises, search])
 
-  /**
-   * Groups sorted by the MINIMUM display_order within each group so that
-   * the group with the highest-priority exercise appears first.
-   */
   const groupedExercises = useMemo((): ExerciseGroup[] => {
     const grouped = new Map<string, ClassroomExercise[]>()
+
     for (const row of filteredExercises) {
       const type = row.exercise?.exercise_type?.trim() || "Sin tipo"
-      if (!grouped.has(type)) grouped.set(type, [])
-      grouped.get(type)!.push(row)
+      const block = row.exercise?.block?.trim() || "Sin tema"
+      const key = `${type}|||${block}`
+      if (!grouped.has(key)) grouped.set(key, [])
+      grouped.get(key)!.push(row)
     }
 
     return Array.from(grouped.entries())
-      .map(([type, rows]) => {
-        const sorted = rows.sort((a, b) => {
-          if (a.display_order !== b.display_order) return b.display_order - a.display_order // highest first
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      .map(([key, rows]) => {
+        const [type, block] = key.split("|||")
+        const sorted = [...rows].sort((a, b) => {
+          if (a.display_order !== b.display_order) return a.display_order - b.display_order
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         })
-        const maxOrder = sorted[0]?.display_order ?? 0
+
         return {
-          type,
-          minOrder: maxOrder, // reusing field — now holds the max
+          key,
+          title: `${type} · ${block}`,
           rows: sorted,
-          collapsed: collapsedGroups.has(type),
+          collapsed: collapsedGroups.has(key),
         }
       })
-      .sort((a, b) => {
-        // Sort groups by their highest order value descending
-        if (a.minOrder !== b.minOrder) return b.minOrder - a.minOrder
-        return a.type.localeCompare(b.type)
-      })
+      .sort((a, b) => a.title.localeCompare(b.title))
   }, [filteredExercises, collapsedGroups])
 
-  const toggleCollapse = (type: string) => {
+  const toggleCollapse = (key: string) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev)
-      if (next.has(type)) next.delete(type)
-      else next.add(type)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }
 
-  const openEditExercise = (row: ClassroomExercise) => {
-    setEditingExercise(row)
-    setEditingDescription(row.exercise?.description || "")
-    setMessage(null)
-  }
-
-  const closeEditExercise = () => {
-    if (savingEdit) return
-    setEditingExercise(null)
-    setEditingDescription("")
-  }
-
-  // ── Toggle active ────────────────────────────────────────────────────────────
-
-  const toggleAssignment = async (row: ClassroomExercise) => {
-    const nextActive = !row.active
+  const deleteAssignment = async (row: ClassroomExercise) => {
     setUpdatingId(row.id)
     setMessage(null)
 
     const supabase = createClient()
+    const { error: feedbackError } = await supabase
+      .from("edu_assignment_feedback")
+      .delete()
+      .eq("assignment_id", row.id)
+
+    if (feedbackError) {
+      setMessage({ type: "error", text: "No se pudieron borrar los comentarios del ejercicio." })
+      setUpdatingId(null)
+      return
+    }
+
     const { error } = await supabase
       .from("edu_exercise_assignments")
-      .update({ active: nextActive })
+      .delete()
       .eq("id", row.id)
       .eq("classroom_id", classroomId)
 
     if (error) {
-      setMessage({ type: "error", text: "No se pudo actualizar el estado." })
+      setMessage({ type: "error", text: "No se pudo eliminar el ejercicio del salón." })
     } else {
-      setExercises((prev) =>
-        prev.map((item) => (item.id === row.id ? { ...item, active: nextActive } : item))
-      )
-      setMessage({
-        type: "success",
-        text: `Ejercicio ${nextActive ? "activado" : "desactivado"} correctamente.`,
-      })
+      setExercises((prev) => prev.filter((item) => item.id !== row.id))
+      setPreviewRow((current) => (current?.id === row.id ? null : current))
+      setMessage({ type: "success", text: "Ejercicio eliminado del salón." })
     }
+
     setUpdatingId(null)
   }
-
-  // ── Move (swap adjacent order values) ────────────────────────────────────────
-
-  const moveAssignment = async (row: ClassroomExercise, direction: "up" | "down") => {
-    const sameTypeRows = exercises
-      .filter(
-        (item) =>
-          (item.exercise?.exercise_type || "") === (row.exercise?.exercise_type || "")
-      )
-      .sort((a, b) => {
-        if (a.display_order !== b.display_order) return b.display_order - a.display_order // highest first
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      })
-
-    const index = sameTypeRows.findIndex((item) => item.id === row.id)
-    if (index === -1) return
-
-    const targetIndex = direction === "up" ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= sameTypeRows.length) return
-
-    const target = sameTypeRows[targetIndex]
-    setUpdatingId(row.id)
-    setMessage(null)
-
-    const supabase = createClient()
-    const [r1, r2] = await Promise.all([
-      supabase
-        .from("edu_exercise_assignments")
-        .update({ order: target.display_order })
-        .eq("id", row.id)
-        .eq("classroom_id", classroomId),
-      supabase
-        .from("edu_exercise_assignments")
-        .update({ order: row.display_order })
-        .eq("id", target.id)
-        .eq("classroom_id", classroomId),
-    ])
-
-    if (r1.error || r2.error) {
-      setMessage({ type: "error", text: "No se pudo actualizar el orden." })
-    } else {
-      setExercises((prev) =>
-        prev.map((item) => {
-          if (item.id === row.id) return { ...item, display_order: target.display_order }
-          if (item.id === target.id) return { ...item, display_order: row.display_order }
-          return item
-        })
-      )
-      setMessage({ type: "success", text: "Orden actualizado." })
-    }
-    setUpdatingId(null)
-  }
-
-  // ── Direct order edit ─────────────────────────────────────────────────────────
-
-  const updateOrder = async (row: ClassroomExercise, newOrder: number) => {
-    setUpdatingId(row.id)
-    setMessage(null)
-
-    const supabase = createClient()
-    const { error } = await supabase
-      .from("edu_exercise_assignments")
-      .update({ order: newOrder })
-      .eq("id", row.id)
-      .eq("classroom_id", classroomId)
-
-    if (error) {
-      setMessage({ type: "error", text: "No se pudo actualizar el orden." })
-    } else {
-      setExercises((prev) =>
-        prev.map((item) => (item.id === row.id ? { ...item, display_order: newOrder } : item))
-      )
-      setMessage({ type: "success", text: "Orden actualizado." })
-    }
-    setUpdatingId(null)
-  }
-
-  const saveExerciseDescription = async () => {
-    const exerciseId = editingExercise?.exercise?.id
-    const description = editingDescription.trim()
-
-    if (!exerciseId) {
-      setMessage({ type: "error", text: "No se encontró el ejercicio." })
-      return
-    }
-
-    if (!description) {
-      setMessage({ type: "error", text: "Ingresa un nombre para el ejercicio." })
-      return
-    }
-
-    const supabase = createClient()
-    setSavingEdit(true)
-    setMessage(null)
-
-    const { error } = await supabase
-      .from("edu_exercises")
-      .update({ description })
-      .eq("id", exerciseId)
-
-    if (error) {
-      setMessage({ type: "error", text: "No se pudo actualizar el nombre del ejercicio." })
-      setSavingEdit(false)
-      return
-    }
-
-    setExercises((prev) =>
-      prev.map((item) =>
-        item.exercise?.id === exerciseId
-          ? {
-              ...item,
-              exercise: item.exercise
-                ? { ...item.exercise, description }
-                : item.exercise,
-            }
-          : item
-      )
-    )
-    setEditingExercise(null)
-    setEditingDescription("")
-    setSavingEdit(false)
-    setMessage({ type: "success", text: "Nombre del ejercicio actualizado." })
-  }
-
-  // ─── Render ─────────────────────────────────────────────────────────────────
-
-  const totalActive = exercises.filter((e) => e.active).length
 
   return (
     <div className="space-y-6">
@@ -643,15 +474,14 @@ export default function TeacherClassroomExercisesPage() {
         ]}
       />
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-48 flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por descripción, tipo o ID..."
+            placeholder="Buscar por tipo, tema, componente o ID..."
           />
           {search && (
             <button
@@ -663,26 +493,25 @@ export default function TeacherClassroomExercisesPage() {
           )}
         </div>
 
-     
-
-    
+        <Button onClick={() => setShowAddModal(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Agregar ejercicios
+        </Button>
       </div>
 
-      {/* Message */}
       {message && (
         <div
           className={cn(
             "rounded-lg border px-4 py-3 text-sm transition-all",
             message.type === "error"
               ? "border-destructive/40 bg-destructive/10 text-destructive"
-              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
           )}
         >
           {message.text}
         </div>
       )}
 
-      {/* Content */}
       {loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -710,43 +539,34 @@ export default function TeacherClassroomExercisesPage() {
       ) : (
         <div className="space-y-3">
           {groupedExercises.map((group) => {
-            const activeCount = group.rows.filter((r) => r.active).length
             return (
-              <div key={group.type} className="rounded-xl border overflow-hidden">
-                {/* Group header */}
+              <div key={group.key} className="overflow-hidden rounded-xl border">
                 <button
-                  className="flex w-full items-center gap-3 bg-muted/40 px-4 py-3 text-left hover:bg-muted/60 transition-colors"
-                  onClick={() => toggleCollapse(group.type)}
+                  className="flex w-full items-center gap-3 bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/60"
+                  onClick={() => toggleCollapse(group.key)}
                 >
                   <ChevronRight
                     className={cn(
                       "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
-                      !group.collapsed && "rotate-90"
+                      !group.collapsed && "rotate-90",
                     )}
                   />
-                  <span className="flex-1 font-semibold text-sm">{group.type}</span>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {activeCount}/{group.rows.length} activos
-                    </Badge>
-                
-                  </div>
+                  <span className="flex-1 text-sm font-semibold">{group.title}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {group.rows.length} ejercicios
+                  </Badge>
                 </button>
 
-                {/* Group rows */}
                 {!group.collapsed && (
-                  <div className="p-3 space-y-2 bg-card">
-                    {group.rows.map((row, idx) => (
+                  <div className="space-y-2 bg-card p-3">
+                    {group.rows.map((row, index) => (
                       <ExerciseRow
                         key={row.id}
                         row={row}
-                        isFirst={idx === 0}
-                        isLast={idx === group.rows.length - 1}
+                        displayLabel={`Ejercicio ${index + 1}`}
                         updatingId={updatingId}
-                        onToggle={toggleAssignment}
-                        onEdit={openEditExercise}
-                        onMove={moveAssignment}
-                        onOrderChange={updateOrder}
+                        onPreview={setPreviewRow}
+                        onDelete={deleteAssignment}
                       />
                     ))}
                   </div>
@@ -757,7 +577,6 @@ export default function TeacherClassroomExercisesPage() {
         </div>
       )}
 
-      {/* Add exercises modal */}
       {showAddModal && (
         <AddExercisesModal
           classroomId={classroomId}
@@ -765,44 +584,40 @@ export default function TeacherClassroomExercisesPage() {
           institutionId={institution?.id}
           onClose={() => setShowAddModal(false)}
           onAdded={() => {
+            setShowAddModal(false)
             fetchData()
             setMessage({ type: "success", text: "Ejercicio asignado correctamente." })
           }}
         />
       )}
 
-      {editingExercise && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl rounded-xl border bg-background shadow-2xl">
+      {previewRow?.exercise?.id && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
             <div className="flex items-center justify-between border-b px-5 py-4">
-              <div>
-                <div className="font-semibold">Editar nombre del ejercicio</div>
-                <div className="text-xs text-muted-foreground">
-                  ID: {editingExercise.exercise?.id || "Sin ID"}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <MonitorPlay className="h-5 w-5 text-primary" />
+                  <span className="font-semibold">Vista previa del ejercicio</span>
+                </div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {(previewRow.exercise.exercise_type || "Sin tipo") +
+                    " · " +
+                    (previewRow.exercise.block || "Sin tema")}
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={closeEditExercise} disabled={savingEdit}>
+              <Button variant="ghost" size="icon" onClick={() => setPreviewRow(null)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="space-y-4 px-5 py-4">
-              <div className="text-sm text-muted-foreground">
-                Tipo: {editingExercise.exercise?.exercise_type || "Sin tipo"}
-              </div>
-              <Input
-                value={editingDescription}
-                onChange={(e) => setEditingDescription(e.target.value)}
-                placeholder="Nombre del ejercicio"
-                disabled={savingEdit}
+
+            <div className="overflow-y-auto p-4">
+              <ExerciseRegistry
+                exerciseId={previewRow.exercise.id}
+                classroomId={classroomId}
+                displayTitle={previewRow.exercise.block || "Ejercicio"}
+                previewMode
               />
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={closeEditExercise} disabled={savingEdit}>
-                  Cancelar
-                </Button>
-                <Button type="button" onClick={saveExerciseDescription} disabled={savingEdit}>
-                  {savingEdit ? "Guardando..." : "Guardar"}
-                </Button>
-              </div>
             </div>
           </div>
         </div>
