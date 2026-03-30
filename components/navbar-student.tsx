@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { GraduationCap, LogOut, BookOpen, User } from 'lucide-react'
+import { GraduationCap, LogOut, BookOpen, User, ClipboardList } from 'lucide-react'
 import { useInstitution } from '@/components/institution-provider'
 import { createClient } from '@/utils/supabase/client'
 import { fetchStudentSession, type StudentSessionData } from '@/lib/student-session-client'
@@ -98,6 +98,16 @@ export default function StudentNavbar() {
         <BookOpen className="w-4 h-4 text-muted-foreground group-hover:text-accent-foreground" />
         <span className="text-sm font-medium text-foreground group-hover:text-accent-foreground">
           Dashboard
+        </span>
+      </Link>
+
+      <Link
+        href="/student/exams"
+        className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white hover:bg-accent/20 rounded-lg border border-border hover:border-accent transition-all duration-200 group"
+      >
+        <ClipboardList className="w-4 h-4 text-muted-foreground group-hover:text-accent-foreground" />
+        <span className="text-sm font-medium text-foreground group-hover:text-accent-foreground">
+          Examenes
         </span>
       </Link>
 

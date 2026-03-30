@@ -1,5 +1,6 @@
 ﻿"use client"
 
+import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { FormEvent } from "react"
@@ -659,6 +660,23 @@ export default function StudentPerformanceDetailPage() {
           { label: studentName },
         ]}
       />
+
+      <div className="rounded-2xl border bg-card p-4 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-sm font-semibold">Tablero de examenes</div>
+            <div className="text-sm text-muted-foreground">
+              Cambia al semaforo de examenes para ver el rendimiento del alumno en evaluaciones.
+            </div>
+          </div>
+          <Link
+            href={`/dashboard/teacher/classroom/${classroomId}/performance/exams/${studentId}`}
+            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold hover:bg-muted/40"
+          >
+            Ver examenes
+          </Link>
+        </div>
+      </div>
 
       {/* Hero Stats */}
       <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-background via-primary/5 to-background p-8 shadow-2xl">

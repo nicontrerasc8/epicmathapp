@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import {
     Users,
     FileQuestion,
+    FileText,
     Target,
     ArrowRight,
     Settings,
@@ -118,6 +119,12 @@ export default function ClassroomDetailClient({ data }: any) {
                         description="Asignar ejercicios al aula"
                         href={`/dashboard/admin/classrooms/${data.id}/exercises`}
                         count={data.exercisesCount}
+                    />
+                    <QuickLinkCard
+                        icon={FileText}
+                        title="Examenes"
+                        description="Entrar al modulo de examenes del aula"
+                        href={`/dashboard/admin/classrooms/${data.id}/exams`}
                     />
                 </div>
             </section>

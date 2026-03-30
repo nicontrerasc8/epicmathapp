@@ -9,6 +9,7 @@ import {
     Building2,
     ChevronLeft,
     ChevronRight,
+    FileText,
     GraduationCap,
     LayoutDashboard,
     LucideIcon,
@@ -49,7 +50,7 @@ const adminNavigation: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard/admin" },
     { icon: Users, label: "Usuarios", href: "/dashboard/admin/students" },
     { icon: GraduationCap, label: "Aulas", href: "/dashboard/admin/classrooms" },
-
+    { icon: FileText, label: "Examenes", href: "/dashboard/admin/exams" },
 ]
 
 const teacherNavigation: NavItem[] = [

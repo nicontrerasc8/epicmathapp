@@ -7,6 +7,7 @@ import {
     GraduationCap,
     Building2,
     Target,
+    FileText,
     ArrowRight,
     UserPlus,
     FileSpreadsheet
@@ -167,6 +168,12 @@ export default function AdminDashboardClient({
                         title="Nueva Aula"
                         description="Crear un aula para una institución"
                         href="/dashboard/admin/classrooms"
+                    />
+                    <QuickActionCard
+                        icon={FileText}
+                        title="Modulo Examenes"
+                        description="Entrar a la gestion de examenes por salon"
+                        href="/dashboard/admin/exams"
                     />
                 </div>
             </section>

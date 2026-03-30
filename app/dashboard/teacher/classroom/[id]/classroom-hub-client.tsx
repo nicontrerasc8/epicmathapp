@@ -7,6 +7,7 @@ import {
     ArrowRight,
     TrendingUp,
     FileQuestion,
+    FileText,
 } from "lucide-react"
 import {
     PageHeader,
@@ -27,6 +28,7 @@ interface TeacherClassroomHubProps {
         studentCount: number
         exerciseCount: number
         activeStudents: number
+        examCount: number
     }
 }
 
@@ -104,11 +106,17 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
                     icon={TrendingUp}
                     variant="default"
                 />
+                <StatCard
+                    title="Examenes"
+                    value={stats.examCount}
+                    icon={FileText}
+                    variant="warning"
+                />
             </StatCardGrid>
 
             <section>
                 <h2 className="text-lg font-semibold mb-4">Gestion y Rendimiento</h2>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <QuickActionCard
                         icon={TrendingUp}
                         title="Rendimiento Academico"
@@ -126,6 +134,12 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
                         title="Ejercicios"
                         description="Activar o desactivar ejercicios disponibles"
                         href={`/dashboard/teacher/classroom/${classroom.id}/exercises`}
+                    />
+                    <QuickActionCard
+                        icon={FileText}
+                        title="Examenes"
+                        description="Programar examenes y ver su tablero"
+                        href={`/dashboard/teacher/classroom/${classroom.id}/exams`}
                     />
                 </div>
             </section>

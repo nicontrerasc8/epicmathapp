@@ -32,6 +32,12 @@ export default async function TeacherClassroomHub({
     .eq("classroom_id", id)
     .eq("active", true)
 
+  const { count: examCount } = await supabase
+    .from("edu_exam_assignments")
+    .select("id", { count: "exact", head: true })
+    .eq("classroom_id", id)
+    .eq("active", true)
+
   // Calculate active students
   const { data: students } = await supabase
     .from("edu_classroom_members")
@@ -66,6 +72,7 @@ export default async function TeacherClassroomHub({
         studentCount,
         activeStudents,
         exerciseCount: exerciseCount || 0,
+        examCount: examCount || 0,
       }}
     />
   )

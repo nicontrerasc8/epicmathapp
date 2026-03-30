@@ -6,6 +6,9 @@ import { motion } from 'framer-motion'
 import {
   BookOpen,
   Brain,
+  ClipboardList,
+  Clock3,
+  FileText,
   Rocket,
   Sparkles,
   Star,
@@ -17,6 +20,7 @@ import { createClient } from '@/utils/supabase/client'
 import { fetchStudentSession } from '@/lib/student-session-client'
 import type { StudentSessionData } from '@/lib/student-session-client'
 import { useInstitution } from '@/components/institution-provider'
+import { isExamAvailableNow } from '@/lib/exam-availability'
 
 type AssignmentRow = {
   id: string
@@ -26,6 +30,76 @@ type AssignmentRow = {
     exercise_type: string
     block: string | null
   }
+}
+
+type ExamAssignmentRow = {
+  id: string
+  exam_id: string
+  created_at: string
+  order: number | string | null
+  active: boolean
+  available_from: string | null
+  available_until: string | null
+  edu_exams: {
+    id: string
+    title: string
+    description: string | null
+    exam_type: string
+    block: string | null
+    duration_minutes: number | null
+    component_key: string
+  }
+}
+
+type StudentExamAttemptRow = {
+  exam_id: string
+}
+
+type ExerciseQueryRow = {
+  id: string
+  exercise_id: string
+  edu_exercises:
+    | {
+        id: string
+        exercise_type: string
+        block: string | null
+      }
+    | {
+        id: string
+        exercise_type: string
+        block: string | null
+      }[]
+    | null
+}
+
+type ExamQueryRow = {
+  id: string
+  exam_id: string
+  created_at: string
+  order: number | string | null
+  active: boolean
+  available_from: string | null
+  available_until: string | null
+  edu_exams:
+    | {
+        id: string
+        title: string
+        description: string | null
+        exam_type: string
+        block: string | null
+        duration_minutes: number | null
+        component_key: string
+      }
+    | {
+        id: string
+        title: string
+        description: string | null
+        exam_type: string
+        block: string | null
+        duration_minutes: number | null
+        component_key: string
+      }[]
+    | null
 }
 
 const icons = [Rocket, Star, Sparkles, Trophy, Zap, Target, BookOpen, Brain]
@@ -61,6 +135,7 @@ export default function StudentDashboardPage() {
 
   const [loading, setLoading] = useState(true)
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
+  const [examAssignments, setExamAssignments] = useState<ExamAssignmentRow[]>([])
   const [classroomId, setClassroomId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -74,6 +149,7 @@ export default function StudentDashboardPage() {
 
       if (!studentSession?.student_id || !studentSession?.classroom_id) {
         setAssignments([])
+        setExamAssignments([])
         setClassroomId(null)
         setLoading(false)
         return
@@ -81,28 +157,108 @@ export default function StudentDashboardPage() {
 
       setClassroomId(studentSession.classroom_id)
 
-      const { data, error } = await supabase
-        .from('edu_exercise_assignments')
-        .select(`
-          id,
-          exercise_id,
-          edu_exercises!inner (
+      const [exerciseResult, examResult, examAttemptsResult] = await Promise.all([
+        supabase
+          .from('edu_exercise_assignments')
+          .select(`
             id,
-            exercise_type,
-            block
-          )
-        `)
-        .eq('classroom_id', studentSession.classroom_id)
-        .eq('active', true)
+            exercise_id,
+            edu_exercises!inner (
+              id,
+              exercise_type,
+              block
+            )
+          `)
+          .eq('classroom_id', studentSession.classroom_id)
+          .eq('active', true),
+        supabase
+          .from('edu_exam_assignments')
+          .select(`
+            id,
+            exam_id,
+            created_at,
+            order,
+            active,
+            available_from,
+            available_until,
+            edu_exams!inner (
+              id,
+              title,
+              description,
+              exam_type,
+              block,
+              duration_minutes,
+              component_key
+            )
+          `)
+          .eq('classroom_id', studentSession.classroom_id)
+          .eq('active', true),
+        supabase
+          .from('edu_student_exams')
+          .select('exam_id')
+          .eq('student_id', studentSession.student_id)
+          .eq('classroom_id', studentSession.classroom_id),
+      ])
 
-      if (error) {
-        console.error('Supabase error:', error)
+      if (exerciseResult.error || examResult.error || examAttemptsResult.error) {
+        console.error(
+          'Supabase error:',
+          exerciseResult.error ?? examResult.error ?? examAttemptsResult.error,
+        )
         setAssignments([])
+        setExamAssignments([])
         setLoading(false)
         return
       }
 
-      setAssignments((data ?? []) as any[])
+      const normalizedAssignments = ((exerciseResult.data ?? []) as ExerciseQueryRow[])
+        .map((assignment) => {
+          const exercise = Array.isArray(assignment.edu_exercises)
+            ? assignment.edu_exercises[0]
+            : assignment.edu_exercises
+          if (!exercise) return null
+
+          return {
+            id: assignment.id,
+            exercise_id: assignment.exercise_id,
+            edu_exercises: exercise,
+          } satisfies AssignmentRow
+        })
+        .filter((assignment): assignment is AssignmentRow => Boolean(assignment))
+
+      const normalizedExamAssignments = ((examResult.data ?? []) as ExamQueryRow[])
+        .map((assignment) => {
+          const exam = Array.isArray(assignment.edu_exams)
+            ? assignment.edu_exams[0]
+            : assignment.edu_exams
+          if (!exam) return null
+
+          return {
+            id: assignment.id,
+            exam_id: assignment.exam_id,
+            created_at: assignment.created_at,
+            order: assignment.order,
+            active: assignment.active,
+            available_from: assignment.available_from,
+            available_until: assignment.available_until,
+            edu_exams: exam,
+          } satisfies ExamAssignmentRow
+        })
+        .filter((assignment): assignment is ExamAssignmentRow => Boolean(assignment))
+
+      const attemptedExamIds = new Set(
+        ((examAttemptsResult.data ?? []) as StudentExamAttemptRow[]).map(
+          (attempt) => attempt.exam_id,
+        ),
+      )
+
+      setAssignments(normalizedAssignments)
+      setExamAssignments(
+        normalizedExamAssignments.filter(
+          (assignment) =>
+            !attemptedExamIds.has(assignment.exam_id) && isExamAvailableNow(assignment),
+        ),
+      )
       setLoading(false)
     }
 
@@ -125,6 +281,18 @@ export default function StudentDashboardPage() {
     )
     return Array.from(uniqueTypes).sort((a, b) => a.localeCompare(b))
   }, [assignments])
+
+  const sortedExamAssignments = useMemo(() => {
+    return [...examAssignments].sort((a, b) => {
+      const orderA = Number(a.order ?? 0)
+      const orderB = Number(b.order ?? 0)
+      if (orderA !== orderB) return orderA - orderB
+
+      return (a.edu_exams?.title ?? a.exam_id).localeCompare(
+        b.edu_exams?.title ?? b.exam_id,
+      )
+    })
+  }, [examAssignments])
 
   if (loading) {
     return (
@@ -177,9 +345,11 @@ export default function StudentDashboardPage() {
             transition={{ duration: 1.8, repeat: Infinity }}
           >
             <p className="text-3xl font-black text-slate-900">
-              Preparando tu misión
+              Preparando tu mision
             </p>
-            <p className="text-sm text-slate-600">Cargando ejercicios...</p>
+            <p className="text-sm text-slate-600">
+              Cargando ejercicios y examenes...
+            </p>
           </motion.div>
         </motion.div>
       </div>
@@ -211,7 +381,7 @@ export default function StudentDashboardPage() {
               className="inline-block"
             >
               <h1 className="bg-gradient-to-r from-blue-600 via-green-600 to-blue-600 bg-clip-text text-5xl font-black text-transparent sm:text-6xl lg:text-7xl">
-                Tus Juegos de Matemática
+                Tu Zona de Matematica
               </h1>
             </motion.div>
           </motion.header>
@@ -219,8 +389,109 @@ export default function StudentDashboardPage() {
           <motion.section
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5, duration: 0.5 }}
+            transition={{ delay: 0.35, duration: 0.5 }}
+            className="space-y-6"
           >
+            <div className="flex items-center justify-center gap-3 text-center">
+              <ClipboardList className="h-7 w-7 text-amber-600" />
+              <div>
+                <h2 className="text-3xl font-black text-slate-900">Examenes</h2>
+                <p className="text-sm text-slate-600">
+                  Los pendientes aparecen primero para que entres directo.
+                </p>
+              </div>
+            </div>
+
+            {sortedExamAssignments.length === 0 ? (
+              <div className="rounded-3xl border-2 border-amber-200 bg-white/85 p-8 text-center shadow-lg backdrop-blur-sm">
+                <FileText className="mx-auto mb-4 h-16 w-16 text-amber-500" />
+                <p className="text-xl font-bold text-slate-900">
+                  No tienes examenes pendientes
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Cuando te asignen uno, lo veras aqui arriba.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {sortedExamAssignments.map((assignment, index) => (
+                  <motion.div
+                    key={assignment.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.08 * index }}
+                  >
+                    <Link
+                      href={`/student/exams/${assignment.exam_id}`}
+                      className="block rounded-3xl border-2 border-amber-200 bg-white p-6 shadow-xl transition-all hover:-translate-y-1 hover:border-amber-400"
+                    >
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-2">
+                            <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                              Examen pendiente
+                            </span>
+                            <h3 className="text-2xl font-black text-slate-900">
+                              {assignment.edu_exams.title}
+                            </h3>
+                          </div>
+                          <div className="rounded-2xl bg-amber-100 p-3">
+                            <ClipboardList className="h-7 w-7 text-amber-700" />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-700">
+                          <span className="rounded-full bg-slate-100 px-3 py-1">
+                            {assignment.edu_exams.exam_type}
+                          </span>
+                          {assignment.edu_exams.block ? (
+                            <span className="rounded-full bg-slate-100 px-3 py-1">
+                              {assignment.edu_exams.block}
+                            </span>
+                          ) : null}
+                          {assignment.edu_exams.duration_minutes ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1">
+                              <Clock3 className="h-3.5 w-3.5" />
+                              {assignment.edu_exams.duration_minutes} min
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {assignment.edu_exams.description ? (
+                          <p className="line-clamp-2 text-sm text-slate-600">
+                            {assignment.edu_exams.description}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-slate-600">
+                            Ingresa para resolver este examen dentro de la plataforma.
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </motion.section>
+
+          <motion.section
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+            className="space-y-6"
+          >
+            <div className="flex items-center justify-center gap-3 text-center">
+              <Rocket className="h-7 w-7 text-blue-600" />
+              <div>
+                <h2 className="text-3xl font-black text-slate-900">
+                  Ejercicios
+                </h2>
+                <p className="text-sm text-slate-600">
+                  Practica por temas con los juegos asignados a tu salon.
+                </p>
+              </div>
+            </div>
+
             {sortedAssignments.length === 0 ? (
               <motion.div
                 initial={{ scale: 0 }}
@@ -241,10 +512,10 @@ export default function StudentDashboardPage() {
                   <Star className="mx-auto mb-6 h-24 w-24 text-blue-400" />
                 </motion.div>
                 <p className="mb-2 text-2xl font-bold text-slate-900">
-                  Aún no hay misiones disponibles
+                  Aun no hay ejercicios disponibles
                 </p>
                 <p className="text-slate-600">
-                  Tu docente pronto agregará ejercicios.
+                  Tu docente pronto agregara ejercicios.
                 </p>
               </motion.div>
             ) : (
@@ -314,12 +585,12 @@ export default function StudentDashboardPage() {
             >
               <Trophy className="h-6 w-6 text-blue-600" />
               <p className="text-xl font-black text-slate-900">
-                Sigue así, vas muy bien
+                Sigue asi, vas muy bien
               </p>
               <Sparkles className="h-6 w-6 text-green-500" />
             </motion.div>
             <p className="text-sm tracking-wide text-slate-600">
-              Cada ejercicio te acerca más a tu meta.
+              Cada ejercicio y cada examen cuentan.
             </p>
           </motion.div>
         </div>
