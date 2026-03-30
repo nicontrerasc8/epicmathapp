@@ -62,7 +62,7 @@ type StudentExamAttemptRow = {
 }
 
 export default function StudentExamsPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const institution = useInstitution()
 
   const [loading, setLoading] = useState(true)
@@ -70,14 +70,15 @@ export default function StudentExamsPage() {
   const [classroomId, setClassroomId] = useState<string | null>(null)
 
   useEffect(() => {
+    let active = true
+
     const load = async () => {
       if (!institution?.id) return
       setLoading(true)
 
-      const studentSession: StudentSessionData | null = await fetchStudentSession(
-        institution.id,
-      )
+      const studentSession: StudentSessionData | null = await fetchStudentSession()
       if (!studentSession?.student_id || !studentSession?.classroom_id) {
+        if (!active) return
         setAssignments([])
         setClassroomId(null)
         setLoading(false)
@@ -114,6 +115,8 @@ export default function StudentExamsPage() {
           .eq("student_id", studentSession.student_id)
           .eq("classroom_id", studentSession.classroom_id),
       ])
+
+      if (!active) return
 
       if (assignmentResult.error || attemptsResult.error) {
         console.error(
@@ -158,6 +161,10 @@ export default function StudentExamsPage() {
     }
 
     load()
+
+    return () => {
+      active = false
+    }
   }, [institution?.id, supabase])
 
   const sortedAssignments = useMemo(() => {

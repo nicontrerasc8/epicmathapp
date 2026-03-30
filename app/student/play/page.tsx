@@ -103,26 +103,58 @@ type ExamQueryRow = {
 }
 
 const icons = [Rocket, Star, Sparkles, Trophy, Zap, Target, BookOpen, Brain]
+const floatingPositions = [
+  { left: '12%', top: '10%', driftX: -18, repeatDelay: 1.2 },
+  { left: '78%', top: '14%', driftX: 24, repeatDelay: 2.1 },
+  { left: '24%', top: '34%', driftX: -12, repeatDelay: 1.6 },
+  { left: '82%', top: '42%', driftX: 16, repeatDelay: 2.8 },
+  { left: '16%', top: '62%', driftX: -22, repeatDelay: 1.9 },
+  { left: '68%', top: '68%', driftX: 20, repeatDelay: 2.4 },
+]
+const loadingStarPositions = [
+  { left: '8%', top: '12%' },
+  { left: '22%', top: '72%' },
+  { left: '34%', top: '24%' },
+  { left: '48%', top: '82%' },
+  { left: '62%', top: '18%' },
+  { left: '74%', top: '58%' },
+  { left: '86%', top: '28%' },
+  { left: '92%', top: '76%' },
+]
 
-const FloatingIcon = ({ Icon, delay }: { Icon: any; delay: number }) => (
+const FloatingIcon = ({
+  Icon,
+  delay,
+  left,
+  top,
+  driftX,
+  repeatDelay,
+}: {
+  Icon: any
+  delay: number
+  left: string
+  top: string
+  driftX: number
+  repeatDelay: number
+}) => (
   <motion.div
     className="absolute"
     initial={{ y: 0, x: 0, opacity: 0 }}
     animate={{
       y: [-20, -120],
-      x: [0, Math.random() * 60 - 30],
+      x: [0, driftX],
       opacity: [0, 0.4, 0],
     }}
     transition={{
       duration: 4,
       delay,
       repeat: Infinity,
-      repeatDelay: Math.random() * 6,
+      repeatDelay,
       ease: 'easeOut',
     }}
     style={{
-      left: `${Math.random() * 100}%`,
-      top: `${Math.random() * 100}%`,
+      left,
+      top,
     }}
   >
     <Icon className="h-8 w-8 text-blue-400" />
@@ -130,7 +162,7 @@ const FloatingIcon = ({ Icon, delay }: { Icon: any; delay: number }) => (
 )
 
 export default function StudentDashboardPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const institution = useInstitution()
 
   const [loading, setLoading] = useState(true)
@@ -139,15 +171,18 @@ export default function StudentDashboardPage() {
   const [classroomId, setClassroomId] = useState<string | null>(null)
 
   useEffect(() => {
+    let active = true
+
     const load = async () => {
       if (!institution?.id) return
 
       setLoading(true)
 
       const studentSession: StudentSessionData | null =
-        await fetchStudentSession(institution.id)
+        await fetchStudentSession()
 
       if (!studentSession?.student_id || !studentSession?.classroom_id) {
+        if (!active) return
         setAssignments([])
         setExamAssignments([])
         setClassroomId(null)
@@ -199,6 +234,8 @@ export default function StudentDashboardPage() {
           .eq('student_id', studentSession.student_id)
           .eq('classroom_id', studentSession.classroom_id),
       ])
+
+      if (!active) return
 
       if (exerciseResult.error || examResult.error || examAttemptsResult.error) {
         console.error(
@@ -263,6 +300,10 @@ export default function StudentDashboardPage() {
     }
 
     load()
+
+    return () => {
+      active = false
+    }
   }, [supabase, institution?.id])
 
   const sortedAssignments = useMemo(() => {
@@ -312,8 +353,8 @@ export default function StudentDashboardPage() {
               repeat: Infinity,
             }}
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              left: loadingStarPositions[i]?.left,
+              top: loadingStarPositions[i]?.top,
             }}
           >
             <Star className="h-6 w-6 text-blue-400" />
@@ -359,12 +400,12 @@ export default function StudentDashboardPage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-green-50 to-blue-50">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <FloatingIcon Icon={Rocket} delay={0} />
-        <FloatingIcon Icon={Star} delay={1.2} />
-        <FloatingIcon Icon={Sparkles} delay={2.4} />
-        <FloatingIcon Icon={Trophy} delay={3.6} />
-        <FloatingIcon Icon={Zap} delay={4.8} />
-        <FloatingIcon Icon={Target} delay={6} />
+        <FloatingIcon Icon={Rocket} delay={0} {...floatingPositions[0]} />
+        <FloatingIcon Icon={Star} delay={1.2} {...floatingPositions[1]} />
+        <FloatingIcon Icon={Sparkles} delay={2.4} {...floatingPositions[2]} />
+        <FloatingIcon Icon={Trophy} delay={3.6} {...floatingPositions[3]} />
+        <FloatingIcon Icon={Zap} delay={4.8} {...floatingPositions[4]} />
+        <FloatingIcon Icon={Target} delay={6} {...floatingPositions[5]} />
       </div>
 
       <div className="relative z-10 px-6 py-10 sm:py-16">
