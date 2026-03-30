@@ -229,6 +229,9 @@ export default function TeacherClassroomExamsPage() {
   const [search, setSearch] = useState("")
   const [classroomLabel, setClassroomLabel] = useState("Aula")
   const [rows, setRows] = useState<ClassroomExamRow[]>([])
+  const [scheduleDrafts, setScheduleDrafts] = useState<
+    Record<string, { available_from: string; available_until: string }>
+  >({})
   const [showAddModal, setShowAddModal] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
@@ -299,6 +302,17 @@ export default function TeacherClassroomExamsPage() {
       })
 
     setRows(normalizedRows)
+    setScheduleDrafts(
+      Object.fromEntries(
+        normalizedRows.map((row) => [
+          row.id,
+          {
+            available_from: toDatetimeInputValue(row.available_from),
+            available_until: toDatetimeInputValue(row.available_until),
+          },
+        ]),
+      ),
+    )
     setLoading(false)
   }, [classroomId, institution?.id])
 
@@ -361,6 +375,16 @@ export default function TeacherClassroomExamsPage() {
     }
 
     setUpdatingId(null)
+  }
+
+  const saveSchedule = async (rowId: string) => {
+    const draft = scheduleDrafts[rowId]
+    if (!draft) return
+
+    await updateAssignment(rowId, {
+      available_from: fromDatetimeInputValue(draft.available_from),
+      available_until: fromDatetimeInputValue(draft.available_until),
+    })
   }
 
   return (
@@ -427,6 +451,10 @@ export default function TeacherClassroomExamsPage() {
       ) : (
         <div className="space-y-4">
           {filteredRows.map((row) => {
+            const draft = scheduleDrafts[row.id] ?? {
+              available_from: "",
+              available_until: "",
+            }
             const state = getExamWindowState(row)
             const stateTone =
               state === "open"
@@ -506,11 +534,15 @@ export default function TeacherClassroomExamsPage() {
                     </label>
                     <Input
                       type="datetime-local"
-                      defaultValue={toDatetimeInputValue(row.available_from)}
-                      onBlur={(event) =>
-                        updateAssignment(row.id, {
-                          available_from: fromDatetimeInputValue(event.target.value),
-                        })
+                      value={draft.available_from}
+                      onChange={(event) =>
+                        setScheduleDrafts((current) => ({
+                          ...current,
+                          [row.id]: {
+                            ...draft,
+                            available_from: event.target.value,
+                          },
+                        }))
                       }
                     />
                   </div>
@@ -521,13 +553,32 @@ export default function TeacherClassroomExamsPage() {
                     </label>
                     <Input
                       type="datetime-local"
-                      defaultValue={toDatetimeInputValue(row.available_until)}
-                      onBlur={(event) =>
-                        updateAssignment(row.id, {
-                          available_until: fromDatetimeInputValue(event.target.value),
-                        })
+                      value={draft.available_until}
+                      onChange={(event) =>
+                        setScheduleDrafts((current) => ({
+                          ...current,
+                          [row.id]: {
+                            ...draft,
+                            available_until: event.target.value,
+                          },
+                        }))
                       }
                     />
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button
+                      className="w-full"
+                      onClick={() => saveSchedule(row.id)}
+                      disabled={updatingId === row.id}
+                    >
+                      {updatingId === row.id ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CalendarClock className="mr-2 h-4 w-4" />
+                      )}
+                      Guardar horario
+                    </Button>
                   </div>
                 </div>
 
