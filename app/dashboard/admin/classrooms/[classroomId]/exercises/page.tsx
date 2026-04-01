@@ -20,7 +20,6 @@ type ExerciseRow = {
     id: string
     exercise_type: string
     block?: string | null
-    description: string | null
     component_key?: string | null
   } | null
 }
@@ -29,7 +28,6 @@ type ExerciseOption = {
   id: string
   exercise_type: string
   block?: string | null
-  description: string | null
   component_key?: string | null
 }
 
@@ -58,10 +56,6 @@ export default function ClassroomExercisesPage() {
   const [tableBlock, setTableBlock] = useState("")
   const [selectedAssignedIds, setSelectedAssignedIds] = useState<string[]>([])
 
-  const [editingExercise, setEditingExercise] = useState<ExerciseRow | null>(null)
-  const [editingDescription, setEditingDescription] = useState("")
-  const [savingEdit, setSavingEdit] = useState(false)
-
   const [createMode, setCreateMode] = useState(false)
   const [assignToGrade, setAssignToGrade] = useState(false)
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([])
@@ -73,7 +67,6 @@ export default function ClassroomExercisesPage() {
     block: "",
     custom_block: "",
     component_key: "",
-    descriptionsText: "",
   })
 
   const loadClassroomMeta = async () => {
@@ -96,7 +89,7 @@ export default function ClassroomExercisesPage() {
       .select(`
         id,
         active,
-        exercise:edu_exercises ( id, exercise_type, block, description, component_key )
+        exercise:edu_exercises ( id, exercise_type, block, component_key )
       `)
       .eq("classroom_id", classroomId)
 
@@ -117,12 +110,13 @@ export default function ClassroomExercisesPage() {
     const supabase = createClient()
     const { data } = await supabase
       .from("edu_exercises")
-      .select("id, exercise_type, block, description, component_key")
+      .select("id, exercise_type, block, component_key")
       .eq("active", true)
       .eq("institution_id", nextInstitutionId)
       .order("exercise_type", { ascending: true })
       .order("block", { ascending: true })
-      .order("description", { ascending: true })
+      .order("component_key", { ascending: true })
+      .order("id", { ascending: true })
 
     if (data) setExerciseOptions(data)
   }
@@ -229,7 +223,7 @@ export default function ClassroomExercisesPage() {
     return exercises.filter((row) => {
       const theme = row.exercise?.exercise_type ?? ""
       const block = row.exercise?.block ?? ""
-      const description = row.exercise?.description ?? ""
+      const componentKey = row.exercise?.component_key ?? ""
       const id = row.exercise?.id ?? ""
 
       const matchesTheme = !tableExerciseType || theme === tableExerciseType
@@ -238,7 +232,7 @@ export default function ClassroomExercisesPage() {
         !needle ||
         theme.toLowerCase().includes(needle) ||
         block.toLowerCase().includes(needle) ||
-        description.toLowerCase().includes(needle) ||
+        componentKey.toLowerCase().includes(needle) ||
         id.toLowerCase().includes(needle)
 
       return matchesTheme && matchesBlock && matchesSearch
@@ -263,9 +257,9 @@ export default function ClassroomExercisesPage() {
           theme,
           block,
           rows: [...rows].sort((a, b) => {
-          const labelA = (a.exercise?.description || a.exercise?.id || "").trim()
-          const labelB = (b.exercise?.description || b.exercise?.id || "").trim()
-          return labelA.localeCompare(labelB, "es", { sensitivity: "base" })
+            const labelA = (a.exercise?.component_key || a.exercise?.id || "").trim()
+            const labelB = (b.exercise?.component_key || b.exercise?.id || "").trim()
+            return labelA.localeCompare(labelB, "es", { sensitivity: "base" })
           }),
         }
       })
@@ -275,18 +269,6 @@ export default function ClassroomExercisesPage() {
         return a.block.localeCompare(b.block, "es", { sensitivity: "base" })
       })
   }, [filteredExercises])
-
-  const openEditExercise = (row: ExerciseRow) => {
-    setEditingExercise(row)
-    setEditingDescription(row.exercise?.description || "")
-    setMessage(null)
-  }
-
-  const closeEditExercise = () => {
-    if (savingEdit) return
-    setEditingExercise(null)
-    setEditingDescription("")
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -307,28 +289,25 @@ export default function ClassroomExercisesPage() {
         newExercise.block === "__custom__"
           ? newExercise.custom_block.trim()
           : newExercise.block.trim()
-      const descriptions = newExercise.descriptionsText
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
 
-      if (!typeToUse || !block || !componentKey || descriptions.length === 0) {
+      if (!typeToUse || !block || !componentKey) {
         setMessage({
           type: "error",
-          text: "Define tema, block, component_key y al menos una descripción.",
+          text: "Define tema, block y component_key.",
         })
         return
       }
 
-      const payload = descriptions.map((description) => ({
-        id: crypto.randomUUID(),
-        description,
-        exercise_type: typeToUse,
-        block,
-        component_key: componentKey,
-        institution_id: institutionId,
-        active: true,
-      }))
+      const payload = [
+        {
+          id: crypto.randomUUID(),
+          exercise_type: typeToUse,
+          block,
+          component_key: componentKey,
+          institution_id: institutionId,
+          active: true,
+        },
+      ]
 
       const { error } = await supabase.from("edu_exercises").insert(payload)
 
@@ -409,7 +388,6 @@ export default function ClassroomExercisesPage() {
       block: "",
       custom_block: "",
       component_key: "",
-      descriptionsText: "",
     })
   }
 
@@ -529,45 +507,6 @@ export default function ClassroomExercisesPage() {
     )
   }
 
-  const handleSaveExerciseName = async () => {
-    const exerciseId = editingExercise?.exercise?.id
-    const description = editingDescription.trim()
-
-    if (!exerciseId) {
-      setMessage({ type: "error", text: "No se encontró el ejercicio a editar." })
-      return
-    }
-
-    if (!description) {
-      setMessage({ type: "error", text: "Ingresa un nombre para el ejercicio." })
-      return
-    }
-
-    const supabase = createClient()
-    setSavingEdit(true)
-    setMessage(null)
-
-    try {
-      const { error } = await supabase
-        .from("edu_exercises")
-        .update({ description })
-        .eq("id", exerciseId)
-
-      if (error) {
-        setMessage({ type: "error", text: error.message })
-        return
-      }
-
-      await refreshExercises()
-      await refreshExerciseOptions()
-      setMessage({ type: "success", text: "Nombre del ejercicio actualizado." })
-      setEditingExercise(null)
-      setEditingDescription("")
-    } finally {
-      setSavingEdit(false)
-    }
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -584,7 +523,7 @@ export default function ClassroomExercisesPage() {
         <div className="space-y-3 rounded-xl border bg-card p-4">
           <div className="flex flex-wrap items-center gap-3">
             <Input
-              placeholder="Buscar por tema, nombre o ID..."
+              placeholder="Buscar por tema, component_key o ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -630,7 +569,7 @@ export default function ClassroomExercisesPage() {
           ) : (
             <div className="space-y-4">
               {groupedExercises.map((group) => (
-                <div key={group.theme} className="rounded-lg border">
+                <div key={`${group.theme}-${group.block}`} className="rounded-lg border">
                   <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
                     <div>
                       <div className="text-sm font-semibold">{group.theme}</div>
@@ -656,7 +595,7 @@ export default function ClassroomExercisesPage() {
                           />
                           <div>
                             <div className="font-medium">
-                              {row.exercise?.description || row.exercise?.id || "Sin descripción"}
+                              {row.exercise?.component_key || row.exercise?.id || "Sin identificador"}
                             </div>
                             <div className="text-xs font-mono text-muted-foreground select-all">
                               ID: {row.exercise?.id || "Sin ID"}
@@ -678,10 +617,6 @@ export default function ClassroomExercisesPage() {
                           <StatusBadge active={row.active} />
                           <RowActionsMenu
                             actions={[
-                              {
-                                label: "Editar nombre",
-                                onClick: () => openEditExercise(row),
-                              },
                               {
                                 label: row.active ? "Desactivar" : "Activar",
                                 onClick: async () => {
@@ -799,15 +734,6 @@ export default function ClassroomExercisesPage() {
                   setNewExercise((state) => ({ ...state, component_key: e.target.value }))
                 }
               />
-
-              <textarea
-                placeholder={"Descripciones, una por línea\nEj17 - Error porcentual\nEj18 - Error porcentual"}
-                value={newExercise.descriptionsText}
-                onChange={(e) =>
-                  setNewExercise((state) => ({ ...state, descriptionsText: e.target.value }))
-                }
-                className="min-h-[140px] rounded-md border px-3 py-2 text-sm bg-white"
-              />
             </div>
           ) : (
             <div className="space-y-3">
@@ -862,9 +788,8 @@ export default function ClassroomExercisesPage() {
                       }}
                     />
                     <span>
-                      {(row.description || row.id) + " — " + row.exercise_type}
+                      {(row.component_key || row.id) + " — " + row.exercise_type}
                       {row.block ? ` — ${row.block}` : ""}
-                      {row.component_key ? ` — ${row.component_key}` : ""}
                     </span>
                   </label>
                 ))}
@@ -928,57 +853,6 @@ export default function ClassroomExercisesPage() {
           <Button type="submit">Guardar</Button>
         </form>
       </div>
-
-      {editingExercise && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-xl rounded-2xl border bg-card shadow-xl">
-            <div className="flex items-center justify-between border-b px-5 py-4">
-              <div>
-                <div className="text-base font-semibold">Editar nombre del ejercicio</div>
-                <div className="text-sm text-muted-foreground">
-                  ID: {editingExercise.exercise?.id || "Sin ID"}
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" onClick={closeEditExercise} disabled={savingEdit}>
-                Cerrar
-              </Button>
-            </div>
-
-            <div className="space-y-4 px-5 py-4">
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">
-                  Tema: {editingExercise.exercise?.exercise_type || "Sin tipo"}
-                </div>
-                {editingExercise.exercise?.block && (
-                  <div className="text-sm text-muted-foreground">
-                    Block: {editingExercise.exercise.block}
-                  </div>
-                )}
-                {editingExercise.exercise?.component_key && (
-                  <div className="text-sm text-muted-foreground">
-                    component_key: {editingExercise.exercise.component_key}
-                  </div>
-                )}
-                <Input
-                  value={editingDescription}
-                  onChange={(e) => setEditingDescription(e.target.value)}
-                  placeholder="Nombre del ejercicio"
-                  disabled={savingEdit}
-                />
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={closeEditExercise} disabled={savingEdit}>
-                  Cancelar
-                </Button>
-                <Button type="button" onClick={handleSaveExerciseName} disabled={savingEdit}>
-                  {savingEdit ? "Guardando..." : "Guardar"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

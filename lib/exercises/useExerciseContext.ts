@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { fetchStudentSession } from '@/lib/student-session-client'
 import { useInstitution } from '@/components/institution-provider'
+import { getExerciseMaxAttempts } from '@/lib/exercises/attemptLimits'
 
 type ExerciseContext = {
   classroomId: string | null
@@ -23,8 +24,6 @@ type ExerciseContext = {
   error: string | null
 }
 
-const MAX_EXERCISE_ATTEMPTS = 3
-
 export function useExerciseContext(exerciseId: string | null): ExerciseContext {
   const supabase = createClient()
   const institution = useInstitution()
@@ -37,7 +36,7 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
     correctAttempts: 0,
     latestAttemptAnswer: null,
     latestAttemptCorrect: null,
-    maxAttempts: MAX_EXERCISE_ATTEMPTS,
+    maxAttempts: Number.POSITIVE_INFINITY,
     blocked: false,
     topic: null,
     block: null,
@@ -77,7 +76,8 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
             order,
             edu_exercises!inner (
               exercise_type,
-              block
+              block,
+              component_key
             )
           `)
           .eq('classroom_id', classroomId)
@@ -97,6 +97,8 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
 
         const topic = currentExercise?.exercise_type ?? null
         const block = currentExercise?.block ?? null
+        const componentKey = currentExercise?.component_key ?? null
+        const maxAttempts = getExerciseMaxAttempts(componentKey)
         const blockOrder = Number(assignmentRow.order ?? 0) || null
 
         const { data: attemptsData, error: attemptsErr } = await supabase
@@ -115,7 +117,7 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
         const correctAttempts =
           attemptsData?.filter((row) => Boolean(row.correct)).length ?? 0
         const latestAttempt = attemptsData?.[attemptsData.length - 1] ?? null
-        const blocked = attemptsUsed >= MAX_EXERCISE_ATTEMPTS
+        const blocked = Number.isFinite(maxAttempts) && attemptsUsed >= maxAttempts
         let nextExerciseId: string | null = null
 
         if (topic && block) {
@@ -173,7 +175,7 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
             correctAttempts,
             latestAttemptAnswer: latestAttempt?.answer ?? null,
             latestAttemptCorrect: latestAttempt ? Boolean(latestAttempt.correct) : null,
-            maxAttempts: MAX_EXERCISE_ATTEMPTS,
+            maxAttempts,
             blocked,
             topic,
             block,

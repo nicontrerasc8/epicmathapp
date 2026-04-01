@@ -285,12 +285,12 @@ export default function StudentPerformanceDetailPage() {
       const [assignmentsResult, feedbackResult] = await Promise.all([
         supabase
           .from("edu_exercise_assignments")
-          .select("id, exercise_id, active, exercise:edu_exercises ( id, description, exercise_type )")
+          .select("id, exercise_id, active, exercise:edu_exercises ( id,  exercise_type )")
           .eq("classroom_id", classroomId),
         supabase
           .from("edu_assignment_feedback")
           .select(
-            "id, comment, created_at, assignment_id, teacher_id, assignment:edu_exercise_assignments ( exercise_id, exercise:edu_exercises ( id, description, exercise_type ) )"
+            "id, comment, created_at, assignment_id, teacher_id, assignment:edu_exercise_assignments ( exercise_id, exercise:edu_exercises ( id,  exercise_type ) )"
           )
           .eq("student_id", studentId)
           .order("created_at", { ascending: false }),
@@ -339,7 +339,7 @@ export default function StudentPerformanceDetailPage() {
               exercise_id,
               correct,
               created_at,
-              exercise:edu_exercises ( id, description, exercise_type )
+              exercise:edu_exercises ( id, exercise_type )
             `)
             .eq("student_id", studentId)
             .eq("classroom_id", classroomId)

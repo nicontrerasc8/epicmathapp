@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { fetchStudentSession } from '@/lib/student-session-client'
+import { getExerciseMaxAttempts, hasLimitedAttempts } from '@/lib/exercises/attemptLimits'
 
 type ThemeAssignment = {
   assignmentId: string
@@ -160,6 +161,7 @@ export default function ThemeExercisesPage() {
   const firstPlayableExerciseId = useMemo(() => {
     const withAttempts = assignments.map((assignment) => ({
       ...assignment,
+      maxAttempts: getExerciseMaxAttempts(assignment.componentKey),
       stats: attemptsByExercise[assignment.exerciseId] ?? {
         attempts: 0,
         correctAttempts: 0,
@@ -167,7 +169,10 @@ export default function ThemeExercisesPage() {
       },
     }))
 
-    const pending = withAttempts.find((assignment) => assignment.stats.attempts < 3)
+    const pending = withAttempts.find(
+      (assignment) => assignment.stats.attempts < assignment.maxAttempts,
+    )
+
     return pending?.exerciseId ?? null
   }, [assignments, attemptsByExercise])
 
@@ -180,7 +185,7 @@ export default function ThemeExercisesPage() {
   )
 
   if (!classroomId || !exerciseType || !theme) {
-    return <div className="p-6">Ruta inválida.</div>
+    return <div className="p-6">Ruta invalida.</div>
   }
 
   if (loading) {
@@ -211,7 +216,8 @@ export default function ThemeExercisesPage() {
             <div>
               <h1 className="text-2xl font-black text-slate-900">{theme}</h1>
               <p className="mt-2 text-sm text-slate-600">
-                Resuelve los ejercicios en orden. Cada ejercicio tiene un máximo de 3 intentos.
+                Resuelve los ejercicios en orden. Solo los ejercicios con `component_key`
+                que empiezan con CristoSalvador/ tienen un maximo de 3 intentos.
               </p>
             </div>
 
@@ -247,10 +253,14 @@ export default function ThemeExercisesPage() {
                 lastCorrect: false,
               }
 
-              const exhausted = stats.attempts >= 3
+              const maxAttempts = getExerciseMaxAttempts(assignment.componentKey)
+              const limitedAttempts = hasLimitedAttempts(assignment.componentKey)
+              const exhausted = stats.attempts >= maxAttempts
               const started = stats.attempts > 0
               const isCurrentPlayable = assignment.exerciseId === firstPlayableExerciseId
-              const remainingAttempts = Math.max(0, 3 - stats.attempts)
+              const remainingAttempts = limitedAttempts
+                ? Math.max(0, maxAttempts - stats.attempts)
+                : null
 
               const statusIcon = stats.lastCorrect ? (
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -272,7 +282,8 @@ export default function ThemeExercisesPage() {
                     <div>
                       <div className="font-semibold text-slate-900">Ejercicio {index + 1}</div>
                       <div className="text-sm text-slate-600">
-                        Intentos: {stats.attempts}/3
+                        Intentos: {stats.attempts}
+                        {limitedAttempts ? `/${maxAttempts}` : ''}
                         {stats.correctAttempts > 0
                           ? ' · Correcto'
                           : exhausted
@@ -283,7 +294,9 @@ export default function ThemeExercisesPage() {
                         {stats.correctAttempts > 0
                           ? 'Completado correctamente. Puedes revisar el feedback.'
                           : started
-                            ? `Último resultado: incorrecto. Te quedan ${remainingAttempts} intento${remainingAttempts === 1 ? '' : 's'}.`
+                            ? limitedAttempts
+                              ? `Intento incorrecto. Te quedan ${remainingAttempts} intento${remainingAttempts === 1 ? '' : 's'}.`
+                              : 'Intento incorrecto. Puedes volver a intentarlo.'
                             : isCurrentPlayable
                               ? 'Este es el siguiente ejercicio del tema.'
                               : 'Se desbloquea al avanzar en el tema.'}
@@ -314,8 +327,6 @@ export default function ThemeExercisesPage() {
               )
             })}
           </div>
-
-     
         </div>
       </div>
     </div>
