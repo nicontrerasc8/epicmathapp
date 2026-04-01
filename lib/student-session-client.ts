@@ -1,5 +1,3 @@
-import { createClient } from '@/utils/supabase/client'
-
 export type StudentSessionData = {
   student_id: string
   first_name: string | null
@@ -13,6 +11,7 @@ export const fetchStudentSession = async (
   institutionId?: string
 ): Promise<StudentSessionData | null> => {
   console.log('[fetchStudentSession] institutionId requested:', institutionId)
+  const { createClient } = await import('@/utils/supabase/client')
   const supabase = createClient()
 
   /* ============================

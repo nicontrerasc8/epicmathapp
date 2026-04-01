@@ -34,7 +34,7 @@ export default function ThemeExercisesPage() {
   const exerciseType = decodeURIComponent(params.exercise_type)
   const theme = decodeURIComponent(params.block)
 
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [loading, setLoading] = useState(true)
   const [studentId, setStudentId] = useState<string | null>(null)
   const [assignments, setAssignments] = useState<ThemeAssignment[]>([])
@@ -159,21 +159,23 @@ export default function ThemeExercisesPage() {
   }, [supabase, classroomId, exerciseType, theme])
 
   const firstPlayableExerciseId = useMemo(() => {
-    const withAttempts = assignments.map((assignment) => ({
-      ...assignment,
-      maxAttempts: getExerciseMaxAttempts(assignment.componentKey),
-      stats: attemptsByExercise[assignment.exerciseId] ?? {
-        attempts: 0,
-        correctAttempts: 0,
-        lastCorrect: false,
-      },
-    }))
+    const limitedAssignments = assignments
+      .filter((assignment) => hasLimitedAttempts(assignment.componentKey))
+      .map((assignment) => ({
+        ...assignment,
+        maxAttempts: getExerciseMaxAttempts(assignment.componentKey),
+        stats: attemptsByExercise[assignment.exerciseId] ?? {
+          attempts: 0,
+          correctAttempts: 0,
+          lastCorrect: false,
+        },
+      }))
 
-    const pending = withAttempts.find(
+    const pendingLimited = limitedAssignments.find(
       (assignment) => assignment.stats.attempts < assignment.maxAttempts,
     )
 
-    return pending?.exerciseId ?? null
+    return pendingLimited?.exerciseId ?? assignments[0]?.exerciseId ?? null
   }, [assignments, attemptsByExercise])
 
   const finishedCount = useMemo(
@@ -258,6 +260,7 @@ export default function ThemeExercisesPage() {
               const exhausted = stats.attempts >= maxAttempts
               const started = stats.attempts > 0
               const isCurrentPlayable = assignment.exerciseId === firstPlayableExerciseId
+              const isUnlocked = !limitedAttempts || isCurrentPlayable || started
               const remainingAttempts = limitedAttempts
                 ? Math.max(0, maxAttempts - stats.attempts)
                 : null
@@ -297,6 +300,8 @@ export default function ThemeExercisesPage() {
                             ? limitedAttempts
                               ? `Intento incorrecto. Te quedan ${remainingAttempts} intento${remainingAttempts === 1 ? '' : 's'}.`
                               : 'Intento incorrecto. Puedes volver a intentarlo.'
+                            : !limitedAttempts
+                              ? 'Disponible en cualquier momento.'
                             : isCurrentPlayable
                               ? 'Este es el siguiente ejercicio del tema.'
                               : 'Se desbloquea al avanzar en el tema.'}
@@ -304,7 +309,7 @@ export default function ThemeExercisesPage() {
                     </div>
                   </div>
 
-                  {isCurrentPlayable ? (
+                  {isUnlocked ? (
                     <Link
                       href={`/student/play/${assignment.exerciseId}`}
                       className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"

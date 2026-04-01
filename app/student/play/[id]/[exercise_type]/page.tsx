@@ -63,7 +63,7 @@ export default function TopicThemesPage() {
   const classroomId = params.id
   const exerciseType = decodeURIComponent(params.exercise_type)
 
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [loading, setLoading] = useState(true)
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
 

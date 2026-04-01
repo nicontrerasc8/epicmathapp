@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
 import { fetchStudentSession } from '@/lib/student-session-client'
 import { useInstitution } from '@/components/institution-provider'
 import { getExerciseMaxAttempts } from '@/lib/exercises/attemptLimits'
@@ -25,7 +24,6 @@ type ExerciseContext = {
 }
 
 export function useExerciseContext(exerciseId: string | null): ExerciseContext {
-  const supabase = createClient()
   const institution = useInstitution()
 
   const [state, setState] = useState<ExerciseContext>({
@@ -56,6 +54,8 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
 
     async function loadContext() {
       try {
+        const { createClient } = await import('@/utils/supabase/client')
+        const supabase = createClient()
         const studentSession = await fetchStudentSession(institution?.id)
         const studentId = studentSession?.student_id
 
@@ -201,7 +201,7 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
     return () => {
       cancelled = true
     }
-  }, [exerciseId, institution?.id, supabase])
+  }, [exerciseId, institution?.id])
 
   return state
 }

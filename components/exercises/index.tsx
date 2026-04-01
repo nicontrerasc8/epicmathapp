@@ -29,7 +29,11 @@ type ExerciseLoader = () => Promise<{
   default: React.ComponentType<ExerciseComponentProps>
 }>
 
-const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
+function normalizeExerciseComponentKey(componentKey: string | null | undefined) {
+  return componentKey?.trim().replace(/^\.?\//, "") || null
+}
+
+const EXERCISE_LOADERS: Partial<Record<string, ExerciseLoader>> = {
   "50f50e4f-2e59-40c4-b707-87bef079367a": () => import("./prisma/Prisma01"),
   "4146db5e-34cd-4ff4-b75b-5b4351caa176": () => import("./prisma/Prisma02"),
   "81c53526-9b05-410d-ac7c-e01283de617d": () => import("./prisma/Prisma03"),
@@ -178,6 +182,14 @@ const EXERCISE_LOADERS: Record<string, ExerciseLoader> = {
 
 }
 
+const EXERCISE_COMPONENT_KEY_LOADERS: Partial<Record<string, ExerciseLoader>> = {
+  "pruebas/andre/Ej01": () => import("./pruebas/andre/Ej01"),
+  "pruebas/andre/Ej02": () => import("./pruebas/andre/Ej02"),
+  "pruebas/andre/Ej03": () => import("./pruebas/andre/Ej03"),
+  "pruebas/andre/Ej04": () => import("./pruebas/andre/Ej04"),
+  "pruebas/andre/Ej05": () => import("./pruebas/andre/Ej05"),
+}
+
 const formatFeedbackDate = (value?: string) => {
   if (!value) return ''
   const when = new Date(value)
@@ -203,9 +215,40 @@ export const ExerciseRegistry = ({
   previewMode = false,
 }: ExerciseComponentProps) => {
   const router = useRouter()
+  const [resolvedComponentKey, setResolvedComponentKey] = useState<string | null>(null)
+
+  useEffect(() => {
+    const directLoader = EXERCISE_LOADERS[exerciseId]
+    if (directLoader) {
+      setResolvedComponentKey(null)
+      return
+    }
+
+    let active = true
+    const supabase = createClient()
+
+    const loadComponentKey = async () => {
+      const { data } = await supabase
+        .from("edu_exercises")
+        .select("component_key")
+        .eq("id", exerciseId)
+        .maybeSingle()
+
+      if (!active) return
+      setResolvedComponentKey(normalizeExerciseComponentKey(data?.component_key))
+    }
+
+    loadComponentKey()
+
+    return () => {
+      active = false
+    }
+  }, [exerciseId])
 
   const ExerciseComponent = useMemo(() => {
-    const loader = EXERCISE_LOADERS[exerciseId]
+    const loader =
+      EXERCISE_LOADERS[exerciseId] ||
+      (resolvedComponentKey ? EXERCISE_COMPONENT_KEY_LOADERS[resolvedComponentKey] : null)
     if (!loader) return null
     return dynamic(loader, {
       ssr: false,
@@ -215,7 +258,7 @@ export const ExerciseRegistry = ({
         </div>
       ),
     })
-  }, [exerciseId])
+  }, [exerciseId, resolvedComponentKey])
   const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [feedbackRows, setFeedbackRows] = useState<
