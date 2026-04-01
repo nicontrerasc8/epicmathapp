@@ -6,7 +6,6 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Gamepad2, MessageCircle, Trophy } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { createClient } from '@/utils/supabase/client'
 
 /* =============================
    TYPES
@@ -225,9 +224,10 @@ export const ExerciseRegistry = ({
     }
 
     let active = true
-    const supabase = createClient()
 
     const loadComponentKey = async () => {
+      const { createClient } = await import('@/utils/supabase/client')
+      const supabase = createClient()
       const { data } = await supabase
         .from("edu_exercises")
         .select("component_key")
@@ -291,13 +291,14 @@ export const ExerciseRegistry = ({
     if (!studentId || !classroomId || !exerciseId) return
 
     let active = true
-    const supabase = createClient()
 
     const loadFeedback = async () => {
       setFeedbackLoading(true)
       setFeedbackError(null)
 
       try {
+        const { createClient } = await import('@/utils/supabase/client')
+        const supabase = createClient()
         const { data: assignments, error: assignmentErr } = await supabase
           .from('edu_exercise_assignments')
           .select('id')
