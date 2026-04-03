@@ -48,14 +48,6 @@ export const updateSession = async (request: NextRequest) => {
   const pathname = request.nextUrl.pathname;
   const isStudentRoute = pathname.startsWith("/student");
 
-  // Redirect root domain dashboard/auth routes to root
-  if (!slug) {
-    const isSignInRoute = pathname.startsWith("/sign-in");
-    if (!isStudentRoute && !isSignInRoute && pathname.startsWith("/dashboard")) {
-      return NextResponse.redirect(getRootRedirectUrl(request));
-    }
-  }
-
   // Create request headers with institution context
   const requestHeaders = new Headers(request.headers);
   if (slug) {
@@ -111,25 +103,29 @@ export const updateSession = async (request: NextRequest) => {
   // Refresh session if expired - required for Server Components
   const { data: authData, error: authError } = await supabase.auth.getUser();
   // 🚨 ROOT ACCESS CONTROL
-if (pathname === "/" && authData?.user) {
-  const { data: profile } = await supabase
-    .from("edu_profiles")
-    .select("global_role")
-    .eq("id", authData.user.id)
-    .maybeSingle();
+  if ((pathname === "/" || pathname === "/sign-in") && authData?.user) {
+    const { data: profile } = await supabase
+      .from("edu_profiles")
+      .select("global_role")
+      .eq("id", authData.user.id)
+      .maybeSingle();
 
-  if (profile?.global_role === "student") {
-    return NextResponse.redirect(new URL("/student/play", request.url));
-  }
+    if (profile?.global_role === "student") {
+      return NextResponse.redirect(new URL("/student/play", request.url));
+    }
 
-  if (profile?.global_role === "teacher") {
-    return NextResponse.redirect(new URL("/dashboard/teacher", request.url));
-  }
+    if (profile?.global_role === "teacher") {
+      return NextResponse.redirect(new URL("/dashboard/teacher", request.url));
+    }
 
-  if (profile?.global_role === "admin") {
-    return NextResponse.redirect(new URL("/admin-access", request.url));
+    if (profile?.global_role === "admin") {
+      return NextResponse.redirect(new URL("/admin-access", request.url));
+    }
+
+    if (profile?.global_role === "parent") {
+      return NextResponse.redirect(new URL("/parent", request.url));
+    }
   }
-}
 
 
   // Fetch and validate institution if on subdomain
