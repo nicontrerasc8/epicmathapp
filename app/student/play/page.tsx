@@ -8,7 +8,6 @@ import {
   Brain,
   ClipboardList,
   Clock3,
-  FileText,
   Rocket,
   Sparkles,
   Star,
@@ -427,33 +426,23 @@ export default function StudentDashboardPage() {
             </motion.div>
           </motion.header>
 
-          <motion.section
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.35, duration: 0.5 }}
-            className="space-y-6"
-          >
-            <div className="flex items-center justify-center gap-3 text-center">
-              <ClipboardList className="h-7 w-7 text-amber-600" />
-              <div>
-                <h2 className="text-3xl font-black text-slate-900">Examenes</h2>
-                <p className="text-sm text-slate-600">
-                  Los pendientes aparecen primero para que entres directo.
-                </p>
+          {sortedExamAssignments.length > 0 ? (
+            <motion.section
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.35, duration: 0.5 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-center gap-3 text-center">
+                <ClipboardList className="h-7 w-7 text-amber-600" />
+                <div>
+                  <h2 className="text-3xl font-black text-slate-900">Examenes</h2>
+                  <p className="text-sm text-slate-600">
+                    Los pendientes aparecen primero para que entres directo.
+                  </p>
+                </div>
               </div>
-            </div>
 
-            {sortedExamAssignments.length === 0 ? (
-              <div className="rounded-3xl border-2 border-amber-200 bg-white/85 p-8 text-center shadow-lg backdrop-blur-sm">
-                <FileText className="mx-auto mb-4 h-16 w-16 text-amber-500" />
-                <p className="text-xl font-bold text-slate-900">
-                  No tienes examenes pendientes
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  Cuando te asignen uno, lo veras aqui arriba.
-                </p>
-              </div>
-            ) : (
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {sortedExamAssignments.map((assignment, index) => (
                   <motion.div
@@ -512,8 +501,8 @@ export default function StudentDashboardPage() {
                   </motion.div>
                 ))}
               </div>
-            )}
-          </motion.section>
+            </motion.section>
+          ) : null}
 
           <motion.section
             initial={{ opacity: 0, scale: 0.95 }}
