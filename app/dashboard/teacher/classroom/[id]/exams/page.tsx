@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
+import { ExamRegistry } from "@/components/exams"
 import { createClient } from "@/utils/supabase/client"
 import { PageHeader } from "@/components/dashboard/core"
 import { Input } from "@/components/ui/input"
@@ -13,6 +14,7 @@ import {
   CalendarClock,
   FileText,
   Loader2,
+  MonitorPlay,
   Plus,
   Search,
   Trash2,
@@ -258,6 +260,7 @@ export default function TeacherClassroomExamsPage() {
     Record<string, { available_from: string; available_until: string }>
   >({})
   const [showAddModal, setShowAddModal] = useState(false)
+  const [previewRow, setPreviewRow] = useState<ClassroomExamRow | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
@@ -523,6 +526,15 @@ export default function TeacherClassroomExamsPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => setPreviewRow(row)}
+                      disabled={!row.exam?.component_key}
+                    >
+                      <MonitorPlay className="mr-2 h-4 w-4" />
+                      Previsualizar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => updateAssignment(row.id, { active: !row.active })}
                       disabled={updatingId === row.id}
                     >
@@ -639,6 +651,38 @@ export default function TeacherClassroomExamsPage() {
             setMessage({ type: "success", text: "Examen asignado correctamente." })
           }}
         />
+      ) : null}
+
+      {previewRow?.exam ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <MonitorPlay className="h-5 w-5 text-primary" />
+                  <span className="font-semibold">Vista previa del examen</span>
+                </div>
+                <div className="mt-1 truncate text-sm text-muted-foreground">
+                  {previewRow.exam.title}
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setPreviewRow(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              <ExamRegistry
+                componentKey={previewRow.exam.component_key}
+                examId={previewRow.exam.id}
+                assignmentId={previewRow.id}
+                classroomId={classroomId}
+                displayTitle={previewRow.exam.title}
+                previewMode
+              />
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   )

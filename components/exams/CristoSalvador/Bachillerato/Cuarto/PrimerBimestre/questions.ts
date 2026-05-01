@@ -4,6 +4,7 @@ export type ExamQuestion = {
   subtitle: string
   prompt: string
   statement?: string[]
+  visual?: "boxplot-ages"
   options: Array<{ key: string; label: string; latex?: string }>
   correctKey: string
   explanation: string
@@ -207,14 +208,15 @@ export const EXAMEN_FINAL_01_QUESTIONS: ExamQuestion[] = [
     title: "Pregunta 8",
     subtitle: "Diagrama de caja y bigotes",
     prompt: "El diagrama de caja y bigotes representa las edades de los profesores del colegio Marianista. Escriba la edad del profesor mas joven y la mediana de las edades.",
+    visual: "boxplot-ages",
     options: [
-      { key: "A", label: "20 y 40" },
-      { key: "B", label: "23 y 44" },
-      { key: "C", label: "25 y 45" },
+      { key: "A", label: "23 y 44" },
+      { key: "B", label: "25 y 45" },
+      { key: "C", label: "23 y 50" },
       { key: "D", label: "30 y 44" },
-      { key: "E", label: "23 y 50" },
+      { key: "E", label: "20 y 40" },
     ],
-    correctKey: "B",
+    correctKey: "A",
     explanation: "Del diagrama se lee que el valor minimo es 23 y la mediana es 44.",
   },
 ]

@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { MathProvider, MathTex } from "@/components/exercises/base/MathBlock"
 import { createClient } from "@/utils/supabase/client"
 import { EXAMEN_FINAL_01_QUESTIONS } from "./questions"
-
 type ExamProps = {
   examId: string
   assignmentId?: string
@@ -34,14 +33,98 @@ type Question = {
   subtitle: string
   prompt: string
   statement?: string[]
+  visual?: "boxplot-ages"
   options: Array<{ key: string; label: string; latex?: string }>
   correctKey: string
   explanation: string
 }
 
+function BoxplotAgesGraphic() {
+  const scale = (value: number) => 40 + ((value - 20) / 50) * 420
+  const min = scale(23)
+  const q1 = scale(32)
+  const median = scale(44)
+  const q3 = scale(53)
+  const max = scale(64)
+  const y = 122
+
+  return (
+    <div className="mt-4 overflow-x-auto rounded-xl border bg-white p-4">
+      <svg
+        viewBox="0 0 520 240"
+        role="img"
+        aria-label="Diagrama de caja y bigotes de edades"
+        className="h-auto min-w-[500px] max-w-full"
+      >
+        <rect x="0" y="0" width="520" height="240" fill="#ffffff" />
+        {Array.from({ length: 51 }, (_, index) => {
+          const x = scale(20 + index)
+          const major = index % 5 === 0
+          return (
+            <line
+              key={`v-${index}`}
+              x1={x}
+              y1="26"
+              x2={x}
+              y2="184"
+              stroke={major ? "#cbd5e1" : "#e5e7eb"}
+              strokeWidth={major ? 1 : 0.7}
+            />
+          )
+        })}
+        {Array.from({ length: 33 }, (_, index) => {
+          const yLine = 26 + index * 5
+          return (
+            <line
+              key={`h-${index}`}
+              x1="40"
+              y1={yLine}
+              x2="460"
+              y2={yLine}
+              stroke={index % 4 === 0 ? "#cbd5e1" : "#e5e7eb"}
+              strokeWidth={index % 4 === 0 ? 1 : 0.7}
+            />
+          )
+        })}
+
+        <line x1={min} y1={y} x2={q1} y2={y} stroke="#111827" strokeWidth="2" />
+        <line x1={q3} y1={y} x2={max} y2={y} stroke="#111827" strokeWidth="2" />
+        <line x1={min} y1={y - 16} x2={min} y2={y + 16} stroke="#111827" strokeWidth="2" />
+        <line x1={max} y1={y - 16} x2={max} y2={y + 16} stroke="#111827" strokeWidth="2" />
+        <rect
+          x={q1}
+          y={y - 22}
+          width={q3 - q1}
+          height="44"
+          fill="#e5e7eb"
+          stroke="#111827"
+          strokeWidth="2"
+        />
+        <line x1={median} y1={y - 22} x2={median} y2={y + 22} stroke="#111827" strokeWidth="2" />
+
+        <line x1="40" y1="190" x2="460" y2="190" stroke="#111827" strokeWidth="2" />
+        {[20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70].map((tick) => {
+          const x = scale(tick)
+          return (
+            <g key={tick}>
+              <line x1={x} y1="188" x2={x} y2="196" stroke="#111827" strokeWidth="2" />
+              <text x={x} y="212" textAnchor="middle" fontSize="14" fontWeight="700" fill="#111827">
+                {tick}
+              </text>
+            </g>
+          )
+        })}
+        <text x="250" y="232" textAnchor="middle" fontSize="13" fontWeight="700" fill="#111827">
+          Edad (anos)
+        </text>
+      </svg>
+    </div>
+  )
+}
 
 
-const QUESTIONS = EXAMEN_FINAL_01_QUESTIONS
+
+const QUESTIONS: Question[] = EXAMEN_FINAL_01_QUESTIONS
 
 function QuestionCard({
   question,
@@ -70,6 +153,7 @@ function QuestionCard({
             <MathTex block tex={line} />
           </div>
         ))}
+        {question.visual === "boxplot-ages" ? <BoxplotAgesGraphic /> : null}
       </div>
 
       <div className="mt-5 grid gap-3">
