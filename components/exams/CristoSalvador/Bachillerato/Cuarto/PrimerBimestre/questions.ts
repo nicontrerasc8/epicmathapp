@@ -1,0 +1,220 @@
+export type ExamQuestion = {
+  id: string
+  title: string
+  subtitle: string
+  prompt: string
+  statement?: string[]
+  options: Array<{ key: string; label: string; latex?: string }>
+  correctKey: string
+  explanation: string
+}
+
+export const EXAMEN_PARCIAL_01_QUESTIONS: ExamQuestion[] = [
+  {
+    id: "p1",
+    title: "Pregunta 1",
+    subtitle: "Contaminacion del aire - Notacion cientifica",
+    prompt: "Un sensor ambiental mide que una particula contaminante tiene una masa promedio de 2.5 x 10^-9 g. En una muestra de aire se detectan 3.2 x 10^7 particulas. Cual es la masa total de contaminante en la muestra?",
+    statement: ["2.5 \\times 10^{-9}\\, g", "3.2 \\times 10^{7}\\text{ particulas}"],
+    options: [
+      { key: "A", label: "A", latex: "8.0 \\times 10^{-2}\\, g" },
+      { key: "B", label: "B", latex: "8.0 \\times 10^{-1}\\, g" },
+      { key: "C", label: "C", latex: "8.0 \\times 10^{-3}\\, g" },
+      { key: "D", label: "D", latex: "8.0 \\times 10^{-4}\\, g" },
+    ],
+    correctKey: "A",
+    explanation: "Se multiplica 2.5 x 10^-9 por 3.2 x 10^7. El coeficiente da 8.0 y los exponentes suman -2, por eso el resultado es 8.0 x 10^-2 g.",
+  },
+  {
+    id: "p2",
+    title: "Pregunta 2",
+    subtitle: "Crecimiento bacteriano - Leyes de exponentes",
+    prompt: "Una poblacion de bacterias se modela como N = (3 x 10^4)^2 (2 x 10^-3). Cual es el valor de N en notacion cientifica?",
+    statement: ["N=(3\\times 10^{4})^{2}\\cdot(2\\times 10^{-3})"],
+    options: [
+      { key: "A", label: "A", latex: "1.8 \\times 10^{6}" },
+      { key: "B", label: "B", latex: "1.8 \\times 10^{5}" },
+      { key: "C", label: "C", latex: "6.0 \\times 10^{5}" },
+      { key: "D", label: "D", latex: "1.8 \\times 10^{7}" },
+    ],
+    correctKey: "A",
+    explanation: "(3 x 10^4)^2 = 9 x 10^8. Luego 9 x 10^8 por 2 x 10^-3 = 18 x 10^5 = 1.8 x 10^6.",
+  },
+  {
+    id: "p3",
+    title: "Pregunta 3",
+    subtitle: "Escala de pH - Logaritmos",
+    prompt: "El pH de una solucion se define como pH = -log10[H+]. Si la concentracion de iones de hidrogeno es [H+] = 1 x 10^-4, cual es el pH?",
+    statement: ["\\mathrm{pH}=-\\log_{10}[H^{+}]", "[H^{+}] = 1\\times 10^{-4}"],
+    options: [
+      { key: "A", label: "A", latex: "4" },
+      { key: "B", label: "B", latex: "-4" },
+      { key: "C", label: "C", latex: "0.0001" },
+      { key: "D", label: "D", latex: "10^{4}" },
+    ],
+    correctKey: "A",
+    explanation: "Como log10(10^-4) = -4, entonces pH = -(-4) = 4.",
+  },
+  {
+    id: "p4",
+    title: "Pregunta 4",
+    subtitle: "Medicion en construccion - Limites y error",
+    prompt: "Un tecnico mide la longitud de una tuberia como 5.8 m, redondeando a una cifra decimal. Cual es el limite superior de la longitud real?",
+    options: [
+      { key: "A", label: "A", latex: "5.85\\, m" },
+      { key: "B", label: "B", latex: "5.80\\, m" },
+      { key: "C", label: "C", latex: "5.90\\, m" },
+      { key: "D", label: "D", latex: "5.75\\, m" },
+    ],
+    correctKey: "A",
+    explanation: "Si 5.8 esta redondeado a una cifra decimal, el valor real esta entre 5.75 y 5.85, sin incluir el extremo inferior exacto del siguiente intervalo. El limite superior es 5.85 m.",
+  },
+  {
+    id: "p5",
+    title: "Pregunta 5",
+    subtitle: "Consumo de energia - Estimacion",
+    prompt: "Una ciudad tiene aproximadamente 2.4 x 10^6 hogares. Cada hogar consume en promedio 3.5 x 10^3 Wh por dia. Cual es el consumo total diario aproximado?",
+    statement: ["2.4 \\times 10^{6}\\text{ hogares}", "3.5 \\times 10^{3}\\, Wh/\\text{dia}"],
+    options: [
+      { key: "A", label: "A", latex: "8.4 \\times 10^{9}\\, Wh" },
+      { key: "B", label: "B", latex: "8.4 \\times 10^{8}\\, Wh" },
+      { key: "C", label: "C", latex: "7.0 \\times 10^{9}\\, Wh" },
+      { key: "D", label: "D", latex: "8.4 \\times 10^{10}\\, Wh" },
+    ],
+    correctKey: "A",
+    explanation: "2.4 x 10^6 por 3.5 x 10^3 = 8.4 x 10^9 Wh.",
+  },
+]
+
+export const EXAMEN_FINAL_01_QUESTIONS: ExamQuestion[] = [
+  {
+    id: "p1",
+    title: "Pregunta 1",
+    subtitle: "Pendiente de una recta",
+    prompt: "Halle la pendiente de la recta que pasa por los puntos P(-1; 2) y Q(4; 8).",
+    options: [
+      { key: "A", label: "0,8" },
+      { key: "B", label: "0,6" },
+      { key: "C", label: "1" },
+      { key: "D", label: "1,2" },
+      { key: "E", label: "1,25" },
+    ],
+    correctKey: "D",
+    explanation: "La pendiente es (8 - 2) / (4 - (-1)) = 6 / 5 = 1,2.",
+  },
+  {
+    id: "p2",
+    title: "Pregunta 2",
+    subtitle: "Rectas perpendiculares",
+    prompt: "Determinar la ecuacion de una recta que pase por el punto (3; 3) y sea perpendicular a la recta L: x + y + 2 = 0.",
+    statement: ["L: x + y + 2 = 0"],
+    options: [
+      { key: "A", label: "y = x" },
+      { key: "B", label: "y = 2x" },
+      { key: "C", label: "y = 3y" },
+      { key: "D", label: "y = 4x" },
+      { key: "E", label: "y = x + 1" },
+    ],
+    correctKey: "A",
+    explanation: "La recta dada tiene pendiente -1, por lo tanto una perpendicular tiene pendiente 1. Al pasar por (3; 3), la ecuacion es y = x.",
+  },
+  {
+    id: "p3",
+    title: "Pregunta 3",
+    subtitle: "Area de region triangular",
+    prompt: "Calcular el area de la region triangular formada por los ejes coordenados y la recta 3x + 2y - 12 = 0.",
+    statement: ["3x + 2y - 12 = 0"],
+    options: [
+      { key: "A", label: "20" },
+      { key: "B", label: "15" },
+      { key: "C", label: "10" },
+      { key: "D", label: "11" },
+      { key: "E", label: "12" },
+    ],
+    correctKey: "E",
+    explanation: "Los interceptos son x = 4 e y = 6. El area del triangulo es (4 x 6) / 2 = 12.",
+  },
+  {
+    id: "p4",
+    title: "Pregunta 4",
+    subtitle: "Recta mediatriz",
+    prompt: "Calcular la ecuacion de la recta mediatriz del segmento cuyos extremos son A(-1; 7) y B(3; -1).",
+    options: [
+      { key: "A", label: "x - 3y + 8 = 0" },
+      { key: "B", label: "2x - y + 1 = 0" },
+      { key: "C", label: "x + 2y - 7 = 0" },
+      { key: "D", label: "x + 3y - 10 = 0" },
+      { key: "E", label: "x - 2y + 5 = 0" },
+    ],
+    correctKey: "E",
+    explanation: "El punto medio es (1; 3). La pendiente de AB es -2, asi que la mediatriz tiene pendiente 1/2. Su ecuacion equivalente es x - 2y + 5 = 0.",
+  },
+  {
+    id: "p5",
+    title: "Pregunta 5",
+    subtitle: "Diagrama de Voronoi",
+    prompt: "En un diagrama de Voronoi con dos sitios A(2, 2) y B(8, 2), se anade un nuevo sitio C(5, 5). Que ocurre con el diagrama?",
+    options: [
+      { key: "A", label: "No cambia" },
+      { key: "B", label: "Se elimina una celda" },
+      { key: "C", label: "Se crea una nueva celda para C y se modifican las existentes" },
+      { key: "D", label: "Solo cambia la celda de A" },
+      { key: "E", label: "Solo cambia la celda de B" },
+    ],
+    correctKey: "C",
+    explanation: "Al agregar un nuevo sitio, se crea su region de Voronoi y se ajustan las regiones de los sitios cercanos.",
+  },
+  {
+    id: "p6",
+    title: "Pregunta 6",
+    subtitle: "Vecino mas proximo",
+    prompt: "Tres centros de distribucion estan en A(1, 1), B(7, 1) y C(4, 5). Un cliente esta en P(3, 2). Segun el metodo del vecino mas proximo, a que centro se asigna el cliente?",
+    options: [
+      { key: "A", label: "A" },
+      { key: "B", label: "B" },
+      { key: "C", label: "C" },
+      { key: "D", label: "A y B" },
+      { key: "E", label: "B y C" },
+    ],
+    correctKey: "A",
+    explanation: "La distancia de P a A es la menor, por eso el cliente se asigna al centro A.",
+  },
+  {
+    id: "p7",
+    title: "Pregunta 7",
+    subtitle: "Tercer cuartil en datos agrupados",
+    prompt: "La tabla muestra la altura en cm de 50 canguros. Halle el tercer cuartil.",
+    statement: [
+      "200 <= x < 210: 4",
+      "210 <= x < 220: 6",
+      "220 <= x < 230: 11",
+      "230 <= x < 240: 22",
+      "240 <= x < 250: 5",
+      "250 <= x < 260: 2",
+    ],
+    options: [
+      { key: "A", label: "232,5" },
+      { key: "B", label: "235" },
+      { key: "C", label: "237,5" },
+      { key: "D", label: "240" },
+      { key: "E", label: "242,5" },
+    ],
+    correctKey: "C",
+    explanation: "El tercer cuartil se ubica en la posicion 3N/4 = 37,5, dentro del intervalo 230 <= x < 240. El resultado es 237,5.",
+  },
+  {
+    id: "p8",
+    title: "Pregunta 8",
+    subtitle: "Diagrama de caja y bigotes",
+    prompt: "El diagrama de caja y bigotes representa las edades de los profesores del colegio Marianista. Escriba la edad del profesor mas joven y la mediana de las edades.",
+    options: [
+      { key: "A", label: "20 y 40" },
+      { key: "B", label: "23 y 44" },
+      { key: "C", label: "25 y 45" },
+      { key: "D", label: "30 y 44" },
+      { key: "E", label: "23 y 50" },
+    ],
+    correctKey: "B",
+    explanation: "Del diagrama se lee que el valor minimo es 23 y la mediana es 44.",
+  },
+]

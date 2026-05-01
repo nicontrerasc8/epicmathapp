@@ -3,13 +3,17 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { fetchStudentSession } from "@/lib/student-session-client"
 import type { StudentSessionData } from "@/lib/student-session-client"
 import { useInstitution } from "@/components/institution-provider"
 import { ExamRegistry } from "@/components/exams"
 import { isExamAvailableNow } from "@/lib/exam-availability"
+import {
+  EXAMEN_FINAL_01_QUESTIONS,
+  EXAMEN_PARCIAL_01_QUESTIONS,
+} from "@/components/exams/CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/questions"
 
 type ExamRow = {
   assignment_id: string
@@ -19,6 +23,140 @@ type ExamRow = {
   available_from: string | null
   available_until: string | null
   active: boolean
+}
+
+type ExamQuestionResult = {
+  question_id: string
+  title: string
+  subtitle: string
+  selected_key: string | null
+  correct_key: string
+  is_correct: boolean
+}
+
+type StudentExamAttemptRow = {
+  id: string
+  score: number | null
+  correct_count: number | null
+  wrong_count: number | null
+  created_at: string
+  answers: Record<string, string> | null
+  question_results: ExamQuestionResult[] | null
+}
+
+function normalizeExamComponentKey(componentKey: string | null) {
+  if (!componentKey) return null
+
+  return componentKey
+    .replace(/\\/g, "/")
+    .replace(/^components\/exams\//i, "")
+    .replace(/\.tsx$/i, "")
+    .trim()
+    .toLowerCase()
+}
+
+function buildQuestionResults(
+  componentKey: string,
+  attempt: StudentExamAttemptRow,
+): ExamQuestionResult[] {
+  if (Array.isArray(attempt.question_results) && attempt.question_results.length > 0) {
+    return attempt.question_results
+  }
+
+  const normalizedKey = normalizeExamComponentKey(componentKey)
+  const legacyAlias = normalizedKey?.replace(
+    /^cristosalvador\/bachillerato\/cuarto\/primerbimestre\//,
+    "cristo/examenes/cuarto/primer-bimestre/",
+  )
+  const compactKey = normalizedKey?.replace(/[^a-z0-9]/g, "") ?? ""
+  const compactAlias = legacyAlias?.replace(/[^a-z0-9]/g, "") ?? ""
+  const questions =
+    normalizedKey === "cristo/examenes/cuarto/primer-bimestre/examen-parcial-01" ||
+    legacyAlias === "cristo/examenes/cuarto/primer-bimestre/examen-parcial-01" ||
+    compactKey.endsWith("examenparcial01") ||
+    compactAlias.endsWith("examenparcial01")
+      ? EXAMEN_PARCIAL_01_QUESTIONS
+      : normalizedKey === "cristo/examenes/cuarto/primer-bimestre/examen-final-01" ||
+          legacyAlias === "cristo/examenes/cuarto/primer-bimestre/examen-final-01" ||
+          compactKey.endsWith("examenfinal01") ||
+          compactAlias.endsWith("examenfinal01")
+        ? EXAMEN_FINAL_01_QUESTIONS
+      : []
+
+  if (!attempt.answers || questions.length === 0) return []
+
+  return questions.map((question) => {
+    const selectedKey = attempt.answers?.[question.id] ?? null
+
+    return {
+      question_id: question.id,
+      title: question.title,
+      subtitle: question.subtitle,
+      selected_key: selectedKey,
+      correct_key: question.correctKey,
+      is_correct: selectedKey === question.correctKey,
+    }
+  })
+}
+
+function StudentExamReview({
+  attempt,
+  componentKey,
+}: {
+  attempt: StudentExamAttemptRow
+  componentKey: string
+}) {
+  const questionResults = buildQuestionResults(componentKey, attempt)
+
+  return (
+    <div className="rounded-2xl border bg-card p-6">
+      <p className="text-lg font-semibold text-slate-900">Este examen ya fue rendido.</p>
+      <p className="mt-2 text-sm text-slate-600">
+        Resultado: {attempt.correct_count ?? 0} correctas / {attempt.wrong_count ?? 0} incorrectas
+        {attempt.score != null ? ` (${attempt.score}%)` : ""}.
+      </p>
+
+      <div className="mt-5 rounded-2xl border bg-background p-4">
+        <div className="mb-3 font-semibold text-slate-900">Revision por pregunta</div>
+        {questionResults.length === 0 ? (
+          <div className="rounded-xl bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+            No hay detalle por pregunta guardado para este intento.
+          </div>
+        ) : (
+          <div className="grid gap-2">
+            {questionResults.map((result) => (
+              <div
+                key={result.question_id}
+                className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${
+                  result.is_correct
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                    : "border-rose-200 bg-rose-50 text-rose-900"
+                }`}
+              >
+                <div>
+                  <div className="font-semibold">{result.title}</div>
+                  <div className="text-xs opacity-80">{result.subtitle}</div>
+                </div>
+                <div className="flex items-center gap-2 font-semibold">
+                  {result.is_correct ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : (
+                    <XCircle className="h-4 w-4" />
+                  )}
+                  {result.is_correct ? "Acerto" : "Fallo"}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Link href="/student/exams" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+        <ArrowLeft className="h-4 w-4" />
+        Volver a examenes
+      </Link>
+    </div>
+  )
 }
 
 export default function StudentExamPlayPage() {
@@ -32,7 +170,7 @@ export default function StudentExamPlayPage() {
   const [classroomId, setClassroomId] = useState<string | null>(null)
   const [studentId, setStudentId] = useState<string | null>(null)
   const [exam, setExam] = useState<ExamRow | null>(null)
-  const [attemptLocked, setAttemptLocked] = useState(false)
+  const [attempt, setAttempt] = useState<StudentExamAttemptRow | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -72,10 +210,11 @@ export default function StudentExamPlayPage() {
             .maybeSingle(),
           supabase
             .from("edu_student_exams")
-            .select("id")
+            .select("id, score, correct_count, wrong_count, created_at, answers, question_results")
             .eq("student_id", session.student_id)
             .eq("classroom_id", session.classroom_id)
             .eq("exam_id", examId)
+            .order("created_at", { ascending: false })
             .limit(1),
         ])
 
@@ -110,7 +249,7 @@ export default function StudentExamPlayPage() {
         available_until: (data as any).available_until ?? null,
         active: Boolean((data as any).active),
       })
-      setAttemptLocked(Boolean(attemptData?.length))
+      setAttempt(((attemptData ?? []) as StudentExamAttemptRow[])[0] ?? null)
       setLoading(false)
     }
 
@@ -139,7 +278,15 @@ export default function StudentExamPlayPage() {
     )
   }
 
-  if (attemptLocked) {
+  if (attempt) {
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <StudentExamReview attempt={attempt} componentKey={exam.component_key} />
+      </div>
+    )
+  }
+
+  if (Boolean(attempt)) {
     return (
       <div className="mx-auto max-w-3xl p-6">
         <div className="rounded-2xl border bg-card p-6">

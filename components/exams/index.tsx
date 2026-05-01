@@ -21,8 +21,12 @@ type ExamLoader = () => Promise<{
 const EXAM_LOADERS: Record<string, ExamLoader> = {
   "cristo/examenes/cuarto/primer-bimestre/examen-parcial-01": () =>
     import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/ExamenParcial01"),
+  "cristo/examenes/cuarto/primer-bimestre/examen-final-01": () =>
+    import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/ExamenFinal01"),
   "cristosalvador/bachillerato/cuarto/primerbimestre/examenparcial01": () =>
     import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/ExamenParcial01"),
+  "cristosalvador/bachillerato/cuarto/primerbimestre/examenfinal01": () =>
+    import("./CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/ExamenFinal01"),
 }
 
 function normalizeExamComponentKey(componentKey: string | null) {

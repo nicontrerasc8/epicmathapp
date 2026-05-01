@@ -21,6 +21,10 @@ import {
   getExamPerformanceColor,
   getExamPerformanceLabel,
 } from "@/lib/exam-performance"
+import {
+  EXAMEN_FINAL_01_QUESTIONS,
+  EXAMEN_PARCIAL_01_QUESTIONS,
+} from "@/components/exams/CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/questions"
 
 type ExamAttemptRow = {
   exam_id: string
@@ -29,6 +33,8 @@ type ExamAttemptRow = {
   correct_count: number | null
   wrong_count: number | null
   created_at: string
+  answers: Record<string, string> | null
+  question_results: ExamQuestionResult[] | null
 }
 
 type ExamCardRow = {
@@ -36,6 +42,7 @@ type ExamCardRow = {
   exam_id: string
   title: string
   exam_type: string
+  component_key: string | null
   active: boolean
   order: number
 }
@@ -45,6 +52,7 @@ type ExamSummary = {
   exam_id: string
   title: string
   exam_type: string
+  component_key: string | null
   active: boolean
   order: number
   totalStudents: number
@@ -64,12 +72,121 @@ type ExamSummary = {
     yellow: StudentBucketItem[]
     red: StudentBucketItem[]
   }
+  studentResults: StudentExamResult[]
 }
 
 type StudentBucketItem = {
   id: string
   name: string
   effectiveness: number | null
+}
+
+type ExamQuestion = {
+  id: string
+  title: string
+  subtitle: string
+  prompt: string
+  options: Array<{ key: string; label: string; latex?: string }>
+  correctKey: string
+  explanation: string
+}
+
+type WrongAnswerItem = {
+  questionId: string
+  title: string
+  subtitle: string
+}
+
+type ExamQuestionResult = {
+  question_id: string
+  title: string
+  subtitle: string
+  selected_key: string | null
+  correct_key: string
+  is_correct: boolean
+}
+
+type StudentExamResult = {
+  id: string
+  name: string
+  status: "submitted" | "pending"
+  effectiveness: number | null
+  correctCount: number
+  wrongCount: number
+  submittedAt: string | null
+  wrongAnswers: WrongAnswerItem[]
+  hasQuestionBank: boolean
+}
+
+function normalizeExamComponentKey(componentKey: string | null) {
+  if (!componentKey) return null
+
+  return componentKey
+    .replace(/\\/g, "/")
+    .replace(/^components\/exams\//i, "")
+    .replace(/\.tsx$/i, "")
+    .trim()
+    .toLowerCase()
+}
+
+function getExamQuestions(componentKey: string | null): ExamQuestion[] {
+  const normalizedKey = normalizeExamComponentKey(componentKey)
+  const legacyAlias = normalizedKey?.replace(
+    /^cristosalvador\/bachillerato\/cuarto\/primerbimestre\//,
+    "cristo/examenes/cuarto/primer-bimestre/",
+  )
+  const compactKey = normalizedKey?.replace(/[^a-z0-9]/g, "") ?? ""
+  const compactAlias = legacyAlias?.replace(/[^a-z0-9]/g, "") ?? ""
+
+  if (
+    normalizedKey === "cristo/examenes/cuarto/primer-bimestre/examen-parcial-01" ||
+    legacyAlias === "cristo/examenes/cuarto/primer-bimestre/examen-parcial-01" ||
+    compactKey.endsWith("examenparcial01") ||
+    compactAlias.endsWith("examenparcial01")
+  ) {
+    return EXAMEN_PARCIAL_01_QUESTIONS
+  }
+
+  if (
+    normalizedKey === "cristo/examenes/cuarto/primer-bimestre/examen-final-01" ||
+    legacyAlias === "cristo/examenes/cuarto/primer-bimestre/examen-final-01" ||
+    compactKey.endsWith("examenfinal01") ||
+    compactAlias.endsWith("examenfinal01")
+  ) {
+    return EXAMEN_FINAL_01_QUESTIONS
+  }
+
+  return []
+}
+
+function getWrongAnswers(
+  componentKey: string | null,
+  answers: Record<string, string> | null,
+  questionResults: ExamQuestionResult[] | null,
+) {
+  if (Array.isArray(questionResults) && questionResults.length > 0) {
+    return questionResults
+      .filter((item) => !item.is_correct)
+      .map((item) => ({
+        questionId: item.question_id,
+        title: item.title,
+        subtitle: item.subtitle,
+      }))
+  }
+
+  const questions = getExamQuestions(componentKey)
+  if (!answers || questions.length === 0) return []
+
+  return questions
+    .map((question) => ({
+      questionId: question.id,
+      title: question.title,
+      subtitle: question.subtitle,
+      selectedKey: answers[question.id] ?? null,
+      correctKey: question.correctKey,
+    }))
+    .filter((item) => item.selectedKey !== item.correctKey)
+    .map(({ selectedKey, correctKey, ...item }) => item)
 }
 
 function EmptyState({
@@ -252,6 +369,89 @@ function ProgressStack({
   )
 }
 
+function StudentResults({ students }: { students: StudentExamResult[] }) {
+  return (
+    <div className="mt-8 rounded-[24px] border border-slate-200 bg-slate-50/80 p-5 shadow-sm">
+      <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h4 className="text-base font-semibold text-slate-800">Rendimiento por alumno</h4>
+          <p className="text-sm text-slate-500">Resultado individual y preguntas donde fallo.</p>
+        </div>
+        <BadgeTone>{students.length} alumnos</BadgeTone>
+      </div>
+
+      <div className="space-y-3">
+        {students.map((student) => {
+          const tone =
+            student.status === "pending"
+              ? "red"
+              : getExamPerformanceColor(student.effectiveness)
+
+          return (
+            <details
+              key={student.id}
+              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm open:ring-1 open:ring-slate-200"
+            >
+              <summary className="cursor-pointer list-none">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-slate-900">{student.name}</span>
+                      <BadgeTone tone={tone}>
+                        {student.status === "pending"
+                          ? "Pendiente"
+                          : getExamPerformanceLabel(student.effectiveness)}
+                      </BadgeTone>
+                    </div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      {student.status === "pending"
+                        ? "Todavia no rindio este examen"
+                        : `${student.correctCount} correctas / ${student.wrongCount} incorrectas`}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600">
+                    <span>{student.effectiveness != null ? `${student.effectiveness}%` : "Sin nota"}</span>
+                    <span className="text-slate-300">|</span>
+                    <span>
+                      {student.wrongAnswers.length} fallo{student.wrongAnswers.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                </div>
+              </summary>
+
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                {student.status === "pending" ? (
+                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                    No hay respuestas registradas en la base de datos para este alumno.
+                  </div>
+                ) : !student.hasQuestionBank ? (
+                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                    Este examen no tiene preguntas registradas para mostrar el detalle.
+                  </div>
+                ) : student.wrongAnswers.length === 0 ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                    No fallo ninguna pregunta.
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {student.wrongAnswers.map((wrong) => (
+                      <BadgeTone key={wrong.questionId} tone="red">
+                        {wrong.title}
+                        {wrong.subtitle ? ` - ${wrong.subtitle}` : ""}
+                      </BadgeTone>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function ExamCard({ item }: { item: ExamSummary }) {
   const params = useParams() as { id?: string }
   const classroomId = params.id ?? ""
@@ -371,6 +571,8 @@ function ExamCard({ item }: { item: ExamSummary }) {
           }
         />
       </div>
+
+      <StudentResults students={item.studentResults} />
     </section>
   )
 }
@@ -424,7 +626,8 @@ export default function TeacherExamPerformancePage() {
               exam:edu_exams (
                 id,
                 title,
-                exam_type
+                exam_type,
+                component_key
               )
             `)
             .eq("classroom_id", classroomId)
@@ -471,6 +674,7 @@ export default function TeacherExamPerformancePage() {
               exam_id: exam.id,
               title: exam.title ?? "Examen",
               exam_type: exam.exam_type ?? "Sin tipo",
+              component_key: exam.component_key ?? null,
               active: Boolean(row.active),
               order: Number(row.order ?? 0),
             } satisfies ExamCardRow
@@ -482,7 +686,7 @@ export default function TeacherExamPerformancePage() {
         if (studentIds.length > 0 && exams.length > 0) {
           const { data: attemptsData, error: attemptsError } = await supabase
             .from("edu_student_exams")
-            .select("exam_id, student_id, score, correct_count, wrong_count, created_at")
+            .select("exam_id, student_id, score, correct_count, wrong_count, created_at, answers, question_results")
             .eq("classroom_id", classroomId)
             .in("student_id", studentIds)
             .in(
@@ -559,6 +763,47 @@ export default function TeacherExamPerformancePage() {
             }
           }
 
+          const questions = getExamQuestions(exam.component_key)
+          const studentResults: StudentExamResult[] = students.map((student) => {
+            const attempt = attempts.find((item) => item.student_id === student.id)
+
+            if (!attempt) {
+              return {
+                id: student.id,
+                name: student.name,
+                status: "pending",
+                effectiveness: null,
+                correctCount: 0,
+                wrongCount: 0,
+                submittedAt: null,
+                wrongAnswers: [],
+                hasQuestionBank: questions.length > 0,
+              }
+            }
+
+            const effectiveness = getExamEffectivenessPercentage({
+              score: attempt.score,
+              correctCount: attempt.correct_count,
+              wrongCount: attempt.wrong_count,
+            })
+
+            return {
+              id: student.id,
+              name: student.name,
+              status: "submitted",
+              effectiveness,
+              correctCount: attempt.correct_count ?? 0,
+              wrongCount: attempt.wrong_count ?? 0,
+              submittedAt: attempt.created_at,
+              wrongAnswers: getWrongAnswers(
+                exam.component_key,
+                attempt.answers,
+                attempt.question_results,
+              ),
+              hasQuestionBank: questions.length > 0,
+            }
+          })
+
           const averageScore = getExamEffectivenessPercentage({
             correctCount,
             wrongCount,
@@ -569,6 +814,7 @@ export default function TeacherExamPerformancePage() {
             exam_id: exam.exam_id,
             title: exam.title,
             exam_type: exam.exam_type,
+            component_key: exam.component_key,
             active: exam.active,
             order: exam.order,
             totalStudents: studentIds.length,
@@ -583,6 +829,7 @@ export default function TeacherExamPerformancePage() {
             wrongCount,
             color: getExamPerformanceColor(averageScore),
             buckets,
+            studentResults,
           }
         })
 

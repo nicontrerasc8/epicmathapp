@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle2, FileText, LockKeyhole, XCircle } from "lucid
 import { Button } from "@/components/ui/button"
 import { MathProvider, MathTex } from "@/components/exercises/base/MathBlock"
 import { createClient } from "@/utils/supabase/client"
+import { EXAMEN_FINAL_01_QUESTIONS } from "./questions"
 
 type ExamProps = {
   examId: string
@@ -38,84 +39,9 @@ type Question = {
   explanation: string
 }
 
-const LEGACY_QUESTIONS: Question[] = [
-  {
-    id: "p1",
-    title: "Pregunta 1",
-    subtitle: "Contaminacion del aire - Notacion cientifica",
-    prompt: "Un sensor ambiental mide que una particula contaminante tiene una masa promedio de 2.5 x 10^-9 g. En una muestra de aire se detectan 3.2 x 10^7 particulas. ¿Cual es la masa total de contaminante en la muestra?",
-    statement: ["2.5 \\times 10^{-9}\\, g", "3.2 \\times 10^{7}\\text{ particulas}"],
-    options: [
-      { key: "A", label: "A", latex: "8.0 \\times 10^{-2}\\, g" },
-      { key: "B", label: "B", latex: "8.0 \\times 10^{-1}\\, g" },
-      { key: "C", label: "C", latex: "8.0 \\times 10^{-3}\\, g" },
-      { key: "D", label: "D", latex: "8.0 \\times 10^{-4}\\, g" },
-    ],
-    correctKey: "A",
-    explanation: "Se multiplica 2.5 x 10^-9 por 3.2 x 10^7. El coeficiente da 8.0 y los exponentes suman -2, por eso el resultado es 8.0 x 10^-2 g.",
-  },
-  {
-    id: "p2",
-    title: "Pregunta 2",
-    subtitle: "Crecimiento bacteriano - Leyes de exponentes",
-    prompt: "Una poblacion de bacterias se modela como N = (3 x 10^4)^2 (2 x 10^-3). ¿Cual es el valor de N en notacion cientifica?",
-    statement: ["N=(3\\times 10^{4})^{2}\\cdot(2\\times 10^{-3})"],
-    options: [
-      { key: "A", label: "A", latex: "1.8 \\times 10^{6}" },
-      { key: "B", label: "B", latex: "1.8 \\times 10^{5}" },
-      { key: "C", label: "C", latex: "6.0 \\times 10^{5}" },
-      { key: "D", label: "D", latex: "1.8 \\times 10^{7}" },
-    ],
-    correctKey: "A",
-    explanation: "(3 x 10^4)^2 = 9 x 10^8. Luego 9 x 10^8 por 2 x 10^-3 = 18 x 10^5 = 1.8 x 10^6.",
-  },
-  {
-    id: "p3",
-    title: "Pregunta 3",
-    subtitle: "Escala de pH - Logaritmos",
-    prompt: "El pH de una solucion se define como pH = -log10[H+]. Si la concentracion de iones de hidrogeno es [H+] = 1 x 10^-4, ¿cual es el pH?",
-    statement: ["\\mathrm{pH}=-\\log_{10}[H^{+}]", "[H^{+}] = 1\\times 10^{-4}"],
-    options: [
-      { key: "A", label: "A", latex: "4" },
-      { key: "B", label: "B", latex: "-4" },
-      { key: "C", label: "C", latex: "0.0001" },
-      { key: "D", label: "D", latex: "10^{4}" },
-    ],
-    correctKey: "A",
-    explanation: "Como log10(10^-4) = -4, entonces pH = -(-4) = 4.",
-  },
-  {
-    id: "p4",
-    title: "Pregunta 4",
-    subtitle: "Medicion en construccion - Limites y error",
-    prompt: "Un tecnico mide la longitud de una tuberia como 5.8 m, redondeando a una cifra decimal. ¿Cual es el limite superior de la longitud real?",
-    options: [
-      { key: "A", label: "A", latex: "5.85\\, m" },
-      { key: "B", label: "B", latex: "5.80\\, m" },
-      { key: "C", label: "C", latex: "5.90\\, m" },
-      { key: "D", label: "D", latex: "5.75\\, m" },
-    ],
-    correctKey: "A",
-    explanation: "Si 5.8 esta redondeado a una cifra decimal, el valor real esta entre 5.75 y 5.85, sin incluir el extremo inferior exacto del siguiente intervalo. El limite superior es 5.85 m.",
-  },
-  {
-    id: "p5",
-    title: "Pregunta 5",
-    subtitle: "Consumo de energia - Estimacion",
-    prompt: "Una ciudad tiene aproximadamente 2.4 x 10^6 hogares. Cada hogar consume en promedio 3.5 x 10^3 Wh por dia. ¿Cual es el consumo total diario aproximado?",
-    statement: ["2.4 \\times 10^{6}\\text{ hogares}", "3.5 \\times 10^{3}\\, Wh/\\text{dia}"],
-    options: [
-      { key: "A", label: "A", latex: "8.4 \\times 10^{9}\\, Wh" },
-      { key: "B", label: "B", latex: "8.4 \\times 10^{8}\\, Wh" },
-      { key: "C", label: "C", latex: "7.0 \\times 10^{9}\\, Wh" },
-      { key: "D", label: "D", latex: "8.4 \\times 10^{10}\\, Wh" },
-    ],
-    correctKey: "A",
-    explanation: "2.4 x 10^6 por 3.5 x 10^3 = 8.4 x 10^9 Wh.",
-  },
-]
 
-const QUESTIONS = LEGACY_QUESTIONS
+
+const QUESTIONS = EXAMEN_FINAL_01_QUESTIONS
 
 function QuestionCard({
   question,
@@ -173,12 +99,12 @@ function QuestionCard({
   )
 }
 
-export default function ExamenParcial01({
+export default function ExamenFinal01({
   examId,
   assignmentId,
   classroomId,
   studentId,
-  displayTitle = "Examen Parcial",
+  displayTitle = "Examen Final 1",
   previewMode = false,
   attemptLocked = false,
 }: ExamProps) {

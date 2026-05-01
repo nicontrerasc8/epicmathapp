@@ -65,6 +65,31 @@ function fromDatetimeInputValue(value: string) {
   return value ? new Date(value).toISOString() : null
 }
 
+function getSortableTime(value: string | null) {
+  if (!value) return Number.POSITIVE_INFINITY
+  const time = new Date(value).getTime()
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
+}
+
+function sortClassroomExamsByTime(rows: ClassroomExamRow[]) {
+  return [...rows].sort((a, b) => {
+    const fromDiff = getSortableTime(a.available_from) - getSortableTime(b.available_from)
+    if (fromDiff !== 0) return fromDiff
+
+    const untilDiff = getSortableTime(a.available_until) - getSortableTime(b.available_until)
+    if (untilDiff !== 0) return untilDiff
+
+    if (a.order !== b.order) return a.order - b.order
+
+    const createdDiff = getSortableTime(a.created_at) - getSortableTime(b.created_at)
+    if (createdDiff !== 0) return createdDiff
+
+    return (a.exam?.title ?? "").localeCompare(b.exam?.title ?? "", "es", {
+      sensitivity: "base",
+    })
+  })
+}
+
 function AddExamsModal({
   classroomId,
   assignedIds,
@@ -301,10 +326,12 @@ export default function TeacherClassroomExamsPage() {
         return !row.exam?.institution_id || row.exam.institution_id === institution.id
       })
 
-    setRows(normalizedRows)
+    const sortedRows = sortClassroomExamsByTime(normalizedRows)
+
+    setRows(sortedRows)
     setScheduleDrafts(
       Object.fromEntries(
-        normalizedRows.map((row) => [
+        sortedRows.map((row) => [
           row.id,
           {
             available_from: toDatetimeInputValue(row.available_from),
@@ -328,13 +355,15 @@ export default function TeacherClassroomExamsPage() {
 
   const filteredRows = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    if (!needle) return rows
+    if (!needle) return sortClassroomExamsByTime(rows)
 
-    return rows.filter((row) => {
-      const exam = row.exam
-      const haystack = `${exam?.title ?? ""} ${exam?.exam_type ?? ""} ${exam?.block ?? ""} ${exam?.component_key ?? ""}`.toLowerCase()
-      return haystack.includes(needle)
-    })
+    return sortClassroomExamsByTime(
+      rows.filter((row) => {
+        const exam = row.exam
+        const haystack = `${exam?.title ?? ""} ${exam?.exam_type ?? ""} ${exam?.block ?? ""} ${exam?.component_key ?? ""}`.toLowerCase()
+        return haystack.includes(needle)
+      }),
+    )
   }, [rows, search])
 
   const assignedIds = useMemo(

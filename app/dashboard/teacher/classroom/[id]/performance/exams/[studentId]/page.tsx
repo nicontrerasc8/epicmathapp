@@ -7,6 +7,10 @@ import { PageHeader } from "@/components/dashboard/core"
 import { Badge } from "@/components/ui/badge"
 import { FileText, CheckCircle2, Clock3, AlertTriangle } from "lucide-react"
 import {
+  EXAMEN_FINAL_01_QUESTIONS,
+  EXAMEN_PARCIAL_01_QUESTIONS,
+} from "@/components/exams/CristoSalvador/Bachillerato/Cuarto/PrimerBimestre/questions"
+import {
   getExamEffectivenessPercentage,
   getExamPerformanceClasses,
   getExamPerformanceColor,
@@ -16,6 +20,7 @@ import { cn } from "@/lib/utils"
 
 type ExamAttemptDetail = {
   exam_id: string
+  component_key: string | null
   title: string
   exam_type: string
   score: number | null
@@ -23,6 +28,104 @@ type ExamAttemptDetail = {
   wrong_count: number | null
   created_at: string | null
   status: string
+  answers: Record<string, string> | null
+  question_results: ExamQuestionResult[] | null
+}
+
+type ExamQuestion = {
+  id: string
+  title: string
+  subtitle: string
+  prompt: string
+  options: Array<{ key: string; label: string; latex?: string }>
+  correctKey: string
+  explanation: string
+}
+
+type ExamQuestionResult = {
+  question_id: string
+  title: string
+  subtitle: string
+  selected_key: string | null
+  correct_key: string
+  is_correct: boolean
+}
+
+function normalizeExamComponentKey(componentKey: string | null) {
+  if (!componentKey) return null
+
+  return componentKey
+    .replace(/\\/g, "/")
+    .replace(/^components\/exams\//i, "")
+    .replace(/\.tsx$/i, "")
+    .trim()
+    .toLowerCase()
+}
+
+function getExamQuestions(componentKey: string | null): ExamQuestion[] {
+  const normalizedKey = normalizeExamComponentKey(componentKey)
+  const legacyAlias = normalizedKey?.replace(
+    /^cristosalvador\/bachillerato\/cuarto\/primerbimestre\//,
+    "cristo/examenes/cuarto/primer-bimestre/",
+  )
+  const compactKey = normalizedKey?.replace(/[^a-z0-9]/g, "") ?? ""
+  const compactAlias = legacyAlias?.replace(/[^a-z0-9]/g, "") ?? ""
+
+  if (
+    normalizedKey === "cristo/examenes/cuarto/primer-bimestre/examen-parcial-01" ||
+    legacyAlias === "cristo/examenes/cuarto/primer-bimestre/examen-parcial-01" ||
+    compactKey.endsWith("examenparcial01") ||
+    compactAlias.endsWith("examenparcial01")
+  ) {
+    return EXAMEN_PARCIAL_01_QUESTIONS
+  }
+
+  if (
+    normalizedKey === "cristo/examenes/cuarto/primer-bimestre/examen-final-01" ||
+    legacyAlias === "cristo/examenes/cuarto/primer-bimestre/examen-final-01" ||
+    compactKey.endsWith("examenfinal01") ||
+    compactAlias.endsWith("examenfinal01")
+  ) {
+    return EXAMEN_FINAL_01_QUESTIONS
+  }
+
+  return []
+}
+
+function getOptionLabel(question: ExamQuestion, key: string | null | undefined) {
+  if (!key) return "Sin respuesta"
+  const option = question.options.find((item) => item.key === key)
+  const value = option?.latex ?? option?.label ?? key
+  return `${key}) ${value}`
+}
+
+function getWrongQuestions(row: ExamAttemptDetail) {
+  if (Array.isArray(row.question_results) && row.question_results.length > 0) {
+    return row.question_results
+      .filter((item) => !item.is_correct)
+      .map((item) => ({
+        question: {
+          id: item.question_id,
+          title: item.title,
+          subtitle: item.subtitle,
+          prompt: "",
+          options: [],
+          correctKey: item.correct_key,
+          explanation: "",
+        },
+        selectedKey: item.selected_key,
+      }))
+  }
+
+  const questions = getExamQuestions(row.component_key)
+  if (!row.answers || questions.length === 0) return []
+
+  return questions
+    .map((question) => ({
+      question,
+      selectedKey: row.answers?.[question.id] ?? null,
+    }))
+    .filter((item) => item.selectedKey !== item.question.correctKey)
 }
 
 export default function TeacherStudentExamPerformanceDetailPage() {
@@ -53,7 +156,8 @@ export default function TeacherStudentExamPerformanceDetailPage() {
               exam:edu_exams (
                 id,
                 title,
-                exam_type
+                exam_type,
+                component_key
               )
             `)
             .eq("classroom_id", classroomId)
@@ -66,7 +170,9 @@ export default function TeacherStudentExamPerformanceDetailPage() {
               correct_count,
               wrong_count,
               created_at,
-              status
+              status,
+              answers,
+              question_results
             `)
             .eq("classroom_id", classroomId)
             .eq("student_id", studentId)
@@ -91,6 +197,7 @@ export default function TeacherStudentExamPerformanceDetailPage() {
 
         return {
           exam_id: row.exam_id,
+          component_key: exam?.component_key ?? null,
           title: exam?.title ?? "Examen",
           exam_type: exam?.exam_type ?? "Sin tipo",
           score: attempt?.score ?? null,
@@ -98,6 +205,8 @@ export default function TeacherStudentExamPerformanceDetailPage() {
           wrong_count: attempt?.wrong_count ?? null,
           created_at: attempt?.created_at ?? null,
           status: attempt?.status ?? "pending",
+          answers: attempt?.answers ?? null,
+          question_results: attempt?.question_results ?? null,
         }
       })
 
@@ -161,6 +270,8 @@ export default function TeacherStudentExamPerformanceDetailPage() {
               wrongCount: row.wrong_count,
             })
             const color = getExamPerformanceColor(effectiveness)
+            const wrongQuestions = getWrongQuestions(row)
+            const hasQuestionBank = getExamQuestions(row.component_key).length > 0
             const Icon =
               color === "green"
                 ? CheckCircle2
@@ -213,6 +324,43 @@ export default function TeacherStudentExamPerformanceDetailPage() {
                       {row.created_at ? new Date(row.created_at).toLocaleString("es-PE") : "Pendiente"}
                     </div>
                   </div>
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-current/20 bg-white/30 p-4">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold">Preguntas falladas</div>
+                      <div className="text-xs opacity-80">
+                        Preguntas donde la respuesta enviada no coincide con la clave correcta.
+                      </div>
+                    </div>
+                    <Badge className="w-fit bg-white/40 text-current hover:bg-white/40">
+                      {wrongQuestions.length} pregunta{wrongQuestions.length === 1 ? "" : "s"}
+                    </Badge>
+                  </div>
+
+                  {!row.answers ? (
+                    <div className="mt-3 rounded-xl border border-current/10 bg-white/40 px-4 py-3 text-sm opacity-80">
+                      El alumno todavia no ha enviado este examen.
+                    </div>
+                  ) : !hasQuestionBank ? (
+                    <div className="mt-3 rounded-xl border border-current/10 bg-white/40 px-4 py-3 text-sm opacity-80">
+                      Este examen no tiene un banco de preguntas registrado para mostrar el detalle.
+                    </div>
+                  ) : wrongQuestions.length === 0 ? (
+                    <div className="mt-3 rounded-xl border border-current/10 bg-white/40 px-4 py-3 text-sm font-medium">
+                      No tuvo errores en este examen.
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {wrongQuestions.map(({ question }) => (
+                        <Badge key={question.id} className="bg-white/40 text-current hover:bg-white/40">
+                          {question.title}
+                          {question.subtitle ? ` - ${question.subtitle}` : ""}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )

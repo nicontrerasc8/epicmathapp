@@ -54,6 +54,7 @@ create table if not exists public.edu_student_exams (
   exam_id text not null references public.edu_exams(id) on delete cascade,
   assignment_id uuid references public.edu_exam_assignments(id) on delete set null,
   answers jsonb,
+  question_results jsonb,
   score numeric,
   correct_count integer,
   wrong_count integer,
