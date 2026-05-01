@@ -115,7 +115,7 @@ function BoxplotAgesGraphic() {
           )
         })}
         <text x="250" y="232" textAnchor="middle" fontSize="13" fontWeight="700" fill="#111827">
-          Edad (anos)
+          Edad (años)
         </text>
       </svg>
     </div>
