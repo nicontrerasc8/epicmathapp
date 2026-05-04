@@ -55,7 +55,7 @@ export async function persistExerciseOnce(input: PersistExerciseInput) {
       exerciseId: input.exerciseId,
       classroomId: input.classroomId,
     })
-    return
+    return false
   }
 
   const { error } = await supabase.from('edu_student_exercises').insert({
@@ -74,5 +74,8 @@ export async function persistExerciseOnce(input: PersistExerciseInput) {
       classroomId: input.classroomId,
       exerciseId: input.exerciseId,
     })
+    return false
   }
+
+  return true
 }

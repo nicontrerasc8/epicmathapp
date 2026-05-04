@@ -297,12 +297,25 @@ function renderAttemptGuide(answer: any) {
   )
 }
 
-function renderAttemptFeedback(answer: any) {
+function renderAttemptFeedback(answer: any, wasCorrect: boolean) {
   if (!answer || typeof answer !== 'object') return null
 
   return (
-    <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-left">
-      <h2 className="text-lg font-bold text-slate-900">Feedback de tu último intento</h2>
+    <div
+      className={`mt-6 rounded-2xl border p-5 text-left ${
+        wasCorrect
+          ? 'border-emerald-200 bg-emerald-50'
+          : 'border-blue-200 bg-blue-50'
+      }`}
+    >
+      <h2 className="text-lg font-bold text-slate-900">
+        {wasCorrect ? 'Intento correcto' : 'Feedback de tu último intento'}
+      </h2>
+      {wasCorrect && (
+        <p className="mt-2 text-sm font-medium text-emerald-800">
+          Acertaste, por eso este ejercicio ya quedó terminado.
+        </p>
+      )}
 
       <div className="mt-4 space-y-4">
         {renderQuestionSummary(answer)}
@@ -322,10 +335,24 @@ function renderAttemptFeedback(answer: any) {
           </div>
         </div>
 
-        {renderAttemptGuide(answer)}
+        {!wasCorrect && renderAttemptGuide(answer)}
       </div>
     </div>
   )
+}
+
+function formatAttemptUsage(
+  attemptsUsed: number,
+  maxAttempts: number,
+  wasCorrect: boolean,
+) {
+  const effectiveMaxAttempts = wasCorrect
+    ? Math.max(1, attemptsUsed)
+    : maxAttempts
+
+  if (!Number.isFinite(effectiveMaxAttempts)) return String(attemptsUsed)
+
+  return `${attemptsUsed}/${effectiveMaxAttempts}`
 }
 
 export default function ExercisePlayPage() {
@@ -367,6 +394,14 @@ export default function ExercisePlayPage() {
   }
 
   if (blocked) {
+    const wasCorrect = correctAttempts > 0 || latestAttemptCorrect === true
+    const attemptsLabel = formatAttemptUsage(attemptsUsed, maxAttempts, wasCorrect)
+    const resultMessage = wasCorrect
+      ? attemptsUsed === 1
+        ? 'Perfecto, acertaste a la primera.'
+        : `Correcto en ${attemptsUsed} intentos.`
+      : 'Se acabaron los intentos disponibles.'
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-blue-50 px-6 py-10 sm:py-16">
         <div className="mx-auto max-w-3xl rounded-3xl border-2 border-blue-200 bg-white/90 p-8 shadow-lg">
@@ -377,12 +412,25 @@ export default function ExercisePlayPage() {
             <h1 className="text-3xl font-black text-slate-900">
               Ejercicio {blockOrder ?? ''}
             </h1>
-            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
-              <p className="text-lg font-bold text-slate-900">
-                Aciertos: {correctAttempts}/{maxAttempts}
+            <div
+              className={`rounded-2xl border px-5 py-4 ${
+                wasCorrect
+                  ? 'border-emerald-200 bg-emerald-50'
+                  : 'border-blue-200 bg-blue-50'
+              }`}
+            >
+              <p
+                className={`text-lg font-bold ${
+                  wasCorrect ? 'text-emerald-800' : 'text-slate-900'
+                }`}
+              >
+                {wasCorrect ? 'Correcto' : `Aciertos: ${correctAttempts}/${maxAttempts}`}
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                Intentos usados: {attemptsUsed}/{maxAttempts}
+                Intentos usados: {attemptsLabel}
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-700">
+                {resultMessage}
               </p>
             </div>
      
@@ -394,7 +442,7 @@ export default function ExercisePlayPage() {
             )}
           </div>
 
-          {renderAttemptFeedback(latestAttemptAnswer)}
+          {renderAttemptFeedback(latestAttemptAnswer, wasCorrect)}
 
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             {nextExerciseId ? (

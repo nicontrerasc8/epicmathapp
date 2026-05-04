@@ -15,7 +15,7 @@ export function useExerciseSubmission(input: {
     answer: any
     timeSeconds: number
   }) => {
-    await persistExerciseOnce({
+    const persisted = await persistExerciseOnce({
       exerciseId: input.exerciseId,
       classroomId: input.classroomId,
       sessionId: input.sessionId,
@@ -24,6 +24,20 @@ export function useExerciseSubmission(input: {
       answer: params.answer,
       timeSeconds: params.timeSeconds,
     })
+
+    if (!persisted) return
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("exercise-attempt-saved", {
+          detail: {
+            exerciseId: input.exerciseId,
+            correct: params.correct,
+            answer: params.answer,
+          },
+        }),
+      )
+    }
 
     if (studentId) {
       await applyGamification({

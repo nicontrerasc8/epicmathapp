@@ -172,17 +172,31 @@ export default function ThemeExercisesPage() {
       }))
 
     const pendingLimited = limitedAssignments.find(
-      (assignment) => assignment.stats.attempts < assignment.maxAttempts,
+      (assignment) =>
+        assignment.stats.correctAttempts === 0 &&
+        assignment.stats.attempts < assignment.maxAttempts,
     )
 
-    return pendingLimited?.exerciseId ?? assignments[0]?.exerciseId ?? null
+    if (limitedAssignments.length > 0) {
+      return pendingLimited?.exerciseId ?? null
+    }
+
+    return assignments[0]?.exerciseId ?? null
   }, [assignments, attemptsByExercise])
 
   const finishedCount = useMemo(
     () =>
-      assignments.filter(
-        (assignment) => (attemptsByExercise[assignment.exerciseId]?.attempts ?? 0) > 0,
-      ).length,
+      assignments.filter((assignment) => {
+        const stats = attemptsByExercise[assignment.exerciseId]
+        const attempts = stats?.attempts ?? 0
+        const correctAttempts = stats?.correctAttempts ?? 0
+        const limitedAttempts = hasLimitedAttempts(assignment.componentKey)
+        const maxAttempts = getExerciseMaxAttempts(assignment.componentKey)
+
+        if (correctAttempts > 0) return true
+        if (limitedAttempts) return attempts >= maxAttempts
+        return attempts > 0
+      }).length,
     [assignments, attemptsByExercise],
   )
 
@@ -243,7 +257,7 @@ export default function ThemeExercisesPage() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">Progreso del tema</h2>
             <span className="text-sm font-semibold text-slate-600">
-              {finishedCount}/{assignments.length} con al menos un intento
+              {finishedCount}/{assignments.length} completados
             </span>
           </div>
 
@@ -257,15 +271,21 @@ export default function ThemeExercisesPage() {
 
               const maxAttempts = getExerciseMaxAttempts(assignment.componentKey)
               const limitedAttempts = hasLimitedAttempts(assignment.componentKey)
-              const exhausted = stats.attempts >= maxAttempts
+              const completedCorrectly = stats.correctAttempts > 0
+              const exhausted = limitedAttempts && stats.attempts >= maxAttempts
               const started = stats.attempts > 0
               const isCurrentPlayable = assignment.exerciseId === firstPlayableExerciseId
               const isUnlocked = !limitedAttempts || isCurrentPlayable || started
+              const displayedMaxAttempts = completedCorrectly
+                ? Math.max(1, stats.attempts)
+                : maxAttempts
               const remainingAttempts = limitedAttempts
-                ? Math.max(0, maxAttempts - stats.attempts)
+                ? completedCorrectly
+                  ? 0
+                  : Math.max(0, maxAttempts - stats.attempts)
                 : null
 
-              const statusIcon = stats.lastCorrect ? (
+              const statusIcon = completedCorrectly ? (
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               ) : exhausted ? (
                 <XCircle className="h-5 w-5 text-red-500" />
@@ -286,16 +306,18 @@ export default function ThemeExercisesPage() {
                       <div className="font-semibold text-slate-900">Ejercicio {index + 1}</div>
                       <div className="text-sm text-slate-600">
                         Intentos: {stats.attempts}
-                        {limitedAttempts ? `/${maxAttempts}` : ''}
-                        {stats.correctAttempts > 0
+                        {limitedAttempts ? `/${displayedMaxAttempts}` : ''}
+                        {completedCorrectly
                           ? ' · Correcto'
                           : exhausted
                             ? ' · Sin intentos disponibles'
                             : ''}
                       </div>
                       <div className="text-xs text-slate-500">
-                        {stats.correctAttempts > 0
-                          ? 'Completado correctamente. Puedes revisar el feedback.'
+                        {completedCorrectly
+                          ? stats.attempts === 1
+                            ? 'Correcto a la primera. El ejercicio quedo terminado.'
+                            : `Completado correctamente en ${stats.attempts} intentos. Puedes revisar el feedback.`
                           : started
                             ? limitedAttempts
                               ? `Intento incorrecto. Te quedan ${remainingAttempts} intento${remainingAttempts === 1 ? '' : 's'}.`
@@ -314,7 +336,11 @@ export default function ThemeExercisesPage() {
                       href={`/student/play/${assignment.exerciseId}`}
                       className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
                     >
-                      {started ? 'Continuar' : 'Resolver'}
+                      {completedCorrectly || exhausted
+                        ? 'Ver feedback'
+                        : started
+                          ? 'Continuar'
+                          : 'Resolver'}
                     </Link>
                   ) : started ? (
                     <Link

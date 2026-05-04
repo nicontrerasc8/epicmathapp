@@ -23,6 +23,16 @@ type ExerciseContext = {
   error: string | null
 }
 
+function parseAttemptAnswer(answer: unknown) {
+  if (typeof answer !== 'string') return answer ?? null
+
+  try {
+    return JSON.parse(answer)
+  } catch {
+    return answer
+  }
+}
+
 export function useExerciseContext(exerciseId: string | null): ExerciseContext {
   const institution = useInstitution()
 
@@ -117,7 +127,15 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
         const correctAttempts =
           attemptsData?.filter((row) => Boolean(row.correct)).length ?? 0
         const latestAttempt = attemptsData?.[attemptsData.length - 1] ?? null
-        const blocked = Number.isFinite(maxAttempts) && attemptsUsed >= maxAttempts
+        const firstCorrectAttempt =
+          attemptsData?.find((row) => Boolean(row.correct)) ?? null
+        const resultAttempt = firstCorrectAttempt ?? latestAttempt
+        const latestAttemptCorrect = resultAttempt
+          ? Boolean(resultAttempt.correct)
+          : null
+        const passed = correctAttempts > 0
+        const exhausted = Number.isFinite(maxAttempts) && attemptsUsed >= maxAttempts
+        const blocked = passed || exhausted
         let nextExerciseId: string | null = null
 
         if (topic && block) {
@@ -173,8 +191,8 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
             studentId,
             attemptsUsed,
             correctAttempts,
-            latestAttemptAnswer: latestAttempt?.answer ?? null,
-            latestAttemptCorrect: latestAttempt ? Boolean(latestAttempt.correct) : null,
+            latestAttemptAnswer: parseAttemptAnswer(resultAttempt?.answer ?? null),
+            latestAttemptCorrect,
             maxAttempts,
             blocked,
             topic,
@@ -198,8 +216,46 @@ export function useExerciseContext(exerciseId: string | null): ExerciseContext {
 
     loadContext()
 
+    const handleAttemptSaved = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          exerciseId?: string
+          correct?: boolean
+          answer?: unknown
+        }>
+      ).detail
+
+      if (detail?.exerciseId === exerciseId) {
+        setState((current) => {
+          const attemptsUsed = current.attemptsUsed + 1
+          const correctAttempts = current.correctAttempts + (detail.correct ? 1 : 0)
+          const exhausted =
+            Number.isFinite(current.maxAttempts) &&
+            attemptsUsed >= current.maxAttempts
+          const blocked = Boolean(detail.correct) || exhausted
+
+          if (!blocked) return current
+
+          return {
+            ...current,
+            attemptsUsed,
+            correctAttempts,
+            latestAttemptAnswer: detail.answer ?? current.latestAttemptAnswer,
+            latestAttemptCorrect: Boolean(detail.correct),
+            blocked,
+            loading: false,
+            error: null,
+          }
+        })
+        loadContext()
+      }
+    }
+
+    window.addEventListener('exercise-attempt-saved', handleAttemptSaved)
+
     return () => {
       cancelled = true
+      window.removeEventListener('exercise-attempt-saved', handleAttemptSaved)
     }
   }, [exerciseId, institution?.id])
 
