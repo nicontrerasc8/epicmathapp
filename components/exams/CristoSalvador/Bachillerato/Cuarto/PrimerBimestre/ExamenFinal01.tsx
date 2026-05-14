@@ -4,7 +4,7 @@ import { useState } from "react"
 import { AlertCircle, CheckCircle2, FileText, LockKeyhole, XCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { MathProvider, MathTex } from "@/components/exercises/base/MathBlock"
+import { MathProvider, MathTex } from "@/components/exams/MathBlock"
 import { createClient } from "@/utils/supabase/client"
 import { EXAMEN_FINAL_01_QUESTIONS } from "./questions"
 type ExamProps = {

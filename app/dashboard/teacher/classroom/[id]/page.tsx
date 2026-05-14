@@ -25,13 +25,6 @@ export default async function TeacherClassroomHub({
 
   if (!classroom) notFound()
 
-  // Fetch stats
-  const { count: exerciseCount } = await supabase
-    .from("edu_exercise_assignments")
-    .select("id", { count: "exact", head: true })
-    .eq("classroom_id", id)
-    .eq("active", true)
-
   const { count: examCount } = await supabase
     .from("edu_exam_assignments")
     .select("id", { count: "exact", head: true })
@@ -71,7 +64,6 @@ export default async function TeacherClassroomHub({
       stats={{
         studentCount,
         activeStudents,
-        exerciseCount: exerciseCount || 0,
         examCount: examCount || 0,
       }}
     />

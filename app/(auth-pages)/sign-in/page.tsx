@@ -83,7 +83,7 @@ export default function SignInPage() {
     }
 
     if (profile.global_role === 'student') {
-      router.push('/student/play')
+      router.push('/student/exams')
       return
     }
 

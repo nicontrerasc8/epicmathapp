@@ -19,7 +19,9 @@ type ExamRow = {
   assignment_id: string
   id: string
   title: string
-  component_key: string
+  component_key: string | null
+  content_json: unknown
+  settings_json: unknown
   available_from: string | null
   available_until: string | null
   active: boolean
@@ -56,7 +58,7 @@ function normalizeExamComponentKey(componentKey: string | null) {
 }
 
 function buildQuestionResults(
-  componentKey: string,
+  componentKey: string | null,
   attempt: StudentExamAttemptRow,
 ): ExamQuestionResult[] {
   if (Array.isArray(attempt.question_results) && attempt.question_results.length > 0) {
@@ -104,7 +106,7 @@ function StudentExamReview({
   componentKey,
 }: {
   attempt: StudentExamAttemptRow
-  componentKey: string
+  componentKey: string | null
 }) {
   const questionResults = buildQuestionResults(componentKey, attempt)
 
@@ -201,7 +203,9 @@ export default function StudentExamPlayPage() {
               edu_exams!inner (
                 id,
                 title,
-                component_key
+                component_key,
+                content_json,
+                settings_json
               )
             `)
             .eq("classroom_id", session.classroom_id)
@@ -235,7 +239,7 @@ export default function StudentExamPlayPage() {
         : (data as any).edu_exams
 
       if (!currentExam?.id) {
-        setError("El examen no tiene un componente configurado.")
+        setError("El examen no tiene contenido configurado.")
         setLoading(false)
         return
       }
@@ -244,7 +248,9 @@ export default function StudentExamPlayPage() {
         assignment_id: (data as any).id,
         id: currentExam.id,
         title: currentExam.title,
-        component_key: currentExam.component_key,
+        component_key: currentExam.component_key ?? null,
+        content_json: currentExam.content_json ?? null,
+        settings_json: currentExam.settings_json ?? null,
         available_from: (data as any).available_from ?? null,
         available_until: (data as any).available_until ?? null,
         active: Boolean((data as any).active),
@@ -331,6 +337,8 @@ export default function StudentExamPlayPage() {
 
       <ExamRegistry
         componentKey={exam.component_key}
+        contentJson={exam.content_json}
+        settingsJson={exam.settings_json}
         examId={exam.id}
         assignmentId={exam.assignment_id}
         classroomId={classroomId}

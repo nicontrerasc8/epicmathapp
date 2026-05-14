@@ -42,8 +42,8 @@ export default async function ClassroomLayout({
         <Link href={`${base}/members`}>
           <Button variant="ghost">Usuarios</Button>
         </Link>
-        <Link href={`${base}/exercises`}>
-          <Button variant="ghost">Ejercicios</Button>
+        <Link href={`${base}/tasks`}>
+          <Button variant="ghost">Tareas</Button>
         </Link>
         <Link href={`${base}/exams`}>
           <Button variant="ghost">Examenes</Button>

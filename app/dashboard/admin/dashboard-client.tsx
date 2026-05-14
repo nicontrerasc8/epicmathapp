@@ -6,8 +6,8 @@ import {
     Users,
     GraduationCap,
     Building2,
-    Target,
     FileText,
+    ListTodo,
     ArrowRight,
     UserPlus,
     FileSpreadsheet
@@ -19,8 +19,6 @@ interface Stats {
     students: number
     classrooms: number
     institutions: number
-    recentExercises: number
-    accuracy: number
 }
 
 interface RecentClassroom {
@@ -134,17 +132,6 @@ export default function AdminDashboardClient({
                     icon={Building2}
                     variant="default"
                 />
-                <StatCard
-                    title="Precisión (7 días)"
-                    value={stats.accuracy}
-                    suffix="%"
-                    icon={Target}
-                    variant={stats.accuracy >= 70 ? "success" : stats.accuracy >= 50 ? "warning" : "danger"}
-                    trend={stats.recentExercises > 0 ? {
-                        value: stats.accuracy >= 70 ? 5 : stats.accuracy >= 50 ? 0 : -5,
-                        label: `${stats.recentExercises} ejercicios`
-                    } : undefined}
-                />
             </StatCardGrid>
 
             {/* Quick Actions */}
@@ -174,6 +161,12 @@ export default function AdminDashboardClient({
                         title="Modulo Examenes"
                         description="Entrar a la gestion de examenes por salon"
                         href="/dashboard/admin/exams"
+                    />
+                    <QuickActionCard
+                        icon={ListTodo}
+                        title="Modulo Tareas"
+                        description="Crear tareas y practicas por salon"
+                        href="/dashboard/admin/tasks"
                     />
                 </div>
             </section>
@@ -288,3 +281,4 @@ export default function AdminDashboardClient({
         </div>
     )
 }
+

@@ -11,7 +11,6 @@ async function getAdminStats(institutionId: string) {
     studentsResult,
     classroomsResult,
     institutionsResult,
-    recentExercisesResult
   ] = await Promise.all([
     // Total active students
     supabase
@@ -28,37 +27,17 @@ async function getAdminStats(institutionId: string) {
       .eq("active", true)
       .eq("institution_id", institutionId),
 
-    // Total institutions
     supabase
       .from("edu_institutions")
       .select("id", { count: "exact", head: true })
       .eq("active", true)
       .eq("id", institutionId),
-
-    // Recent student exercises (last 7 days)
-    supabase
-      .from("edu_student_exercises")
-      .select("id, correct, created_at, edu_classrooms!inner ( institution_id )")
-      .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-      .eq("edu_classrooms.institution_id", institutionId)
-      .order("created_at", { ascending: false })
-      .limit(500),
   ])
-
-  // Calculate accuracy from recent exercises
-  const exercises = recentExercisesResult.data || []
-  const totalExercises = exercises.length
-  const correctExercises = exercises.filter((e) => e.correct).length
-  const accuracy = totalExercises > 0
-    ? Math.round((correctExercises / totalExercises) * 100)
-    : 0
 
   return {
     students: studentsResult.count || 0,
     classrooms: classroomsResult.count || 0,
     institutions: institutionsResult.count || 0,
-    recentExercises: totalExercises,
-    accuracy,
   }
 }
 

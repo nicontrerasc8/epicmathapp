@@ -122,7 +122,7 @@ export default function TeacherClassroomStudentsPage() {
                     description: "No hay estudiantes en esta clase."
                 }}
                 onRowClick={(student) => {
-                    router.push(`/dashboard/teacher/classroom/${classroomId}/performance/${student.id}`)
+                    router.push(`/dashboard/teacher/classroom/${classroomId}/performance/exams/${student.id}`)
                 }}
             />
         </div>

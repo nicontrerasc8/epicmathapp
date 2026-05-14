@@ -1,4 +1,4 @@
--- Migration: move exams to the same conceptual model as exercises
+-- Migration: move exams to the catalog assignment model
 -- Goal:
 -- 1. Keep a catalog of exam contents/routable components in edu_exams
 -- 2. Assign those exams to classrooms through edu_exam_assignments
@@ -6,7 +6,6 @@
 --
 -- Notes:
 -- - This migration is additive and safe to run before refactoring the app.
--- - Existing tables edu_exam_sessions / edu_exam_exercises are left untouched for now.
 -- - Once the app is migrated, the legacy tables can be removed in a later cleanup migration.
 
 begin;
@@ -16,13 +15,18 @@ create table if not exists public.edu_exams (
   title text not null,
   description text,
   exam_type text not null,
-  component_key text not null unique,
+  component_key text unique,
   institution_id uuid references public.edu_institutions(id),
   block text,
   block_order integer,
   duration_minutes integer,
+  content_json jsonb,
+  settings_json jsonb not null default '{}'::jsonb,
   active boolean not null default true,
-  created_at timestamp with time zone not null default now()
+  created_at timestamp with time zone not null default now(),
+  constraint edu_exams_content_json_is_object check (
+    content_json is null or jsonb_typeof(content_json) = 'object'
+  )
 );
 
 create index if not exists edu_exams_institution_idx
@@ -30,6 +34,9 @@ create index if not exists edu_exams_institution_idx
 
 create index if not exists edu_exams_type_block_idx
   on public.edu_exams (exam_type, block);
+
+create index if not exists idx_edu_exams_content_json
+  on public.edu_exams using gin (content_json);
 
 create table if not exists public.edu_exam_assignments (
   id uuid primary key default uuid_generate_v4(),
@@ -90,16 +97,15 @@ end;
 $$;
 
 comment on table public.edu_exams is
-  'Catalog of exam contents. Mirrors edu_exercises but for routable exams.';
+  'Catalog of routable exam contents.';
 
 comment on table public.edu_exam_assignments is
-  'Assignments of catalog exams to classrooms. Mirrors edu_exercise_assignments.';
+  'Assignments of catalog exams to classrooms.';
 
 comment on table public.edu_student_exams is
-  'Student attempts/results for exams. Mirrors edu_student_exercises at exam level.';
+  'Student attempts/results for exams.';
 
 commit;
 
 -- Optional cleanup, only after the app no longer uses the legacy model:
--- drop table if exists public.edu_exam_exercises;
 -- drop table if exists public.edu_exam_sessions;

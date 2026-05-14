@@ -6,8 +6,8 @@ import {
     Users,
     ArrowRight,
     TrendingUp,
-    FileQuestion,
     FileText,
+    ListTodo,
 } from "lucide-react"
 import {
     PageHeader,
@@ -26,7 +26,6 @@ interface TeacherClassroomHubProps {
     }
     stats: {
         studentCount: number
-        exerciseCount: number
         activeStudents: number
         examCount: number
     }
@@ -101,12 +100,6 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
                     variant="success"
                 />
                 <StatCard
-                    title="Ejercicios"
-                    value={stats.exerciseCount}
-                    icon={TrendingUp}
-                    variant="default"
-                />
-                <StatCard
                     title="Examenes"
                     value={stats.examCount}
                     icon={FileText}
@@ -120,8 +113,8 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
                     <QuickActionCard
                         icon={TrendingUp}
                         title="Rendimiento Academico"
-                        description="Ver estadisticas detalladas por estudiante y ejercicio"
-                        href={`/dashboard/teacher/classroom/${classroom.id}/performance`}
+                        description="Ver estadisticas detalladas de examenes"
+                        href={`/dashboard/teacher/classroom/${classroom.id}/performance/exams`}
                     />
                     <QuickActionCard
                         icon={Users}
@@ -130,16 +123,16 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
                         href={`/dashboard/teacher/classroom/${classroom.id}/students`}
                     />
                     <QuickActionCard
-                        icon={FileQuestion}
-                        title="Ejercicios"
-                        description="Activar o desactivar ejercicios disponibles"
-                        href={`/dashboard/teacher/classroom/${classroom.id}/exercises`}
-                    />
-                    <QuickActionCard
                         icon={FileText}
                         title="Examenes"
                         description="Programar examenes y ver su tablero"
                         href={`/dashboard/teacher/classroom/${classroom.id}/exams`}
+                    />
+                    <QuickActionCard
+                        icon={ListTodo}
+                        title="Tareas"
+                        description="Crear tareas y practicas para el aula"
+                        href={`/dashboard/teacher/classroom/${classroom.id}/tasks`}
                     />
                 </div>
             </section>

@@ -62,9 +62,14 @@ export default function StudentDashboard() {
       )}
 
       <div className="flex flex-col sm:flex-row gap-6">
-        <Link href="/student/play" className="w-full sm:w-auto">
+        <Link href="/student/tasks" className="w-full sm:w-auto">
+          <button className="w-full sm:w-auto bg-primary text-white font-semibold px-6 py-3 rounded-xl hover:bg-primary/90 transition">
+            Ver tareas
+          </button>
+        </Link>
+        <Link href="/student/exams" className="w-full sm:w-auto">
           <button className="w-full sm:w-auto bg-secondary text-white font-semibold px-6 py-3 rounded-xl hover:bg-secondary/90 transition">
-            Jugar
+            Ver examenes
           </button>
         </Link>
       </div>

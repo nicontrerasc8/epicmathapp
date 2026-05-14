@@ -126,7 +126,6 @@ export function useAutoBreadcrumbs(): BreadcrumbItem[] {
         curriculum: "Currículum",
         institutions: "Instituciones",
         temas: "Temas",
-        exercises: "Ejercicios",
         members: "Miembros",
         performance: "Rendimiento",
         import: "Importar",

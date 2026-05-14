@@ -14,6 +14,7 @@ import {
     LayoutDashboard,
     LucideIcon,
     Menu,
+    ListTodo,
     Users,
     X,
 } from "lucide-react"
@@ -50,6 +51,7 @@ const adminNavigation: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard/admin" },
     { icon: Users, label: "Usuarios", href: "/dashboard/admin/students" },
     { icon: GraduationCap, label: "Aulas", href: "/dashboard/admin/classrooms" },
+    { icon: ListTodo, label: "Tareas", href: "/dashboard/admin/tasks" },
     { icon: FileText, label: "Examenes", href: "/dashboard/admin/exams" },
 ]
 

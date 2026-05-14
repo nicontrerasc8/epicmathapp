@@ -4,18 +4,13 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import {
     Users,
-    FileQuestion,
     FileText,
-    Target,
+    ListTodo,
     ArrowRight,
-    Settings,
     Calendar,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import {
     PageHeader,
-    StatCard,
-    StatCardGrid,
     StatusBadge
 } from "@/components/dashboard/core"
 
@@ -28,9 +23,6 @@ interface ClassroomData {
     classroom_code?: string | null
     edu_institutions: { id: string; name: string; type: string } | null
     memberCount: number
-    exercisesCount: number
-    accuracy: number
-    totalExercises: number
 }
 
 // Quick link card
@@ -114,17 +106,16 @@ export default function ClassroomDetailClient({ data }: any) {
                         count={data.memberCount}
                     />
                     <QuickLinkCard
-                        icon={FileQuestion}
-                        title="Ejercicios"
-                        description="Asignar ejercicios al aula"
-                        href={`/dashboard/admin/classrooms/${data.id}/exercises`}
-                        count={data.exercisesCount}
-                    />
-                    <QuickLinkCard
                         icon={FileText}
                         title="Examenes"
                         description="Entrar al modulo de examenes del aula"
                         href={`/dashboard/admin/classrooms/${data.id}/exams`}
+                    />
+                    <QuickLinkCard
+                        icon={ListTodo}
+                        title="Tareas"
+                        description="Crear tareas y practicas para el aula"
+                        href={`/dashboard/admin/classrooms/${data.id}/tasks`}
                     />
                 </div>
             </section>
@@ -176,40 +167,12 @@ export default function ClassroomDetailClient({ data }: any) {
                     className="rounded-2xl border bg-card p-5"
                 >
                     <h3 className="font-semibold mb-4">Actividad Reciente</h3>
-                    {data.totalExercises === 0 ? (
-                        <div className="py-8 text-center">
-                            <FileQuestion className="w-10 h-10 text-muted-foreground/50 mx-auto mb-2" />
-                            <p className="text-sm text-muted-foreground">
-                                No hay ejercicios resueltos en los ultimos 7 dias
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">Ejercicios esta semana</span>
-                                <span className="font-semibold">{data.totalExercises}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">Precision promedio</span>
-                                <span className={`font-semibold ${data.accuracy >= 70 ? "text-secondary" :
-                                        data.accuracy >= 50 ? "text-accent-foreground" : "text-destructive"
-                                    }`}>
-                                    {data.accuracy}%
-                                </span>
-                            </div>
-                            {/* Progress bar */}
-                            <div className="h-2 bg-muted rounded-full overflow-hidden">
-                                <motion.div
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${data.accuracy}%` }}
-                                    transition={{ duration: 0.5, ease: "easeOut" }}
-                                    className={`h-full rounded-full ${data.accuracy >= 70 ? "bg-secondary" :
-                                            data.accuracy >= 50 ? "bg-accent" : "bg-destructive"
-                                        }`}
-                                />
-                            </div>
-                        </div>
-                    )}
+                    <div className="py-8 text-center">
+                        <FileText className="w-10 h-10 text-muted-foreground/50 mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                            La actividad se revisa desde el modulo de examenes.
+                        </p>
+                    </div>
                 </motion.div>
             </section>
         </div>

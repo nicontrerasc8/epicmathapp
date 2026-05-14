@@ -7,6 +7,8 @@ import { PageHeader, RowActionsMenu, StatusBadge } from "@/components/dashboard/
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { ExamRegistry } from "@/components/exams"
+import { parseAssessmentText, stringifyJson } from "@/lib/assessment-json"
 
 type Message = { type: "success" | "error"; text: string }
 
@@ -19,8 +21,10 @@ type AssignmentRow = {
     description: string | null
     exam_type: string
     block: string | null
-    component_key: string
+    component_key: string | null
     duration_minutes: number | null
+    content_json: unknown
+    settings_json: unknown
   } | null
 }
 
@@ -30,8 +34,10 @@ type ExamOption = {
   description: string | null
   exam_type: string
   block: string | null
-  component_key: string
+  component_key: string | null
   duration_minutes: number | null
+  content_json: unknown
+  settings_json: unknown
 }
 
 const EMPTY_NEW = {
@@ -43,6 +49,8 @@ const EMPTY_NEW = {
   custom_block: "",
   component_key: "",
   duration_minutes: "",
+  content_json: "",
+  settings_json: '{\n  "mode": "exam",\n  "attemptsAllowed": 1,\n  "showScore": false,\n  "showReview": true\n}',
 }
 
 export default function ClassroomExamsPage() {
@@ -72,9 +80,12 @@ export default function ClassroomExamsPage() {
   const [saving, setSaving] = useState(false)
 
   const [editing, setEditing] = useState<AssignmentRow | null>(null)
+  const [previewing, setPreviewing] = useState<AssignmentRow | null>(null)
   const [editTitle, setEditTitle] = useState("")
   const [editDescription, setEditDescription] = useState("")
   const [editDuration, setEditDuration] = useState("")
+  const [editContentJson, setEditContentJson] = useState("")
+  const [editSettingsJson, setEditSettingsJson] = useState("")
   const [savingEdit, setSavingEdit] = useState(false)
 
   const loadMeta = async () => {
@@ -102,7 +113,9 @@ export default function ClassroomExamsPage() {
           exam_type,
           block,
           component_key,
-          duration_minutes
+          duration_minutes,
+          content_json,
+          settings_json
         )
       `)
       .eq("classroom_id", classroomId)
@@ -120,7 +133,7 @@ export default function ClassroomExamsPage() {
     if (!nextInstitutionId) return
     const { data, error } = await supabase
       .from("edu_exams")
-      .select("id, title, description, exam_type, block, component_key, duration_minutes")
+      .select("id, title, description, exam_type, block, component_key, duration_minutes, content_json, settings_json")
       .eq("institution_id", nextInstitutionId)
       .eq("active", true)
       .order("exam_type", { ascending: true })
@@ -266,8 +279,12 @@ export default function ClassroomExamsPage() {
       if (createMode) {
         const examType = newExam.exam_type === "__custom__" ? newExam.custom_type.trim() : newExam.exam_type.trim()
         const block = newExam.block === "__custom__" ? newExam.custom_block.trim() : newExam.block.trim()
-        if (!newExam.title.trim() || !examType || !block || !newExam.component_key.trim()) {
-          throw new Error("Define titulo, tipo, block y component_key del examen.")
+        const contentJson = newExam.content_json.trim()
+          ? parseAssessmentText(newExam.content_json, newExam.title.trim())
+          : null
+        const settingsJson = newExam.settings_json.trim() ? JSON.parse(newExam.settings_json) : {}
+        if (!newExam.title.trim() || !examType || !block || (!newExam.component_key.trim() && !contentJson)) {
+          throw new Error("Define titulo, tipo, block y contenido JSON o component_key del examen.")
         }
         const newId = crypto.randomUUID()
         const { error } = await supabase.from("edu_exams").insert({
@@ -276,8 +293,10 @@ export default function ClassroomExamsPage() {
           description: newExam.description.trim() || null,
           exam_type: examType,
           block,
-          component_key: newExam.component_key.trim(),
+          component_key: newExam.component_key.trim() || null,
           duration_minutes: newExam.duration_minutes.trim() ? Number(newExam.duration_minutes) : null,
+          content_json: contentJson,
+          settings_json: settingsJson,
           institution_id: institutionId,
           active: true,
         })
@@ -313,6 +332,8 @@ export default function ClassroomExamsPage() {
     setEditTitle(row.exam?.title || "")
     setEditDescription(row.exam?.description || "")
     setEditDuration(row.exam?.duration_minutes != null ? String(row.exam.duration_minutes) : "")
+    setEditContentJson(row.exam?.content_json ? stringifyJson(row.exam.content_json) : "")
+    setEditSettingsJson(stringifyJson(row.exam?.settings_json ?? {}))
   }
 
   const saveEdit = async () => {
@@ -323,12 +344,18 @@ export default function ClassroomExamsPage() {
     }
     setSavingEdit(true)
     try {
+      const contentJson = editContentJson.trim()
+        ? parseAssessmentText(editContentJson, editTitle.trim())
+        : null
+      const settingsJson = editSettingsJson.trim() ? JSON.parse(editSettingsJson) : {}
       const { error } = await supabase
         .from("edu_exams")
         .update({
           title: editTitle.trim(),
           description: editDescription.trim() || null,
           duration_minutes: editDuration.trim() ? Number(editDuration) : null,
+          content_json: contentJson,
+          settings_json: settingsJson,
         })
         .eq("id", editing.exam.id)
       if (error) throw error
@@ -347,7 +374,7 @@ export default function ClassroomExamsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Examenes asignados"
-        description="Mismo metodo que ejercicios: el examen existe como contenido y luego se asigna al salon."
+        description="El examen existe como contenido y luego se asigna al salon."
         breadcrumbs={[
           { label: "Admin", href: "/dashboard/admin" },
           { label: "Aulas", href: "/dashboard/admin/classrooms" },
@@ -394,7 +421,9 @@ export default function ClassroomExamsPage() {
                     <div>
                       <div className="font-medium">{row.exam?.title || row.exam?.id || "Sin titulo"}</div>
                       <div className="text-xs text-muted-foreground">{row.exam?.exam_type || "Sin tipo"} · {row.exam?.block || "Sin block"}</div>
-                      <div className="text-xs font-mono text-muted-foreground">{row.exam?.component_key || "Sin component_key"}</div>
+                      <div className="text-xs font-mono text-muted-foreground">
+                        {row.exam?.content_json ? "JSON dinamico" : row.exam?.component_key || "Sin contenido"}
+                      </div>
                     </div>
                   </label>
 
@@ -402,6 +431,7 @@ export default function ClassroomExamsPage() {
                     <StatusBadge active={row.active} />
                     <RowActionsMenu
                       actions={[
+                        { label: "Previsualizar", onClick: () => setPreviewing(row) },
                         { label: "Editar", onClick: () => openEdit(row) },
                         {
                           label: row.active ? "Desactivar" : "Activar",
@@ -451,8 +481,10 @@ export default function ClassroomExamsPage() {
                 <option value="__custom__">+ Crear block nuevo</option>
               </select>
               {newExam.block === "__custom__" && <Input placeholder="Nuevo block" value={newExam.custom_block} onChange={(e) => setNewExam((s) => ({ ...s, custom_block: e.target.value }))} />}
-              <Input placeholder="component_key. Ej: cristo/examenes/algebra-b1" value={newExam.component_key} onChange={(e) => setNewExam((s) => ({ ...s, component_key: e.target.value }))} />
+              <Input placeholder="component_key opcional. Ej: cristo/examenes/algebra-b1" value={newExam.component_key} onChange={(e) => setNewExam((s) => ({ ...s, component_key: e.target.value }))} />
               <Input placeholder="Duracion en minutos (opcional)" value={newExam.duration_minutes} onChange={(e) => setNewExam((s) => ({ ...s, duration_minutes: e.target.value }))} />
+              <textarea className="min-h-72 w-full rounded-md border px-3 py-2 font-mono text-xs" placeholder="content_json: pega { questions: [...] }, un arreglo, o export const EXAMEN_01_QUESTIONS = [...]" value={newExam.content_json} onChange={(e) => setNewExam((s) => ({ ...s, content_json: e.target.value }))} />
+              <textarea className="min-h-32 w-full rounded-md border px-3 py-2 font-mono text-xs" placeholder="settings_json" value={newExam.settings_json} onChange={(e) => setNewExam((s) => ({ ...s, settings_json: e.target.value }))} />
             </div>
           ) : (
             <div className="space-y-3">
@@ -491,7 +523,7 @@ export default function ClassroomExamsPage() {
                     <div>
                       <div className="font-medium">{row.title}</div>
                       <div className="text-xs text-muted-foreground">{row.exam_type} · {row.block || "Sin block"}</div>
-                      <div className="text-xs font-mono text-muted-foreground">{row.component_key}</div>
+                      <div className="text-xs font-mono text-muted-foreground">{row.content_json ? "JSON dinamico" : row.component_key || "Sin component_key"}</div>
                     </div>
                   </label>
                 ))}
@@ -523,10 +555,40 @@ export default function ClassroomExamsPage() {
               <Input placeholder="Titulo" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
               <textarea className="min-h-24 w-full rounded-md border px-3 py-2 text-sm" placeholder="Descripcion" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
               <Input placeholder="Duracion en minutos" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} />
+              <textarea className="min-h-72 w-full rounded-md border px-3 py-2 font-mono text-xs" placeholder="content_json" value={editContentJson} onChange={(e) => setEditContentJson(e.target.value)} />
+              <textarea className="min-h-32 w-full rounded-md border px-3 py-2 font-mono text-xs" placeholder="settings_json" value={editSettingsJson} onChange={(e) => setEditSettingsJson(e.target.value)} />
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
               <Button type="button" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? "Guardando..." : "Guardar"}</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewing?.exam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <div className="text-lg font-semibold">Previsualizacion de examen</div>
+                <div className="text-sm text-muted-foreground">{previewing.exam.title}</div>
+              </div>
+              <Button type="button" variant="outline" onClick={() => setPreviewing(null)}>
+                Cerrar
+              </Button>
+            </div>
+            <div className="overflow-y-auto p-5">
+              <ExamRegistry
+                componentKey={previewing.exam.component_key}
+                contentJson={previewing.exam.content_json}
+                settingsJson={previewing.exam.settings_json}
+                examId={previewing.exam.id}
+                assignmentId={previewing.id}
+                classroomId={classroomId}
+                displayTitle={previewing.exam.title}
+                previewMode
+              />
             </div>
           </div>
         </div>

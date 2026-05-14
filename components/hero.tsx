@@ -85,7 +85,7 @@ export default function Hero() {
               custom={1}
               className="text-4xl sm:text-5xl lg:text-7xl font-black leading-[1.1] tracking-tight"
             >
-              Tus ejercicios de matemáticas,
+              Tus evaluaciones de matematicas,
               <br />
               <span className="text-primary">digitalizados con IA</span>
             </motion.h1>
@@ -158,7 +158,7 @@ export default function Hero() {
             <div className="space-y-2">
               <div className="text-5xl sm:text-6xl font-black">100%</div>
               <div className="text-lg sm:text-xl text-white/90">Tu currícula</div>
-              <div className="text-sm text-white/70">Ejercicios y método</div>
+              <div className="text-sm text-white/70">Evaluaciones y metodo</div>
             </div>
             <div className="space-y-2">
               <div className="text-5xl sm:text-6xl font-black">0h</div>
@@ -257,8 +257,8 @@ export default function Hero() {
             {
               step: '01',
               icon: BookOpenCheck,
-              title: 'Digitalizamos tus ejercicios',
-              description: 'Envías tus ejercicios actuales y el procedimiento de resolución. Nuestra IA los convierte en formato interactivo.',
+              title: 'Digitalizamos tus evaluaciones',
+              description: 'Envias tus evaluaciones actuales y el procedimiento de resolucion. Nuestra IA las convierte en formato interactivo.',
               color: 'primary',
             },
             {
@@ -341,7 +341,7 @@ export default function Hero() {
               </h3>
               
               <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">
-                Los estudiantes resuelven <strong>los mismos ejercicios de tu cuaderno</strong>,
+                Los estudiantes resuelven <strong>las mismas evaluaciones de tu plan de clase</strong>,
                 pero en un formato que los motiva a practicar más.
               </p>
 
@@ -391,7 +391,7 @@ export default function Hero() {
               <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white ring-1 ring-slate-200">
                 <img
                   src="/game.png"
-                  alt="Interfaz gamificada de ejercicios matemáticos"
+                  alt="Interfaz gamificada de evaluaciones matematicas"
                   className="w-full h-auto transform group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
@@ -703,7 +703,7 @@ con 120 estudiantes durante 12 semanas.
             {
               icon: Clock,
               title: 'Horas recuperadas cada semana',
-              desc: 'Cero tiempo en corrección manual de ejercicios',
+              desc: 'Cero tiempo en correccion manual de evaluaciones',
             },
             {
               icon: Brain,
@@ -759,7 +759,7 @@ con 120 estudiantes durante 12 semanas.
           </motion.div>          <h2 className="text-3xl sm:text-4xl lg:text-6xl font-black text-white leading-tight">
             100% adaptado a tu currícula
           </h2>          <p className="text-lg sm:text-xl lg:text-2xl text-white/80 leading-relaxed max-w-3xl mx-auto">
-            LUDUS no impone ejercicios genéricos de internet.
+            LUDUS no impone evaluaciones genericas de internet.
             <br />
             <strong className="text-white">Digitalizamos exactamente lo que ya enseñas</strong>,
             con el procedimiento que tú defines.
@@ -768,7 +768,7 @@ con 120 estudiantes durante 12 semanas.
           {[
             {
               number: '1',
-              title: 'Tus ejercicios',
+              title: 'Tus evaluaciones',
               description: 'Del cuaderno o guía impresa al formato digital interactivo',
               icon: BookOpenCheck,
             },
@@ -867,7 +867,7 @@ con 120 estudiantes durante 12 semanas.
           Digitaliza tu currícula de matemáticas
         </h2>        <p className="text-lg sm:text-xl lg:text-2xl mb-8 font-medium text-white/90 max-w-3xl mx-auto leading-relaxed">
           Agenda una demo personalizada. Te mostramos cómo LUDUS se adapta
-          a <strong>tus ejercicios, tu método y tus objetivos pedagógicos</strong>.
+          a <strong>tus evaluaciones, tu metodo y tus objetivos pedagogicos</strong>.
         </p>        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
           <Button
             asChild

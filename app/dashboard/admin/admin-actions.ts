@@ -784,12 +784,6 @@ export async function deleteUserCompletelyAction(profileId: string) {
         .eq("teacher_id", profileId)
     if (feedbackTeacherErr) throw new Error(feedbackTeacherErr.message)
 
-    const { error: exercisesErr } = await supabaseAdmin
-        .from("edu_student_exercises")
-        .delete()
-        .eq("student_id", profileId)
-    if (exercisesErr) throw new Error(exercisesErr.message)
-
     const { error: gamificationErr } = await supabaseAdmin
         .from("edu_student_gamification")
         .delete()

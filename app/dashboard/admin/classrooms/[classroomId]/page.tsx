@@ -32,37 +32,9 @@ async function getClassroomData(classroomId: string, institutionId: string) {
     .eq("edu_institution_members.institution_id", institutionId)
     .eq("edu_institution_members.active", true)
 
-  const { count: exercisesCount } = await supabase
-    .from("edu_exercise_assignments")
-    .select("id", { count: "exact", head: true })
-    .eq("classroom_id", classroomId)
-    .eq("active", true)
-
-  const { data: recentExercises } = await supabase
-    .from("edu_student_exercises")
-    .select("id, correct")
-    .eq("classroom_id", classroomId)
-    .gte(
-      "created_at",
-      new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    )
-    .limit(200)
-
-  const totalExercises = recentExercises?.length ?? 0
-  const correctExercises =
-    recentExercises?.filter((e) => e.correct).length ?? 0
-
-  const accuracy =
-    totalExercises > 0
-      ? Math.round((correctExercises / totalExercises) * 100)
-      : 0
-
   return {
     ...safeClassroom,
     memberCount: memberCount ?? 0,
-    exercisesCount: exercisesCount ?? 0,
-    accuracy,
-    totalExercises,
   }
 }
 

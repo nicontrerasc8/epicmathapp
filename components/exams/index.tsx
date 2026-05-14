@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react"
 import dynamic from "next/dynamic"
+import { DynamicAssessment } from "@/components/assessments/DynamicAssessment"
 
 type ExamComponentProps = {
   examId: string
@@ -12,6 +13,8 @@ type ExamComponentProps = {
   displayTitle?: string
   previewMode?: boolean
   attemptLocked?: boolean
+  contentJson?: unknown
+  settingsJson?: unknown
 }
 
 type ExamLoader = () => Promise<{
@@ -50,6 +53,8 @@ export function ExamRegistry({
   displayTitle,
   previewMode = false,
   attemptLocked = false,
+  contentJson,
+  settingsJson,
 }: ExamComponentProps & { componentKey: string | null }) {
   const ExamComponent = useMemo(() => {
     const normalizedKey = normalizeExamComponentKey(componentKey)
@@ -73,6 +78,23 @@ export function ExamRegistry({
       ),
     })
   }, [componentKey])
+
+  if (!ExamComponent && contentJson) {
+    return (
+      <DynamicAssessment
+        content={contentJson}
+        settings={settingsJson}
+        examId={examId}
+        assignmentId={assignmentId}
+        classroomId={classroomId}
+        studentId={studentId}
+        displayTitle={displayTitle}
+        previewMode={previewMode}
+        attemptLocked={attemptLocked}
+        submitTarget="exam"
+      />
+    )
+  }
 
   if (!ExamComponent) {
     return (
