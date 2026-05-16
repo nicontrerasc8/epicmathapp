@@ -80,6 +80,8 @@ export default function StudentTaskPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [selectedMode, setSelectedMode] = useState<"choose" | "task">("choose")
+  const [practiceCompleted, setPracticeCompleted] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -97,7 +99,11 @@ export default function StudentTaskPage() {
       setStudentId(session.student_id)
       setClassroomId(session.classroom_id)
 
-      const [{ data, error: taskError }, { data: attemptData, error: attemptError }] = await Promise.all([
+      const [
+        { data, error: taskError },
+        { data: attemptData, error: attemptError },
+        { data: practiceData, error: practiceError },
+      ] = await Promise.all([
         supabase
           .from("edu_tasks")
           .select(`
@@ -138,6 +144,12 @@ export default function StudentTaskPage() {
           .eq("student_id", session.student_id)
           .eq("classroom_id", session.classroom_id)
           .order("attempt_number", { ascending: false }),
+        supabase
+          .from("edu_task_practice_sessions")
+          .select("accuracy")
+          .eq("task_id", taskId)
+          .eq("student_id", session.student_id)
+          .eq("classroom_id", session.classroom_id),
       ])
 
       if (taskError || !data) {
@@ -147,6 +159,11 @@ export default function StudentTaskPage() {
       }
       if (attemptError) {
         setError(attemptError.message)
+        setLoading(false)
+        return
+      }
+      if (practiceError) {
+        setError(practiceError.message)
         setLoading(false)
         return
       }
@@ -160,6 +177,11 @@ export default function StudentTaskPage() {
 
       setTask(normalizedTask)
       setAttempts((attemptData ?? []) as AttemptRow[])
+      setPracticeCompleted(
+        ((practiceData ?? []) as { accuracy: number | string | null }[]).some(
+          (practiceSession) => Number(practiceSession.accuracy ?? 0) >= 100,
+        ),
+      )
       setLoading(false)
     }
 
@@ -169,6 +191,11 @@ export default function StudentTaskPage() {
   const attemptsUsed = attempts.length
   const canSubmit = task && isTaskAvailableNow(task) && attemptsUsed < task.attempts_allowed
   const latestAttempt = attempts[0] ?? null
+
+  const startTask = () => {
+    startedAtRef.current = Date.now()
+    setSelectedMode("task")
+  }
 
   const submitTask = async () => {
     if (!task || !studentId || !classroomId || !canSubmit) return
@@ -224,9 +251,11 @@ export default function StudentTaskPage() {
             <Link href="/student/tasks">
               <Button variant="outline">Volver</Button>
             </Link>
-            <Link href={`/student/tasks/${task.id}/practice`}>
-              <Button>Practicar</Button>
-            </Link>
+            {!practiceCompleted && (
+              <Link href={`/student/tasks/${task.id}/practice`}>
+                <Button>Practicar</Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -247,9 +276,11 @@ export default function StudentTaskPage() {
             <Link href="/student/tasks">
               <Button variant="outline">Volver</Button>
             </Link>
-            <Link href={`/student/tasks/${task.id}/practice`}>
-              <Button>Practicar</Button>
-            </Link>
+            {!practiceCompleted && (
+              <Link href={`/student/tasks/${task.id}/practice`}>
+                <Button>Practicar</Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -278,7 +309,59 @@ export default function StudentTaskPage() {
         </div>
       </section>
 
-      {task.content_json ? (
+      {selectedMode === "choose" && (
+        <section className="grid gap-4 md:grid-cols-2">
+          <div
+            className={`rounded-lg border-2 p-6 shadow-sm ${
+              practiceCompleted
+                ? "border-slate-200 bg-slate-50"
+                : "border-emerald-200 bg-white transition hover:-translate-y-1 hover:border-emerald-400"
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className="rounded-md bg-emerald-100 p-3">
+                <ListTodo className="h-6 w-6 text-emerald-700" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Practicar primero</h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  {practiceCompleted
+                    ? "Ya completaste la practica con 100%. No necesitas volver a practicar."
+                    : "Resuelve ejercicios similares con datos cambiados. La practica no cuenta como entrega."}
+                </p>
+                {practiceCompleted ? (
+                  <div className="mt-4 text-sm font-semibold text-slate-500">Practica completada</div>
+                ) : (
+                  <Link href={`/student/tasks/${task.id}/practice`} className="mt-4 inline-flex text-sm font-semibold text-emerald-700">
+                    Entrar a practica
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={startTask}
+            className="rounded-lg border-2 border-amber-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-1 hover:border-amber-400"
+          >
+            <div className="flex items-start gap-3">
+              <div className="rounded-md bg-amber-100 p-3">
+                <CheckCircle2 className="h-6 w-6 text-amber-700" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Hacer tarea ahora</h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  Inicia el intento oficial. Al entregarlo se registra como tu respuesta final.
+                </p>
+                <div className="mt-4 text-sm font-semibold text-amber-700">Empezar intento</div>
+              </div>
+            </div>
+          </button>
+        </section>
+      )}
+
+      {selectedMode === "task" && task.content_json ? (
         <DynamicAssessment
           content={task.content_json}
           settings={task.settings_json}
@@ -288,7 +371,7 @@ export default function StudentTaskPage() {
           displayTitle={task.title}
           submitTarget="task"
         />
-      ) : (
+      ) : selectedMode === "task" ? (
         <section className="space-y-4">
           {task.questions.map((question, index) => (
             <div key={question.id} className="rounded-2xl border bg-card p-5">
@@ -305,13 +388,15 @@ export default function StudentTaskPage() {
             </div>
           ))}
         </section>
-      )}
+      ) : null}
 
-      {!task.content_json && (
+      {selectedMode === "task" && !task.content_json && (
         <div className="flex justify-end gap-3">
-          <Link href={`/student/tasks/${task.id}/practice`}>
-            <Button type="button" variant="outline">Practicar aparte</Button>
-          </Link>
+          {!practiceCompleted && (
+            <Link href={`/student/tasks/${task.id}/practice`}>
+              <Button type="button" variant="outline">Practicar aparte</Button>
+            </Link>
+          )}
           <Button onClick={submitTask} disabled={submitting}>
             {submitting ? "Entregando..." : "Entregar tarea"}
           </Button>

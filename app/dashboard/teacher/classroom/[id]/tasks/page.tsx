@@ -1,4 +1,4 @@
-import { ClassroomTaskManager } from "@/components/tasks/ClassroomTaskManager"
+import { redirect } from "next/navigation"
 
 export default async function TeacherClassroomTasksPage({
   params,
@@ -6,5 +6,5 @@ export default async function TeacherClassroomTasksPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  return <ClassroomTaskManager classroomId={id} owner="teacher" />
+  redirect(`/dashboard/teacher/classroom/${id}`)
 }

@@ -12,7 +12,7 @@ import {
   toDatetimeInputValue,
 } from "@/lib/task-availability"
 import { TaskPreview } from "@/components/tasks/TaskPreview"
-import { parseAssessmentText, stringifyJson } from "@/lib/assessment-json"
+import { parseAssessmentText, stringifyJson, withGeneratedPractice } from "@/lib/assessment-json"
 
 type Message = { type: "success" | "error"; text: string }
 
@@ -48,6 +48,9 @@ type TaskRow = {
   active: boolean
   order_index: number
   questions: TaskQuestion[]
+  practice_count?: number
+  practice_avg_accuracy?: number | null
+  practice_completed_count?: number
 }
 
 const EMPTY_FORM = {
@@ -85,6 +88,7 @@ export function ClassroomTaskManager({
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<TaskRow | null>(null)
   const [previewing, setPreviewing] = useState<TaskRow | null>(null)
+  const [practiceStats, setPracticeStats] = useState<Record<string, { count: number; avgAccuracy: number | null; completed: number }>>({})
 
   const base =
     owner === "admin"
@@ -129,9 +133,38 @@ export function ClassroomTaskManager({
 
     if (error) throw error
 
+    const taskIds = ((data ?? []) as any[]).map((row) => row.id)
+    const nextPracticeStats: Record<string, { count: number; avgAccuracy: number | null; completed: number }> = {}
+
+    if (taskIds.length > 0) {
+      const { data: practiceData, error: practiceError } = await supabase
+        .from("edu_task_practice_sessions")
+        .select("task_id, accuracy")
+        .in("task_id", taskIds)
+
+      if (practiceError) throw practiceError
+
+      for (const row of (practiceData ?? []) as { task_id: string; accuracy: number | string | null }[]) {
+        const stat = nextPracticeStats[row.task_id] ?? { count: 0, avgAccuracy: null, completed: 0 }
+        const accuracy = row.accuracy == null ? null : Number(row.accuracy)
+        stat.count += 1
+        if (accuracy != null && Number.isFinite(accuracy)) {
+          const previousTotal = (stat.avgAccuracy ?? 0) * stat.completed
+          stat.completed += 1
+          stat.avgAccuracy = Math.round((previousTotal + accuracy) / stat.completed)
+        }
+        nextPracticeStats[row.task_id] = stat
+      }
+    }
+
+    setPracticeStats(nextPracticeStats)
+
     setTasks(
       ((data ?? []) as any[]).map((row) => ({
         ...row,
+        practice_count: nextPracticeStats[row.id]?.count ?? 0,
+        practice_avg_accuracy: nextPracticeStats[row.id]?.avgAccuracy ?? null,
+        practice_completed_count: nextPracticeStats[row.id]?.completed ?? 0,
         questions: [...(row.questions ?? [])].sort(
           (a: TaskQuestion, b: TaskQuestion) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0),
         ),
@@ -194,6 +227,7 @@ export function ClassroomTaskManager({
       if (!contentJson) {
         throw new Error("Pega contenido JSON para la tarea.")
       }
+      const contentWithPractice = withGeneratedPractice(contentJson, form.title.trim())
 
       const payload = {
         classroom_id: classroomId,
@@ -207,7 +241,7 @@ export function ClassroomTaskManager({
         status: "published" as TaskRow["status"],
         available_from: fromDatetimeInputValue(form.available_from),
         available_until: fromDatetimeInputValue(form.available_until),
-        content_json: contentJson,
+        content_json: contentWithPractice,
         settings_json: TASK_SETTINGS,
         active: true,
       }
@@ -226,7 +260,7 @@ export function ClassroomTaskManager({
 
       await loadTasks()
       resetForm()
-      setMessage({ type: "success", text: editing ? "Tarea actualizada." : "Tarea creada." })
+      setMessage({ type: "success", text: editing ? "Tarea actualizada con practica derivada." : "Tarea creada con practica derivada." })
     } catch (error: any) {
       setMessage({ type: "error", text: error?.message || "No se pudo guardar la tarea." })
     } finally {
@@ -278,10 +312,18 @@ export function ClassroomTaskManager({
                     <div className="min-w-0">
                       <div className="font-semibold">{task.title}</div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        Tarea Â· {task.content_json ? "JSON dinamico" : `${task.questions.length} pregunta${task.questions.length === 1 ? "" : "s"}`} Â· 1 intento Â· practica 3 intentos
+                        Tarea - {task.content_json ? "JSON dinamico" : `${task.questions.length} pregunta${task.questions.length === 1 ? "" : "s"}`} - 1 intento - practica 3 intentos
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
                         Disponible: {formatTaskDateTime(task.available_from)} - {formatTaskDateTime(task.available_until)}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                        <span className="rounded-full border bg-background px-2.5 py-1">
+                          Practicas: {practiceStats[task.id]?.count ?? task.practice_count ?? 0}
+                        </span>
+                        <span className="rounded-full border bg-background px-2.5 py-1">
+                          Promedio: {practiceStats[task.id]?.avgAccuracy ?? task.practice_avg_accuracy ?? "-"}%
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

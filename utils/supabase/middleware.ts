@@ -111,7 +111,7 @@ export const updateSession = async (request: NextRequest) => {
       .maybeSingle();
 
     if (profile?.global_role === "student") {
-      return NextResponse.redirect(new URL("/student/exams", request.url));
+      return NextResponse.redirect(new URL("/student", request.url));
     }
 
     if (profile?.global_role === "teacher") {

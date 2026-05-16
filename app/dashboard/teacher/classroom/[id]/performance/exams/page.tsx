@@ -886,7 +886,6 @@ export default function TeacherExamPerformancePage() {
         breadcrumbs={[
           { label: "Mis Clases", href: "/dashboard/teacher" },
           { label: classroomLabel, href: `/dashboard/teacher/classroom/${classroomId}` },
-          { label: "Exámenes", href: `/dashboard/teacher/classroom/${classroomId}/exams` },
           { label: "Dashboard" },
         ]}
       />

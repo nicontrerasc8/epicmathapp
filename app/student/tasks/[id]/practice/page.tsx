@@ -10,6 +10,7 @@ import { useInstitution } from "@/components/institution-provider"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DynamicAssessment } from "@/components/assessments/DynamicAssessment"
+import { getPracticeAssessmentContent } from "@/lib/assessment-json"
 
 type QuestionRow = {
   id: string
@@ -62,6 +63,7 @@ export default function StudentTaskPracticePage() {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [correctMap, setCorrectMap] = useState<Record<string, boolean>>({})
   const [practiceAttemptsUsed, setPracticeAttemptsUsed] = useState(0)
+  const [practiceCompleted, setPracticeCompleted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -80,7 +82,7 @@ export default function StudentTaskPracticePage() {
       setStudentId(session.student_id)
       setClassroomId(session.classroom_id)
 
-      const [{ data, error }, { count, error: attemptsError }] = await Promise.all([
+      const [{ data, error }, { data: practiceSessions, count, error: attemptsError }] = await Promise.all([
         supabase
           .from("edu_tasks")
           .select(`
@@ -107,7 +109,7 @@ export default function StudentTaskPracticePage() {
           .maybeSingle(),
         supabase
           .from("edu_task_practice_sessions")
-          .select("*", { count: "exact", head: true })
+          .select("accuracy", { count: "exact" })
           .eq("task_id", taskId)
           .eq("student_id", session.student_id)
           .eq("classroom_id", session.classroom_id),
@@ -131,6 +133,11 @@ export default function StudentTaskPracticePage() {
         ),
       } as TaskRow)
       setPracticeAttemptsUsed(count ?? 0)
+      setPracticeCompleted(
+        ((practiceSessions ?? []) as { accuracy: number | string | null }[]).some(
+          (practiceSession) => Number(practiceSession.accuracy ?? 0) >= 100,
+        ),
+      )
       setLoading(false)
     }
 
@@ -139,8 +146,8 @@ export default function StudentTaskPracticePage() {
 
   const savePractice = async () => {
     if (!task || !studentId || !classroomId) return
-    if (practiceAttemptsUsed >= 3) {
-      setError("Ya usaste los intentos de practica.")
+    if (practiceCompleted || practiceAttemptsUsed >= 3) {
+      setError(practiceCompleted ? "Ya completaste la practica correctamente." : "Ya usaste los intentos de practica.")
       return
     }
     setSaving(true)
@@ -181,6 +188,7 @@ export default function StudentTaskPracticePage() {
       const { error: answersError } = await supabase.from("edu_task_practice_answers").insert(answerRows)
       if (answersError) throw answersError
       setPracticeAttemptsUsed((current) => current + 1)
+      setPracticeCompleted(accuracy >= 100)
       setSaved(true)
     } catch (error: any) {
       setError(error?.message || "No se pudo guardar la practica.")
@@ -233,21 +241,21 @@ export default function StudentTaskPracticePage() {
         <p className="mt-2 text-xs text-muted-foreground">Intento {Math.min(practiceAttemptsUsed + 1, 3)} de 3</p>
       </section>
 
-      {practiceAttemptsUsed >= 3 && (
+      {(practiceCompleted || practiceAttemptsUsed >= 3) && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Ya usaste los intentos de practica.
+          {practiceCompleted ? "Ya completaste la practica correctamente." : "Ya usaste los intentos de practica."}
         </div>
       )}
 
       {task.content_json ? (
         <DynamicAssessment
-          content={task.content_json}
+          content={getPracticeAssessmentContent(task.content_json, `Practica: ${task.title}`)}
           settings={task.settings_json}
           taskId={task.id}
           classroomId={classroomId ?? undefined}
           studentId={studentId ?? undefined}
           displayTitle={`Practica: ${task.title}`}
-          attemptLocked={practiceAttemptsUsed >= 3}
+          attemptLocked={practiceCompleted || practiceAttemptsUsed >= 3}
           submitTarget="practice"
         />
       ) : (
@@ -277,7 +285,7 @@ export default function StudentTaskPracticePage() {
           </section>
 
           <div className="flex justify-end">
-            <Button onClick={savePractice} disabled={saving || practiceAttemptsUsed >= 3}>
+            <Button onClick={savePractice} disabled={saving || practiceCompleted || practiceAttemptsUsed >= 3}>
               {saving ? "Guardando..." : "Guardar practica"}
             </Button>
           </div>

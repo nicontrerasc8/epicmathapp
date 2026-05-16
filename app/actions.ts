@@ -103,7 +103,7 @@ export const signInAction = async (formData: FormData) => {
       return redirect("/dashboard/teacher");
 
     case "student":
-      return redirect("/student/exams");
+      return redirect("/student");
 
     case "parent":
       return redirect("/parent");

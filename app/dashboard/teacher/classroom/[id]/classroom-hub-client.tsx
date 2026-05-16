@@ -28,6 +28,8 @@ interface TeacherClassroomHubProps {
         studentCount: number
         activeStudents: number
         examCount: number
+        taskCount: number
+        practiceCount: number
     }
 }
 
@@ -105,11 +107,23 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
                     icon={FileText}
                     variant="warning"
                 />
+                <StatCard
+                    title="Tareas"
+                    value={stats.taskCount}
+                    icon={ListTodo}
+                    variant="primary"
+                />
+                <StatCard
+                    title="Practicas"
+                    value={stats.practiceCount}
+                    icon={TrendingUp}
+                    variant="success"
+                />
             </StatCardGrid>
 
             <section>
                 <h2 className="text-lg font-semibold mb-4">Gestion y Rendimiento</h2>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <QuickActionCard
                         icon={TrendingUp}
                         title="Rendimiento Academico"
@@ -117,22 +131,16 @@ export default function TeacherClassroomHubClient({ classroom, stats }: TeacherC
                         href={`/dashboard/teacher/classroom/${classroom.id}/performance/exams`}
                     />
                     <QuickActionCard
+                        icon={ListTodo}
+                        title="Tareas y Practicas"
+                        description="Ver entregas, intentos y practicas completadas"
+                        href={`/dashboard/teacher/classroom/${classroom.id}/performance/tasks`}
+                    />
+                    <QuickActionCard
                         icon={Users}
                         title="Estudiantes"
                         description="Lista de estudiantes y perfiles"
                         href={`/dashboard/teacher/classroom/${classroom.id}/students`}
-                    />
-                    <QuickActionCard
-                        icon={FileText}
-                        title="Examenes"
-                        description="Programar examenes y ver su tablero"
-                        href={`/dashboard/teacher/classroom/${classroom.id}/exams`}
-                    />
-                    <QuickActionCard
-                        icon={ListTodo}
-                        title="Tareas"
-                        description="Crear tareas y practicas para el aula"
-                        href={`/dashboard/teacher/classroom/${classroom.id}/tasks`}
                     />
                 </div>
             </section>

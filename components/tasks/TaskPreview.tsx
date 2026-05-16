@@ -1,7 +1,7 @@
 "use client"
 
 import { DynamicAssessment } from "@/components/assessments/DynamicAssessment"
-import { normalizeAssessmentContent } from "@/lib/assessment-json"
+import { getPracticeAssessmentContent, normalizeAssessmentContent } from "@/lib/assessment-json"
 
 type ExercisePreview = {
   id: string
@@ -54,6 +54,7 @@ export function TaskPreview({ task }: { task: TaskPreviewData }) {
   if (task.content_json) {
     const content = normalizeAssessmentContent(task.content_json, task.title)
     const practiceEnabled = content.practice?.enabled ?? true
+    const practiceContent = getPracticeAssessmentContent(content, `Practica: ${task.title}`)
 
     return (
       <div className="space-y-6">
@@ -70,13 +71,13 @@ export function TaskPreview({ task }: { task: TaskPreviewData }) {
             <div className="mb-4">
               <div className="text-sm font-semibold text-slate-900">Practica derivada</div>
               <p className="text-xs text-muted-foreground">
-                Usa el mismo JSON de la tarea y puede incluir imagenes por pregunta.
+                Usa preguntas similares con datos cambiados y guarda hasta 3 intentos.
               </p>
             </div>
             <DynamicAssessment
-              content={{ ...content, title: content.practice?.title || `Practica: ${task.title}` }}
+              content={practiceContent}
               settings={{ ...(typeof task.settings_json === "object" && task.settings_json ? task.settings_json : {}), mode: "practice" }}
-              displayTitle={content.practice?.title || `Practica: ${task.title}`}
+              displayTitle={practiceContent.title || `Practica: ${task.title}`}
               previewMode
               submitTarget="none"
             />

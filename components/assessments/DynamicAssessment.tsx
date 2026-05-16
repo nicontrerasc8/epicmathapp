@@ -27,7 +27,19 @@ type DynamicAssessmentProps = {
 
 function renderText(value: string, block = false) {
   if (!value.includes("\\") && !value.includes("^") && !value.includes("_")) return value
-  return <MathTex tex={value} block={block} />
+  return <MathTex tex={unwrapMathDelimiters(value)} block={block} />
+}
+
+function unwrapMathDelimiters(value: string) {
+  return value
+    .trim()
+    .replace(/^\\\(([\s\S]*)\\\)$/g, "$1")
+    .replace(/^\\\[([\s\S]*)\\\]$/g, "$1")
+    .replace(/^\${1,2}([\s\S]*?)\${1,2}$/g, "$1")
+}
+
+function optionBody(option: any) {
+  return option.latex || option.text || option.value || option.content || option.label || option.key
 }
 
 function VisualBlock({ visual }: { visual?: string }) {
@@ -109,7 +121,12 @@ export function DynamicAssessment({
   const correctCount = questions.filter((question) => answers[question.id] === question.correctKey).length
   const wrongCount = questions.length - correctCount
   const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0
-  const showReview = previewMode || submitted || resolvedSettings.showReview
+  const allAnswered = questions.length > 0 && questions.every((question) => Boolean(answers[question.id]))
+  const showReview =
+    previewMode ||
+    (submitTarget === "practice" && submitted) ||
+    (submitTarget !== "practice" && submitTarget !== "task" && resolvedSettings.showReview)
+  const showScore = submitTarget !== "task" && (resolvedSettings.showScore ?? true)
   const canSubmit = !previewMode && !attemptLocked && submitTarget !== "none"
 
   const submit = async () => {
@@ -164,14 +181,20 @@ export function DynamicAssessment({
 
       if (submitTarget === "practice" && taskId) {
         const practiceAttemptsAllowed = Math.max(1, Number(resolvedSettings.practiceAttemptsAllowed ?? 3))
-        const { count: practiceAttempts, error: attemptsError } = await supabase
+        const { data: practiceSessions, count: practiceAttempts, error: attemptsError } = await supabase
           .from("edu_task_practice_sessions")
-          .select("*", { count: "exact", head: true })
+          .select("accuracy", { count: "exact" })
           .eq("task_id", taskId)
           .eq("student_id", studentId)
           .eq("classroom_id", classroomId)
 
         if (attemptsError) throw attemptsError
+        const alreadyCompleted = ((practiceSessions ?? []) as { accuracy: number | string | null }[]).some(
+          (session) => Number(session.accuracy ?? 0) >= 100,
+        )
+        if (alreadyCompleted) {
+          throw new Error("Ya completaste la practica correctamente.")
+        }
         if ((practiceAttempts ?? 0) >= practiceAttemptsAllowed) {
           throw new Error("Ya usaste los intentos de practica.")
         }
@@ -258,7 +281,7 @@ export function DynamicAssessment({
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border font-semibold">
                       {option.label || option.key}
                     </span>
-                    <span>{option.latex ? <MathTex tex={option.latex} /> : option.label}</span>
+                    <span>{renderText(String(optionBody(option)))}</span>
                   </button>
                 ))}
               </div>
@@ -288,11 +311,11 @@ export function DynamicAssessment({
           <div className="rounded-2xl border bg-card p-6 text-center">
             <CheckCircle2 className="mx-auto mb-3 h-12 w-12 text-emerald-600" />
             <div className="font-semibold">Envio registrado</div>
-            {(resolvedSettings.showScore ?? true) && <div className="mt-1 text-sm text-muted-foreground">Puntaje: {score}%</div>}
+            {showScore && <div className="mt-1 text-sm text-muted-foreground">Puntaje: {score}%</div>}
           </div>
         ) : canSubmit ? (
           <div className="flex justify-end">
-            <Button onClick={submit} disabled={saving}>
+            <Button onClick={submit} disabled={saving || (submitTarget === "practice" && !allAnswered)}>
               {saving ? "Guardando..." : "Entregar"}
             </Button>
           </div>
