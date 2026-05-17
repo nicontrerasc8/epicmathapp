@@ -214,6 +214,38 @@ export function ClassroomTaskManager({
     })
   }
 
+  const regeneratePractice = async (task: TaskRow) => {
+    setMessage(null)
+
+    try {
+      if (!task.content_json) throw new Error("Esta tarea no tiene contenido JSON para regenerar.")
+
+      const contentWithPractice = withGeneratedPractice(task.content_json, task.title)
+      const { error } = await supabase
+        .from("edu_tasks")
+        .update({ content_json: contentWithPractice })
+        .eq("id", task.id)
+
+      if (error) throw error
+
+      await loadTasks()
+      setPreviewing((current) =>
+        current?.id === task.id
+          ? ({ ...current, content_json: contentWithPractice } as TaskRow)
+          : current,
+      )
+      setEditing((current) =>
+        current?.id === task.id ? ({ ...current, content_json: contentWithPractice } as TaskRow) : current,
+      )
+      if (editing?.id === task.id) {
+        setForm((current) => ({ ...current, content_json: stringifyJson(contentWithPractice) }))
+      }
+      setMessage({ type: "success", text: "Practica regenerada desde las preguntas actuales." })
+    } catch (error: any) {
+      setMessage({ type: "error", text: error?.message || "No se pudo regenerar la practica." })
+    }
+  }
+
   const saveTask = async (event: React.FormEvent) => {
     event.preventDefault()
     setMessage(null)
@@ -333,6 +365,7 @@ export function ClassroomTaskManager({
                         actions={[
                           { label: "Previsualizar", onClick: () => setPreviewing(task) },
                           { label: "Editar", onClick: () => openEdit(task) },
+                          { label: "Regenerar practica", onClick: () => regeneratePractice(task) },
                           {
                             label: task.active ? "Desactivar" : "Activar",
                             onClick: async () => {

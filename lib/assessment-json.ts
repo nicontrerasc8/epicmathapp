@@ -30,6 +30,7 @@ export type DynamicAssessmentContent = {
     enabled?: boolean
     mode?: string
     title?: string
+    generated?: boolean
     questions?: DynamicQuestion[]
   }
 }
@@ -97,23 +98,10 @@ export function stringifyJson(value: unknown) {
 }
 
 export function withGeneratedPractice(
-  input: DynamicAssessmentContent,
+  input: unknown,
   fallbackTitle = "Evaluacion",
 ): DynamicAssessmentContent {
   const content = normalizeAssessmentContent(input, fallbackTitle)
-  const existingPracticeQuestions = content.practice?.questions
-
-  if (existingPracticeQuestions?.length) {
-    return {
-      ...content,
-      practice: {
-        enabled: true,
-        mode: "reinforcement",
-        title: `Practica: ${content.title || fallbackTitle}`,
-        ...content.practice,
-      },
-    }
-  }
 
   return {
     ...content,
@@ -122,6 +110,7 @@ export function withGeneratedPractice(
       mode: "reinforcement",
       title: `Practica: ${content.title || fallbackTitle}`,
       ...content.practice,
+      generated: true,
       questions: content.questions.map((question, index) => makePracticeQuestion(question, index)),
     },
   }
@@ -144,6 +133,7 @@ export function getPracticeAssessmentContent(
       enabled: true,
       mode: "reinforcement",
       ...content.practice,
+      generated: content.practice?.generated ?? true,
     },
   }
 }
@@ -175,59 +165,5 @@ function makePracticeQuestion(question: DynamicQuestion, index: number): Dynamic
     ...question,
     id: `${question.id || `q${index + 1}`}-practice`,
     title: question.title || `Practica ${index + 1}`,
-    subtitle: question.subtitle ? mutateTextNumbers(question.subtitle, index) : question.subtitle,
-    prompt: mutateTextNumbers(question.prompt, index),
-    statement: question.statement?.map((line, lineIndex) => mutateTextNumbers(line, index + lineIndex + 1)),
-    options: question.options?.map((option, optionIndex) => ({
-      ...option,
-      label: shouldMutateOptionLabel(option.label) ? mutateTextNumbers(option.label, index + optionIndex + 1) : option.label,
-      latex: option.latex ? mutateTextNumbers(option.latex, index + optionIndex + 1) : option.latex,
-      text: option.text ? mutateTextNumbers(option.text, index + optionIndex + 1) : option.text,
-      value: option.value ? mutateTextNumbers(option.value, index + optionIndex + 1) : option.value,
-      content: option.content ? mutateTextNumbers(option.content, index + optionIndex + 1) : option.content,
-    })),
-    explanation: question.explanation ? mutateTextNumbers(question.explanation, index + 2) : question.explanation,
   }
-}
-
-function shouldMutateOptionLabel(label: string) {
-  return label.trim().length > 1
-}
-
-function mutateTextNumbers(value: string, salt: number) {
-  let seen = 0
-
-  return value.replace(/-?\d+(?:\.\d+)?/g, (match, offset, source) => {
-    const previous = source[offset - 1]
-    if (previous === "q" || previous === "Q") return match
-
-    const parsed = Number(match)
-    if (!Number.isFinite(parsed)) return match
-
-    const next = nextNumber(parsed, salt + seen)
-    seen += 1
-    return formatLike(match, next)
-  })
-}
-
-function nextNumber(value: number, salt: number) {
-  if (value === 0) return salt + 1
-
-  const direction = salt % 2 === 0 ? 1 : -1
-  const magnitude = Math.max(1, Math.round(Math.abs(value) * 0.18))
-  const delta = direction * (magnitude + (salt % 3))
-  const next = value + delta
-
-  if (value > 0 && next <= 0) return value + magnitude + 1
-  if (value < 0 && next >= 0) return value - magnitude - 1
-  return next
-}
-
-function formatLike(original: string, value: number) {
-  if (original.includes(".")) {
-    const decimals = original.split(".")[1]?.length ?? 1
-    return value.toFixed(decimals)
-  }
-
-  return String(Math.round(value))
 }

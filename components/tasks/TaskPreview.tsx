@@ -71,7 +71,7 @@ export function TaskPreview({ task }: { task: TaskPreviewData }) {
             <div className="mb-4">
               <div className="text-sm font-semibold text-slate-900">Practica derivada</div>
               <p className="text-xs text-muted-foreground">
-                Usa preguntas similares con datos cambiados y guarda hasta 3 intentos.
+                Usa una copia consistente de las preguntas y guarda hasta 3 intentos.
               </p>
             </div>
             <DynamicAssessment
